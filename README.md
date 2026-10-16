@@ -1,4 +1,4 @@
-# PaperRead
+# 文獻小幫手
 
 <p align="center">
   <img src="easyread/web/paperread-mark.png" width="88" alt="PaperRead">

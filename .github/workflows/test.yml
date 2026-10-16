@@ -39,7 +39,7 @@ jobs:
           python -m easyread serve --port 8799 > serve.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8799/ -o page.html && break; sleep 1; done
           cat serve.log
-          grep -q "PaperRead" page.html
+          grep -q "文獻小幫手" page.html
           curl -sf http://127.0.0.1:8799/web/js/common/confirm.js -o /dev/null
           curl -sf http://127.0.0.1:8799/web/css/base.css -o /dev/null
           echo OK
@@ -61,4 +61,4 @@ jobs:
           (./start.sh > start.log 2>&1 &)
           for i in $(seq 1 120); do curl -sf http://127.0.0.1:8765/ -o /dev/null && break; sleep 1; done
           cat start.log
-          curl -sf http://127.0.0.1:8765/ | grep -q "PaperRead"
+          curl -sf http://127.0.0.1:8765/ | grep -q "文獻小幫手"
