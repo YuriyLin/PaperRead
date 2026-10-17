@@ -7,7 +7,7 @@ import threading
 import time
 from uuid import uuid4
 
-from . import chat_models, config, langs, translate, usage
+from . import chat_models, config, langs, review_policy, translate, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
@@ -85,6 +85,11 @@ class Jobs:
         for ws in self.lib.all():
             job = ws.load("job") or {}
             if job.get("state") in ("queued", "running"):
+                if review_policy.isolated():
+                    # Release stale busy state without deleting page plans or
+                    # completed results. A new task requires an explicit action.
+                    self._write(ws, state="cancelled", message=tr("隔離測試重啟後不自動續跑，請重新選頁提交。"))
+                    continue
                 self._write(ws, state="queued", message=tr("排队中（服务重启后继续）"))
                 self.bulk.put(ws.id)
 

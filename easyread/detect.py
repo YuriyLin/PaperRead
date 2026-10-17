@@ -6,7 +6,7 @@ import threading
 import time
 import urllib.request
 
-from . import engines
+from . import engines, review_policy
 
 _cache: dict = {}
 _lock = threading.Lock()
@@ -23,6 +23,8 @@ def _ollama() -> dict:
 
 def detect(cfg: dict, fresh: bool = False) -> dict:
     """查一次要 1–2 秒（要跑 claude --version）。有缓存就直接给，过期了在后台刷新，页面不用等。"""
+    if review_policy.isolated():
+        return _disabled()
     with _lock:
         cached = _cache.get("data")
         if cached and not fresh:
@@ -35,10 +37,18 @@ def detect(cfg: dict, fresh: bool = False) -> dict:
 
 def warm(cfg: dict) -> None:
     """服务启动时先在后台查一遍，第一次打开设置就不用等。"""
-    threading.Thread(target=_refresh, args=(cfg,), daemon=True).start()
+    if not review_policy.isolated():
+        threading.Thread(target=_refresh, args=(cfg,), daemon=True).start()
+
+
+def _disabled() -> dict:
+    return {"claude": {"found": False, "version": ""}, "codex": {"found": False, "version": ""},
+            "ollama": {"running": False, "models": []}}
 
 
 def _refresh(cfg: dict) -> dict:
+    if review_policy.isolated():
+        return _disabled()
     out: dict = {}
 
     def cli(name, finder):

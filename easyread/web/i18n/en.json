@@ -1813,5 +1813,9 @@
  "中文譯文": "Chinese translation",
  "來源已變更或儲存格無法定位，請核對原始 PDF。": "The source changed or this cell cannot be located. Inspect the original PDF.",
  "核對原始 PDF": "Check the original PDF",
- "隔離測試模式禁止呼叫模型。": "Model calls are disabled in the isolated test profile."
+ "隔離測試模式禁止呼叫模型。": "Model calls are disabled in the isolated test profile.",
+ "RealModelValidation 尚未通過 Codex 工具、讀取範圍與登入來源隔離驗證，禁止呼叫真實模型。": "RealModelValidation is blocked: Codex tools, read scope and login/provider isolation have not been verified.",
+ "隔離驗證必須明確指定 PDF 頁碼。": "Isolated validation requires explicit PDF page numbers.",
+ "只補譯指定頁面的表格": "Translate tables on selected PDF pages only",
+ "隔離測試重啟後不自動續跑，請重新選頁提交。": "Isolated review does not resume jobs after restart. Select pages and submit again."
 }

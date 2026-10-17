@@ -5,8 +5,8 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 const clone = value => JSON.parse(JSON.stringify(value));
-function settings() {
-  let config = { engine: 'claude', claude: { model: 'opus' }, codex: {}, openai: {}, page_cap: 100, auto_translate: false };
+function settings(overrides = {}) {
+  let config = { engine: 'claude', claude: { model: 'opus' }, codex: {}, openai: {}, page_cap: 100, auto_translate: false, ...overrides };
   let chat = { default: 'sonnet', models: [
     { id: 'opus', name: 'Claude Opus', engine: 'claude', model: 'opus', ready: false, hint: 'Claude missing' },
     { id: 'sonnet', name: 'Claude Sonnet', engine: 'claude', model: 'sonnet', ready: false },
@@ -74,6 +74,15 @@ test('Codex translation card saves and survives closing/reopening without changi
   assert.match(h.dialog.innerHTML, /翻译：GPT-6.1-Sol/);
   assert.deepEqual(h.posts.map(p => p.url), ['/api/chat/models', '/api/config']);
   assert.equal(h.toasts.length, 0);
+});
+
+test('Mock settings preserve none and show the backend prohibition without creating a Claude selection', async () => {
+  const h = settings({ engine: 'none', review_policy: { mode: 'Mock', real_model_allowed: false, reason: 'Real models blocked' } });
+  await h.PR.openSettings();
+  assert.equal(h.PR.settingsState.cfg.engine, 'none');
+  assert.equal(h.saved().config.engine, 'none');
+  assert.equal(h.posts.length, 0);
+  assert.match(h.dialog.innerHTML, /Mock.*Real models blocked/);
 });
 
 test('queued saves keep snapshots in order and reopening waits for the final selection', async () => {

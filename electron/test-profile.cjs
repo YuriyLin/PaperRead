@@ -10,8 +10,13 @@ function canonical(value) {
   return path.join(fs.realpathSync(parent), ...tail);
 }
 function testProfile(env, appData, home = os.homedir()) {
+  const mode = env.PAPERREAD_REVIEW_MODE || "Mock";
+  if (mode !== "Mock") throw new Error("RealModelValidation is blocked: Codex tool, read-scope and login/provider isolation are not verified");
   const raw = env.PAPERREAD_TEST_PROFILE;
-  if (!raw) return null;
+  if (!raw) {
+    if (env.PAPERREAD_REVIEW_MODE) throw new Error("Review mode requires an isolated test profile");
+    return null;
+  }
   if (!path.isAbsolute(raw)) throw new Error("PAPERREAD_TEST_PROFILE must be an absolute path");
   const root = canonical(raw);
   const overlaps = (a, b) => {
@@ -21,7 +26,12 @@ function testProfile(env, appData, home = os.homedir()) {
   if ([appData, home].some(base => ["PaperRead", "EasyRead"].some(name => overlaps(root, path.join(base, name)))) || root === path.parse(root).root) {
     throw new Error("Test profile must be separate from installed PaperRead/EasyRead data");
   }
+  for (const area of ["home", "library", "desktop", "vault"]) {
+    const child = path.join(root, area);
+    if (canonical(child).toLowerCase() !== child.toLowerCase()) throw new Error("Test profile directories must not redirect outside the profile");
+  }
   return { userData: path.join(root, "desktop"), env: { EASYREAD_HOME: path.join(root, "home"),
-    EASYREAD_LIBRARY: path.join(root, "library"), PAPERREAD_OFFLINE_TEST: "1" } };
+    EASYREAD_LIBRARY: path.join(root, "library"), PAPERREAD_TEST_PROFILE: root,
+    PAPERREAD_REVIEW_MODE: "Mock", PAPERREAD_OFFLINE_TEST: "1" } };
 }
 module.exports = { testProfile };

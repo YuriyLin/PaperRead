@@ -9,7 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import page_check, sources
+from . import page_check, review_policy, sources
 from .i18n import tr
 from .log import log
 from .store import SCHEMA, Workspace, empty_discussion, empty_reader, now_iso, read_json, write_json_atomic
@@ -22,7 +22,7 @@ def sha256_bytes(data: bytes) -> str:
 
 class Library:
     def __init__(self, root: Path):
-        self.root = Path(root).resolve()
+        self.root = review_policy.require_path(Path(root), "library").resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def ws(self, pid: str) -> Workspace | None:

@@ -213,8 +213,7 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
 # ---------- 流式输出 ----------
 def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None) -> Iterator[str]:
     """on_model reports the model actually used; meter records token usage."""
-    if os.environ.get("PAPERREAD_OFFLINE_TEST") == "1":
-        raise engines.EngineError(tr("隔離測試模式禁止呼叫模型。"))
+    engines.require_model_access()
     e = ecfg.get("engine")
     bad = netcheck.problem(ecfg)
     if bad:
@@ -233,6 +232,7 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
 def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
     """只给 Read 一个工具（--tools Read）：其余内置工具的定义每问一次都要发，约 2.7 万 token。
     这版 Claude Code 不认 --tools、还没输出任何字时，去掉它再问一次。"""
+    engines.require_model_access()
     exe = engines.claude_path(c)
     if not exe:
         raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))

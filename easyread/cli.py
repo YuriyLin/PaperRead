@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import config, paperdata, pdfwork
+from . import config, paperdata, pdfwork, review_policy
 from .checks import check
 from .library import Library, migrate_folder
 from .store import read_json, text_hash
@@ -48,6 +48,7 @@ def find(pid: str):
 
 
 def running_server() -> str | None:
+    review_policy.require_path(config.SERVER_INFO, "home")
     info = read_json(config.SERVER_INFO, {}) or {}
     if not info.get("url"):
         return None
@@ -59,6 +60,7 @@ def running_server() -> str | None:
 
 
 def cmd_serve(a):
+    review_policy.require_launch()
     url = None if (a.port is not None or config.temp_library()) else running_server()
     if url:
         out(f"服务已在运行：{url}")

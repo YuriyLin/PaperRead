@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Iterator
 
 from . import __version__, http, usage
-from .engines import Cancelled, EngineError
+from .engines import Cancelled, EngineError, require_model_access
 from .i18n import tr
 
 def api_kinds() -> list[tuple[str, str]]:
@@ -87,6 +87,7 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
 
 def _open(o: dict, body: dict, stream: bool):
     """发请求。有的模型（推理模型、Kimi K2 系列）不让改 temperature、有的接口不认 stream_options，报 400 时去掉再发。"""
+    require_model_access()
     path = "/responses" if kind(o) == "responses" else "/chat/completions"
     for _ in range(3):
         req = urllib.request.Request(_base(o) + path, data=json.dumps(body).encode(), headers=_headers(o, stream))
@@ -109,6 +110,7 @@ def _http_error(e: urllib.error.HTTPError) -> EngineError:
 
 # ---------- 一次拿到整段（翻译用） ----------
 def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) -> str:
+    require_model_access()
     body = _body(o, prompt, images, False, None if kind(o) == "responses" else 0.2)
     res = None
     for attempt in range(4):  # 限流、服务端错误、网络抖动：等一会儿再试
@@ -221,6 +223,7 @@ def _sleep(seconds: float, cancel) -> None:
 
 # ---------- 逐字输出（问 AI 用） ----------
 def stream(o: dict, text: str, cancel, meter=None) -> Iterator[str]:
+    require_model_access()
     if cancel.is_set():
         raise Cancelled()
     body = _body(o, text, [], True, None if kind(o) == "responses" else 0.4)
@@ -355,6 +358,7 @@ def _strip_think(pieces: Iterator[str]) -> Iterator[str]:
 # ---------- 模型列表 ----------
 def models(o: dict) -> list[str]:
     """GET {base}/models，返回模型名（排好序）。"""
+    require_model_access()
     base = (o.get("base_url") or "").strip().rstrip("/")
     if not base:
         raise EngineError(tr("先填接口地址"))

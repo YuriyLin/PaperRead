@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .i18n import tr
-from . import http
+from . import http, review_policy
 from .log import log
 from .presets import NEEDS_VPN, PRESETS
 
@@ -64,6 +64,8 @@ def _codex_base() -> str:
 
 def target(cfg: dict) -> dict | None:
     """{name, url, vpn}：vpn 表示這項服務可能需要 VPN 或代理連線。"""
+    if review_policy.isolated():
+        return None
     e = cfg.get("engine")
     if e == "claude":
         url = _claude_base()
@@ -109,6 +111,9 @@ def _has_advice(msg: str) -> bool:
 
 def problem(cfg: dict, timeout: float = 6) -> str | None:
     """连得上返回 None，连不上返回给用户看的一句话。"""
+    error = review_policy.model_error()
+    if error:
+        return error
     t = target(cfg)
     u = urlparse(t["url"]) if t else None
     if not u or not u.hostname:

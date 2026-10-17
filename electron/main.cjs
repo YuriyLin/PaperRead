@@ -13,7 +13,7 @@ const deepLink = require("./deep-link.cjs");
 // 新版使用 PaperRead 資料夾；第一次升級時把舊版 EasyRead 的桌面偏好
 // 搬到新位置，避免改名後像是全新安裝。搬移失敗時保留舊資料，不覆蓋任何內容。
 const appData = app.getPath("appData");
-const reviewProfile = process.env.PAPERREAD_TEST_PROFILE ? require("./test-profile.cjs").testProfile(process.env, appData) : null;
+const reviewProfile = (process.env.PAPERREAD_TEST_PROFILE || process.env.PAPERREAD_REVIEW_MODE) ? require("./test-profile.cjs").testProfile(process.env, appData) : null;
 const paperReadUserData = path.join(appData, "PaperRead");
 const legacyUserData = path.join(appData, "EasyRead");
 if (!reviewProfile && !fs.existsSync(paperReadUserData) && fs.existsSync(legacyUserData)) {
@@ -269,6 +269,12 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
+  if (reviewProfile) {
+    mainWindow.webContents.on("page-title-updated", event => {
+      event.preventDefault();
+      mainWindow.setTitle("PaperRead [Mock — real models blocked]");
+    });
+  }
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     if (/^https?:/i.test(target)) shell.openExternal(target);
     if (/^obsidian:/i.test(target)) shell.openExternal(target);

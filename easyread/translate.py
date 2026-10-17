@@ -260,6 +260,7 @@ def _batches(pages: list[int], size: int, en_pages: set[int]) -> list[list[int]]
 def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, meter=None, read=False) -> dict[int, str]:
     """翻译给定的页（已完成的页会重译并替换；只读原文整理过的页就地补译文）。report(done, total, message)；
     meter 收集 token 用量。read：只读原文，把页整理成块但不翻译。返回没做成的页 {页码: 原因}。"""
+    engines.require_model_access()
     cfg = engines.for_translation(cfg)  # 本机 CLI 不加载用户的 MCP、多余的工具定义（问 AI 不走这里）
     paper = ws.load("paper")
     total_pages = paper.get("meta", {}).get("page_count") or 0

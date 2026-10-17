@@ -15,7 +15,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from . import chat_models, engines
+from . import chat_models, engines, review_policy
 from .i18n import tr
 from .log import log
 from .presets import PRESETS
@@ -30,6 +30,8 @@ def _alias_desc(alias: str) -> str:
 
 def codex() -> dict:
     """{"default": slug, "models": [{"id", "name", "desc"}]}；Codex 没装或没登录过就是空名单。"""
+    if review_policy.isolated():
+        return {"default": "", "models": [], "configured_reasoning": "", "configured_tier": ""}
     out: list[dict] = []
     try:
         home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
@@ -48,6 +50,8 @@ def codex() -> dict:
 
 def claude_default() -> str:
     """Claude Code 不指定模型时用的那个，显示名（Claude Opus 5.5）；不知道就空。"""
+    if review_policy.isolated():
+        return ""
     try:
         model = json.loads((Path.home() / ".claude" / "settings.json").read_text(encoding="utf-8")).get("model") or ""
     except (OSError, ValueError, AttributeError):
@@ -60,6 +64,8 @@ def claude_default() -> str:
 
 def claude() -> dict:
     """{"default": "Claude Opus 5.5", "models": [{"id": "opus", "name": "Opus", "desc": "最强", "actual": "Claude Opus 5.5"}]}"""
+    if review_policy.isolated():
+        return {"configured_reasoning": "", "default": "", "models": []}
     try:
         settings = json.loads((Path.home() / ".claude" / "settings.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -72,6 +78,8 @@ def claude() -> dict:
 def probe_claude(c: dict, version: str) -> None:
     """让 Claude Code 报一下 opus / sonnet / haiku 现在各指向哪个版本。
     它启动时第一行（init 事件）就带着实际模型名，这时还没发请求；读到就结束进程，不花 token。"""
+    if review_policy.isolated():
+        return
     exe = engines.claude_path(c)
     if not exe or (chat_models.actual_of("_claude_version") == version
                    and all(chat_models.actual_of(a) for a in [x for x, _, _ in CLAUDE_ALIASES] + ["_default"])):
@@ -85,6 +93,8 @@ def probe_claude(c: dict, version: str) -> None:
 
 
 def _probe(exe: str, version: str) -> None:
+    if review_policy.isolated():
+        return
     for alias in [a for a, _, _ in CLAUDE_ALIASES] + ["_default"]:  # _default：不带 --model，看它默认用哪个
         proc = engines._popen([exe, "-p", *([] if alias == "_default" else ["--model", alias]), "--output-format", "stream-json", "--verbose",
                                "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"],

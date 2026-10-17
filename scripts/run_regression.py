@@ -15,7 +15,7 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".paperread-local-test" / "phase-c-final"
+OUTPUT = ROOT / ".paperread-local-test" / "model-validation-final"
 OUTPUT.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(ROOT))
 os.environ.update(EASYREAD_HOME=str(OUTPUT / "home"), EASYREAD_LIBRARY=str(OUTPUT / "library"),
@@ -23,6 +23,8 @@ os.environ.update(EASYREAD_HOME=str(OUTPUT / "home"), EASYREAD_LIBRARY=str(OUTPU
 # Unit tests exercise offline guards explicitly; the suite also uses loopback
 # fake HTTP servers. Do not globally turn off those fake transports.
 os.environ.pop("PAPERREAD_OFFLINE_TEST", None)
+os.environ.pop("PAPERREAD_TEST_PROFILE", None)
+os.environ.pop("PAPERREAD_REVIEW_MODE", None)
 node_dir = ROOT / ".paperread-local-test" / "node-v22.20.0-win-x64"
 os.environ["PATH"] = str(node_dir if node_dir.is_dir() else OUTPUT.parent / "bin") + os.pathsep + os.environ["PATH"]
 
@@ -47,7 +49,7 @@ def main():
     run = engines.run
 
     def guarded_model(*args, **kwargs):
-        if os.environ.get("PAPERREAD_OFFLINE_TEST") == "1":
+        if engines.review_policy.isolated():
             return run(*args, **kwargs)  # Exercise the production offline guard.
         raise AssertionError("Unmocked model call")
 

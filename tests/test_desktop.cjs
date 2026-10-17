@@ -31,6 +31,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     static getAllWindows() { return windows.filter(w => !w.closed); }
     async loadURL(url) { this.url = url; }
     show() { this.shown = true; }
+    setTitle(title) { this.title = title; }
     focus() { this.focused = true; }
     isMinimized() { return false; }
     close() { this.closed = true; this.emit("closed"); }
@@ -97,6 +98,11 @@ test("isolated desktop restarts reuse the same profile and leave saved model set
         assert.equal(env.EASYREAD_HOME, path.join(profile, 'home'));
         assert.equal(env.EASYREAD_LIBRARY, path.join(profile, 'library'));
         assert.equal(env.PAPERREAD_OFFLINE_TEST, '1');
+        assert.equal(env.PAPERREAD_REVIEW_MODE, 'Mock');
+        let prevented = false;
+        d.windows[0].webContents.emit('page-title-updated', { preventDefault() { prevented = true; } });
+        assert.equal(prevented, true);
+        assert.match(d.windows[0].title, /Mock.*blocked/);
         assert.equal(fs.readFileSync(configPath, 'utf8'), saved);
       } finally { d.app.quit(); await d.settled(); }
     }

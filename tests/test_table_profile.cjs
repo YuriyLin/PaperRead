@@ -32,3 +32,25 @@ test('review profile resolves existing junctions before accepting isolation', ()
     assert.throws(() => testProfile({ PAPERREAD_TEST_PROFILE: path.join(link, 'child') }, path.join(base, 'appdata'), path.join(base, 'user')), /separate/);
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
+
+test('real and unknown modes fail closed before profile creation or fallback', () => {
+  const root = path.join(os.tmpdir(), 'paperread-mode-must-not-create-' + process.pid);
+  for (const mode of ['RealModelValidation', 'real', 'unknown']) {
+    assert.throws(() => testProfile({ PAPERREAD_TEST_PROFILE: root, PAPERREAD_REVIEW_MODE: mode,
+      PAPERREAD_OFFLINE_TEST: '0' }, os.tmpdir()), /blocked/);
+    assert.equal(fs.existsSync(root), false);
+  }
+  assert.throws(() => testProfile({ PAPERREAD_REVIEW_MODE: 'Mock' }, os.tmpdir()), /requires/);
+});
+
+test('review profile rejects redirected data directories, including a test Vault', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'paperread-children-'));
+  try {
+    const outside = path.join(base, 'outside'); fs.mkdirSync(outside);
+    for (const area of ['home', 'library', 'desktop', 'vault']) {
+      const root = path.join(base, area); fs.mkdirSync(root);
+      fs.symlinkSync(outside, path.join(root, area), process.platform === 'win32' ? 'junction' : 'dir');
+      assert.throws(() => testProfile({ PAPERREAD_TEST_PROFILE: root }, path.join(base, 'appdata'), path.join(base, 'user')), /redirect/);
+    }
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
