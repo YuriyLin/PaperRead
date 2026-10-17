@@ -84,8 +84,24 @@
 未知 `table_schema`、不規則英文矩陣及其他不安全結構也退回 PDF。
 未知版本會被寫入驗證拒絕，但已存在的檔案仍可開啟並查看原頁。
 
-**階段 A 沒有實作 PDF 表格辨識、逐格翻譯、數據一致性驗證或局部補譯。**
-這些流程在後續階段接入；舊論文不會因為開啟閱讀器而自動補譯。
+階段 B 新增本機 PDF 表格辨識、遮罩逐格翻譯、數據一致性驗證及局部補譯。
+舊論文仍不會因為開啟閱讀器或切換模式而自動補譯；可使用閱讀器「只補譯表格」
+或 `easyread translate ID --tables-only [--pages 3-5]`。沿用既有翻譯引擎，表格目標語言為繁體中文。
+
+- `table_source_box`：本機辨識所得的原頁正規化表格範圍，作為辨識證據；不覆寫既有 `box/layout.json`。
+- `table_evidence: {extractor, method, glyphs_verified}`：辨識版本、`lines/text` 方法與字元覆蓋驗證。
+- `table_cache: {version, source_hash, pdf_sha256, target, translation_hash, verified_at}`：
+  來源雜湊涵蓋完整 PDF 身分、英文題注、矩陣、註腳、流程版本及目標語言；譯文另有雜湊。
+  快取與雙語資料在同一次原子寫入保存。快取命中仍檢查結構及逐格數據；沒有快取但資料完整、
+  與 PDF 英文一致的雙語表格可直接驗證並補快取，不呼叫模型。
+- `table_history`：來源結構變動時保存舊表格完整快照（含既有譯文與快取），不刪除舊結果。
+- `table_status: "fallback"`：辨識、翻譯或數據驗證失敗，保留原有內容並回到 PDF 入口。
+  `"ready"` 本身仍只表示可呈現；只有帶有效 `table_cache` 的階段 B 結果通過本階段數據驗證。
+
+只有證據充分、單頁、英文且欄列可明確對應的矩形表格會通過。合併格、跨頁、掃描影像、
+不明表頭／註腳界線等情形保留 PDF，支援條件與限制詳見 `table-translation-phase-b.md`。
+此流程只修改表格 blocks，不變動正文、`translation.done_pages/en_pages`、使用者筆記或閱讀模式。
+新辨識出的表格保留頁碼入口；表格本體批註及跨頁精細定位仍屬後續階段。
 
 浮动体（表、图）放在正文第一次提到它的段落之后，`page` 仍写它实际所在页。
 
@@ -145,6 +161,11 @@ JSON 里 TeX 的反斜杠要写两个（`\\frac`）。`\f` `\b` `\t` `\n` `\r` �
 ## job.json（后台任务状态）
 
 `{"type": "translate", "state": "queued | running | done | partial | error | cancelled", "message": "…", "done": 4, "total": 14, "error": "", "failed": {"7": "原因"}, "scope": "all | body | first:N"}`。服务重启后 queued / running 的任务会自动继续。`partial` 表示有页没译成功（`failed` 里是页码和原因），页面上可以一键重试。每篇的翻译过程记在 `job.log`。
+
+表格專用任務使用 `type: "tables"`、`tables_only: true`，由同一持久佇列執行及恢復。
+此時 `done/total` 計算表格數；`table_result` 保存 `translated/cached/fallback` 數量、
+以 block ID 為鍵的 `failed` 及本機辨識 `issues`，不把表格失敗誤記為正文頁失敗。
+超頁數確認沿用既有 `page_cap`；確認全文或縮小頁數後仍保留 `tables_only`。
 
 ## layout.json（自动生成的原页定位）
 

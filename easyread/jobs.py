@@ -48,7 +48,8 @@ class Jobs:
         ws.update("job", apply)
 
     def enqueue(self, ws: Workspace, pages: list[int] | None = None, translate_after: bool = True, scope: str | None = None,
-                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False):
+                read: bool = False, model: str = "", confirmed: bool = False, target: str = "", cap_check: bool = False,
+                tables_only: bool = False):
         """pages=None：按 scope（all / body / range:A-B / first:N）翻译还没译的页。
         read：只读原文，用模型把页整理成段落、公式、表格，不翻译；之后再翻译时就地补中文。
         model：用“问 AI”名单里的哪个模型（导入时选的）；空着用设置里的翻译引擎。
@@ -58,11 +59,12 @@ class Jobs:
         def apply(job):
             if job.get("state") in ("queued", "running"):
                 raise ValueError(tr("这篇论文已有任务在排队或运行，请等它结束，或先取消再重试。"))
-            job.update(type="read" if read and translate_after else "translate" if translate_after else "prepare",
+            job.update(type="tables" if tables_only else "read" if read and translate_after else "translate" if translate_after else "prepare",
                        state="queued", message=tr("排队中"), pages=pages, scope=scope or "all", translate=translate_after, read=read, model=model or "",
-                       confirmed=confirmed is True, target=target, cap_check=cap_check is True,
+                       confirmed=confirmed is True, target=target, cap_check=cap_check is True, tables_only=tables_only is True,
                        done=0, total=0, error="", failed={}, updated=now_iso(), usage={})
             job.pop("page_cap", None)
+            job.pop("table_result", None)
         with self.lock:
             ws.update("job", apply)
             self.bulk.put(ws.id)
@@ -120,6 +122,37 @@ class Jobs:
             cfg = {**cfg, "target": langs.valid(job["target"])}
         if cancel.is_set():
             raise Cancelled()
+        if job.get("tables_only"):
+            from . import table_translate
+            if cfg.get("engine") == "none":
+                raise ValueError(tr("表格補譯需要可用的翻譯模型。"))
+            paper = ws.load("paper")
+            wanted = job.get("pages")
+            if wanted is None:
+                wanted = [p["n"] for p in paper.get("meta", {}).get("pages", [])]
+            cap = cfg.get("page_cap", 60)
+            if type(cap) is not int or cap < 0:
+                cap = 60
+            if cap and len(wanted) > cap and (job.get("pages") is None or job.get("cap_check")) and job.get("confirmed") is not True:
+                with self.lock:
+                    if cancel.is_set():
+                        raise Cancelled()
+                    self._write(ws, state="confirm", pages=wanted, total=len(wanted), page_cap=cap, cap_check=True,
+                                message=tr("這次要檢查 {n} 頁的表格，超過設定的 {cap} 頁，確認後再開始。", n=len(wanted), cap=cap))
+                return
+            meter = usage.Meter(cfg.get("engine") or "")
+            def table_report(done, total, message):
+                self._write(ws, done=done, total=total, message=message, usage=meter.snapshot())
+            try:
+                result = table_translate.translate_missing(ws, cfg, wanted, cancel, table_report, meter)
+            finally:
+                run = meter.snapshot()
+                if run["calls"]:
+                    ws.update("job", lambda j: j.update(usage=run, usage_total=usage.merge(j.get("usage_total"), run)))
+            self._write(ws, state="partial" if result["failed"] or result["issues"] else "done", table_result=result,
+                        failed={}, error="; ".join(list(result["failed"].values()) + result["issues"])[:800],
+                        message=tr("表格補譯完成；無法確認的表格請查看原始 PDF。"))
+            return
         if not ws.load("paper").get("meta", {}).get("pages"):
             self._write(ws, state="running", message=tr("正在渲染原页、抽取文字"))
             translate.prepare(ws)
@@ -164,6 +197,11 @@ class Jobs:
         started = time.time()
         try:
             failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter, read)
+            if not read and langs.of_paper(ws.load("paper").get("meta")) == "zh-TW" and ws.source_pdf.exists():
+                from . import table_translate
+                table_result = table_translate.translate_missing(ws, cfg, [p for p in pages if p not in failed], cancel,
+                                                                 lambda d, t, m: report(len(pages), len(pages), m), meter)
+                self._write(ws, table_result=table_result)
         finally:  # 取消、出错也把已经花掉的记上
             run = meter.snapshot()
             if run["calls"]:
@@ -178,6 +216,9 @@ class Jobs:
             self._write(ws, state="done", failed={}, error="",
                         message=tr("原文整理完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes) if read
                         else tr("翻译完成（{n} 页，用时约 {m} 分钟）", n=len(pages), m=minutes))
+        table_result = (ws.load("job") or {}).get("table_result")
+        if not failed and table_result and (table_result.get("failed") or table_result.get("issues")):
+            self._write(ws, message=tr("表格補譯完成；無法確認的表格請查看原始 PDF。"))
 
     # ---------- 小任务 ----------
     def submit_small(self, kind: str, pid: str, **kw) -> dict:

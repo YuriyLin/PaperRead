@@ -6,6 +6,18 @@ from . import paperdata, translate
 
 def enqueue(jobs, ws, body: dict) -> dict:
     last = ws.load("job") or {}
+    table_confirmation = last.get("state") == "confirm" and last.get("tables_only")
+    if body.get("tables_only") is True or table_confirmation:
+        pages = paperdata.parse_pages(body["pages"]) if body.get("pages") is not None else last.get("pages") if table_confirmation else None
+        if table_confirmation and pages is not None and body.get("scope"):
+            selected = translate.scope_pages(ws, body["scope"])
+            if selected is not None:
+                pages = [n for n in pages if n in selected]
+        if pages is not None and any(n < 1 or n > (ws.load("paper").get("meta", {}).get("page_count") or 0) for n in pages):
+            raise ValueError("Table page is outside the source PDF")
+        fields = {"confirmed": body.get("confirmed") is True, "cap_check": True} if table_confirmation else {}
+        jobs.enqueue(ws, pages=pages, tables_only=True, **fields)
+        return {"ok": True}
     pending = last.get("state") == "confirm"
     explicit = body.get("pages") is not None
     pages = paperdata.parse_pages(body["pages"]) if explicit else None

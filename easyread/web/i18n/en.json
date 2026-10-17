@@ -1796,5 +1796,14 @@
  "所选论文都已经在封存区了": "Selected papers are already archived",
  "此論文目前已封存，不會出現在閱讀看板中。": "This paper is archived and will not appear on the reading board.",
  "移出封存": "Unarchive",
- "移出封存（恢復）": "Unarchive (Restore)"
+ "移出封存（恢復）": "Unarchive (Restore)",
+ "只補譯表格": "Translate missing tables only",
+ "已開始只補譯表格，完成的正文與筆記保留。": "Translating missing tables; completed body text and notes are preserved.",
+ "表格補譯需要可用的翻譯模型。": "Table translation requires an available translation model.",
+ "表格補譯完成；無法確認的表格請查看原始 PDF。": "Table translation finished; inspect the source PDF for unverified tables.",
+ "正在補譯表格 {id}": "Translating table {id}",
+ "表格補譯完成": "Table translation finished",
+ "這次要檢查 {n} 頁的表格，超過設定的 {cap} 頁，確認後再開始。": "Checking tables on {n} pages exceeds your {cap}-page limit. Confirm to continue.",
+ "全部補譯表格": "Translate all missing tables",
+ "只補譯前 {cap} 頁的表格": "Translate tables on the first {cap} pages only"
 }

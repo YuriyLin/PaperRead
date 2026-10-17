@@ -146,7 +146,7 @@
     if (j.state === "confirm") { el.textContent = PR.t("等你确认"); return; }
     if (["queued", "running"].includes(j.state)) el.innerHTML = '<span class="spin"></span> ' + PR.esc(j.message || PR.t("翻译中")) + (j.total ? " " + j.done + "/" + j.total : "");
     else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + "</span>";
-    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";
+    else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.tables_only ? PR.esc(j.message || "") : j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";
     else el.innerHTML = "";
   };
 

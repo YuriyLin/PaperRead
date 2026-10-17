@@ -16,7 +16,7 @@ function render(blocks, options = {}) {
       discussion: { entries: [] },
       layout: {},
       item: {},
-      job: {},
+      job: options.job || {},
     },
     $: (sel) => sel === "#paper" ? paperEl : null,
     $$: () => [],
@@ -34,7 +34,7 @@ function render(blocks, options = {}) {
     hasZh: (b) => !!(b && (b.zh || b.caption_zh)),
     blockKeys: (b) => b.type === "table" || b.type === "figure" ? [b.id + "#caption"] : [b.id],
     imageUrl: (rel) => rel,
-    canAsk: () => false,
+    canAsk: () => options.canAsk === true,
     store: { mode: "file" },
     usageShort: () => "",
     emit() {},
@@ -85,6 +85,26 @@ test("tables keep their caption and become clickable original-page placeholders"
   assert.match(html, /表 1<\/span>：結果/);
   assert.doesNotMatch(html, /<table class="tbl"|Method|Score|0\.8/);
   assert.match(html, /AFTER_TABLE/);
+});
+
+test("the reader offers an explicit table-only action and disables it during active jobs", () => {
+  assert.match(render([bilingual()], { canAsk: true }), /data-t="translate-tables"/);
+  for (const state of ["queued", "running", "confirm"]) {
+    assert.doesNotMatch(render([bilingual()], { canAsk: true, job: { state } }), /data-t="translate-tables"/);
+  }
+  assert.doesNotMatch(render([bilingual()]), /data-t="translate-tables"/);
+});
+
+test("a verified cached table is immediately readable after reopening without an API call", () => {
+  const block = bilingual({ table_status: "ready", table_cache: { source_hash: "mock-source", translation_hash: "mock-translation" } });
+  const before = JSON.stringify(block);
+  for (let i = 0; i < 3; i++) {
+    const html = render([block]);
+    assert.match(html, /0\.123/);
+    assert.match(html, /data-table-side="en"/);
+    assert.match(html, /data-table-side="zh"/);
+  }
+  assert.equal(JSON.stringify(block), before);
 });
 
 test("one malformed block does not blank the rest of the reader", () => {

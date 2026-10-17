@@ -6,10 +6,69 @@ fall back to the source PDF whenever either is present.
 """
 from __future__ import annotations
 
+import re
+
 from .i18n import tr
 
 MATRICES = ("head_en", "rows_en", "head_zh", "rows_zh")
 FOOTNOTES = ("footnotes_en", "footnotes_zh")
+
+# Ordered, literal invariants. Group numerical expressions with their syntax,
+# so a changed sign, exponent, interval, comparator or significance attachment
+# cannot pass by merely retaining the same bag of digits.
+_PROTECTED = re.compile(
+    r"\$\$[\s\S]*?\$\$|\$[^$]*\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]"
+    r"|https?://[^\s]+"
+    r"|[\[(]\s*[-+−]?(?:\d*\.\d+|\d+)(?:[eE][-+−]?\d+)?%?\s*,\s*"
+    r"[-+−]?(?:\d*\.\d+|\d+)(?:[eE][-+−]?\d+)?%?\s*[\])]"
+    r"|(?<![A-Za-z])[A-Za-zα-ωΑ-Ω](?:[_^][A-Za-z0-9{}]+|[₀-₉⁰¹²³⁴⁵⁶⁷⁸⁹]+)?"
+    r"(?:\s*[-+−*/=<>≤≥≠≈±]\s*(?:[A-Za-zα-ωΑ-Ω](?:[_^][A-Za-z0-9{}]+|[₀-₉⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|"
+    r"[-+−]?(?:\d*\.\d+|\d+)(?:[eE][-+−]?\d+)?%?))+(?![A-Za-z])"
+    r"|(?<![A-Za-z])(?:[A-Za-z]|[α-ωΑ-Ω])(?:[_^][A-Za-z0-9{}]+)?\s*[=<>≤≥≠≈±]\s*"
+    r"[-+−]?(?:\d*\.\d+|\d+)(?:[eE][-+−]?\d+)?%?"
+    r"|[-+−]?(?:\d{1,3}(?:,\d{3})+|\d*\.\d+|\d+)(?:\.\d+)?(?:[eE][-+−]?\d+)?"
+    r"(?:\s*[×x]\s*10\^?[-+−]?\d+)?[%‰]?[*†‡]*"
+    r"|[A-Za-zα-ωΑ-Ω]+[_^](?:\{[^}]+\}|[A-Za-z0-9]+)"
+    r"|[A-Za-zα-ωΑ-Ω][₀-₉⁰¹²³⁴⁵⁶⁷⁸⁹]+|[₀-₉⁰¹²³⁴⁵⁶⁷⁸⁹]+"
+    r"|(?<![A-Za-z])[A-Za-z](?![A-Za-z])|[α-ωΑ-Ω]"
+    r"|[()\[\]{}+−=<>≤≥≠≈±*/†‡∑∏√∞∈∝∂]+"
+)
+
+
+def protected(text: str) -> list[str]:
+    return [m.group() for m in _PROTECTED.finditer(text)]
+
+
+def translation_problem(block: dict) -> str | None:
+    """Validate every source/translation pair after all text processing."""
+    problem = shape_problem(block)
+    if problem:
+        return problem
+    if not is_bilingual(block) or "head_zh" not in block or "rows_zh" not in block:
+        return "Missing table translation"
+    pairs = []
+    for field in ("head", "rows"):
+        for i, row in enumerate(block[f"{field}_en"]):
+            for j, cell in enumerate(row):
+                pairs.append((f"{field}[{i}][{j}]", cell, block[f"{field}_zh"][i][j]))
+    pairs += [(f"footnotes[{i}]", note, zh) for i, (note, zh) in
+              enumerate(zip(block.get("footnotes_en", []), block.get("footnotes_zh", [])))]
+    if len(block.get("footnotes_en", [])) != len(block.get("footnotes_zh", [])):
+        return "Missing table footnotes"
+    if block.get("caption_en"):
+        pairs.append(("caption", block["caption_en"], block.get("caption_zh", "")))
+    for path, source, target in pairs:
+        if not isinstance(target, str) or source.strip() and not target.strip():
+            return f"Missing translation: {path}"
+        if protected(source) != protected(target):
+            return f"Table data changed: {path}"
+        # Numeric/formula-only cells are byte-for-byte invariants, including
+        # whitespace, decimal precision and the placement of standard errors.
+        if not re.search(r"[A-Za-z]{2,}", _PROTECTED.sub("", source)) and source != target:
+            return f"Table notation changed: {path}"
+        if any(ord(c) < 32 and c not in "\n\t\r" for c in target):
+            return f"Invalid control character: {path}"
+    return None
 
 
 def is_bilingual(block: dict) -> bool:

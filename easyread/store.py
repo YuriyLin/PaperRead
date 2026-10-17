@@ -23,11 +23,17 @@ def now_iso() -> str:
 
 
 def read_json(path: Path, default=None):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return default
+    for attempt in range(20):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return default
+        except PermissionError:
+            # Windows can briefly deny opening a file during atomic replace.
+            if attempt == 19:
+                raise
+            time.sleep(0.01 * (attempt + 1))
 
 
 def write_json_atomic(path: Path, data) -> None:
