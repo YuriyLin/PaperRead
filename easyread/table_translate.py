@@ -108,7 +108,7 @@ def _assign(block, entries):
     block["footnotes_zh"] = [entries[f"note:{i}"] for i in range(len(block.get("footnotes_en", [])))]
 
 
-def _translate(ws, cfg, source, previous, cancel, meter):
+def _translate(ws, cfg, source, previous, cancel, meter, run=None):
     texts = _entries(source, "en")
     reuse = _entries(previous, "zh") if not tables.shape_problem(previous) and all(source.get(k) == previous.get(k) for k in _SOURCE) else {}
     if source.get("caption_en") == previous.get("caption_en") and isinstance(previous.get("caption_zh"), str):
@@ -148,7 +148,7 @@ def _translate(ws, cfg, source, previous, cancel, meter):
                   '只輸出 JSON：{"zh":{"鍵":"完整譯文"}}。\n'  # i18n-ok: model prompt
                   + json.dumps({"glossary": glossary, "cells": todo}, ensure_ascii=False))
         _cancel(cancel)
-        result = engines.parse_json(engines.run(cfg, prompt, ws.root, None, cancel, meter))
+        result = engines.parse_json((run or engines.run)(cfg, prompt, ws.root, None, cancel, meter))
         values = result.get("zh") if isinstance(result, dict) else None
         if not isinstance(values, dict) or set(values) != set(todo):
             raise ValueError("Missing or unexpected table translation keys")
@@ -232,10 +232,13 @@ def _discover(ws, pages, digest, cancel):
     return issues
 
 
-def translate_missing(ws, cfg, pages=None, cancel=None, report=lambda *a: None, meter=None):
+def translate_missing(ws, cfg, pages=None, cancel=None, report=lambda *a: None, meter=None,
+                      *, table_id=None, run=None, attempts=2):
     """Idempotent table-only entry; retries each failed table once. All model
     tests mock engines.run. Calling this explicitly authorizes table translation.
     """
+    if attempts not in (1, 2):
+        raise ValueError("Table translation attempts must be 1 or 2")
     result = {"translated": 0, "cached": 0, "fallback": 0, "failed": {}, "issues": []}
     with _job_lock(ws, cancel):
         _cancel(cancel)
@@ -246,6 +249,10 @@ def translate_missing(ws, cfg, pages=None, cancel=None, report=lambda *a: None, 
         pages = sorted(set(pages if pages is not None else [p["n"] for p in paper.get("meta", {}).get("pages", [])]))
         result["issues"] = _discover(ws, pages, digest, cancel)
         blocks = [b for b in ws.load("paper").get("blocks", []) if b.get("type") == "table" and b.get("page") in pages]
+        if table_id is not None:
+            blocks = [b for b in blocks if b.get("id") == table_id]
+            if len(blocks) != 1:
+                raise ValueError("Select exactly one existing table")
         for i, block in enumerate(blocks):
             _cancel(cancel)
             report(i, len(blocks), tr("正在補譯表格 {id}", id=block['id']))
@@ -264,14 +271,14 @@ def translate_missing(ws, cfg, pages=None, cancel=None, report=lambda *a: None, 
                     result["cached"] += 1
                     continue
                 translated = None
-                for attempt in range(2):
+                for attempt in range(attempts):
                     try:
-                        translated = _translate(ws, cfg, source, block, cancel, meter)
+                        translated = _translate(ws, cfg, source, block, cancel, meter, run)
                         break
                     except engines.Cancelled:
                         raise
                     except (engines.EngineError, ValueError) as exc:
-                        if attempt or re.search(r"quota|usage limit|session limit|insufficient|rate limit", str(exc), re.I):
+                        if attempt == attempts - 1 or re.search(r"quota|usage limit|session limit|insufficient|rate limit", str(exc), re.I):
                             raise
                 translated["table_cache"] = {"version": VERSION, "source_hash": key, "pdf_sha256": digest,
                                              "target": "zh-TW", "translation_hash": _hash({k: translated.get(k) for k in _ZH}),

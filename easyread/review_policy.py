@@ -7,6 +7,7 @@ that mode to the ordinary runner or retry with fewer restrictions.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 def isolated() -> bool:
@@ -27,6 +28,23 @@ def model_error() -> str | None:
 def status() -> dict:
     return {"mode": os.environ.get("PAPERREAD_REVIEW_MODE") or "Mock",
             "real_model_allowed": False, "reason": model_error()}
+
+
+def results_only() -> bool:
+    return isolated() and os.environ.get("PAPERREAD_REVIEW_KIND") == "GeminiResults"
+
+
+def results_route_allowed(method: str, path: str) -> bool:
+    """The Gemini result viewer never imports, exports, indexes, or starts AI."""
+    if not results_only():
+        return True
+    if method in ("GET", "HEAD"):
+        return path in ("/", "/index.html", "/api/library", "/api/config", "/api/prefs", "/api/jobs",
+                        "/api/chat/models", "/api/version", "/api/presence") or \
+            path.startswith(("/web/", "/read/", "/p/")) or \
+            bool(re.fullmatch(r"/api/p/[A-Za-z0-9_-]+/(state|versions|part/(paper|reader|layout|discussion|job))", path))
+    return path in ("/api/prefs", "/api/shutdown", "/api/presence/keep") or \
+        bool(re.fullmatch(r"/api/p/[A-Za-z0-9_-]+/ops", path))
 
 
 def require_launch() -> None:

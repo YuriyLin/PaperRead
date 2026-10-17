@@ -195,11 +195,13 @@ function trustedWindow(event) {
 
 ipcMain.handle("easyread:pick-folder", async event => {
   trustedWindow(event);
+  if (reviewProfile?.kind === "GeminiResults") throw new Error("Folder access is disabled in the Gemini result viewer");
   const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
   return result.canceled ? null : result.filePaths[0] || null;
 });
 ipcMain.handle("easyread:save-file", async (event, options = {}) => {
   trustedWindow(event);
+  if (reviewProfile?.kind === "GeminiResults") throw new Error("External file export is disabled in the Gemini result viewer");
   const filename = typeof options.filename === "string" && options.filename.trim() ? options.filename.trim() : "PaperRead-export.md";
   const encoded = typeof options.contentBase64 === "string" ? options.contentBase64 : "";
   if (!encoded || encoded.length > 160 * 1024 * 1024) throw new Error("匯出內容無效或過大");
@@ -272,10 +274,12 @@ async function createWindow() {
   if (reviewProfile) {
     mainWindow.webContents.on("page-title-updated", event => {
       event.preventDefault();
-      mainWindow.setTitle("PaperRead [Mock — real models blocked]");
+      mainWindow.setTitle(reviewProfile.kind === "GeminiResults"
+        ? "PaperRead [Gemini results / Mock — real models blocked]" : "PaperRead [Mock — real models blocked]");
     });
   }
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (reviewProfile?.kind === "GeminiResults") return { action: "deny" };
     if (/^https?:/i.test(target)) shell.openExternal(target);
     if (/^obsidian:/i.test(target)) shell.openExternal(target);
     return { action: "deny" };

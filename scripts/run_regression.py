@@ -15,7 +15,7 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / ".paperread-local-test" / "model-validation-final"
+OUTPUT = ROOT / ".paperread-local-test" / "gemini-validation-final"
 OUTPUT.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(ROOT))
 os.environ.update(EASYREAD_HOME=str(OUTPUT / "home"), EASYREAD_LIBRARY=str(OUTPUT / "library"),
@@ -25,6 +25,7 @@ os.environ.update(EASYREAD_HOME=str(OUTPUT / "home"), EASYREAD_LIBRARY=str(OUTPU
 os.environ.pop("PAPERREAD_OFFLINE_TEST", None)
 os.environ.pop("PAPERREAD_TEST_PROFILE", None)
 os.environ.pop("PAPERREAD_REVIEW_MODE", None)
+os.environ.pop("PAPERREAD_REVIEW_KIND", None)
 node_dir = ROOT / ".paperread-local-test" / "node-v22.20.0-win-x64"
 os.environ["PATH"] = str(node_dir if node_dir.is_dir() else OUTPUT.parent / "bin") + os.pathsep + os.environ["PATH"]
 
@@ -45,7 +46,7 @@ def local_resolve(host, *args, **kwargs):
 
 
 def main():
-    from easyread import engines
+    from easyread import engines, http
     run = engines.run
 
     def guarded_model(*args, **kwargs):
@@ -58,6 +59,7 @@ def main():
         stack.enter_context(mock.patch.object(socket, "getaddrinfo", local_resolve))
         stack.enter_context(mock.patch.object(engines, "run", side_effect=guarded_model))
         stack.enter_context(mock.patch.object(engines, "_popen", side_effect=AssertionError("Unmocked model CLI")))
+        stack.enter_context(mock.patch.object(http, "_validation_open", side_effect=AssertionError("Unmocked Gemini transport")))
         suite = (unittest.defaultTestLoader.loadTestsFromNames(sys.argv[1:]) if len(sys.argv) > 1
                  else unittest.defaultTestLoader.discover(str(ROOT / "tests"), top_level_dir=str(ROOT)))
         with (OUTPUT / "python.txt").open("w", encoding="utf-8") as stream:

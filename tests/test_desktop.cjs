@@ -109,6 +109,19 @@ test("isolated desktop restarts reuse the same profile and leave saved model set
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
 
+test('Gemini result desktop denies folder picking and file export while preserving offline backend', async () => {
+  const base = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'paperread-gemini-desktop-'));
+  const d = await desktop('win32', true, true, [], { PAPERREAD_TEST_PROFILE: base, PAPERREAD_REVIEW_KIND: 'GeminiResults' });
+  try {
+    assert.equal(d.launches[0].options.env.PAPERREAD_REVIEW_MODE, 'Mock');
+    const contents = d.windows[0].webContents, event = { sender: contents, senderFrame: contents.mainFrame };
+    await assert.rejects(d.handlers.get('easyread:pick-folder')(event), /disabled/);
+    await assert.rejects(d.handlers.get('easyread:save-file')(event), /disabled/);
+    contents.emit('page-title-updated', { preventDefault() {} });
+    assert.match(d.windows[0].title, /Gemini results.*Mock.*blocked/);
+  } finally { d.app.quit(); await d.settled(); fs.rmSync(base, { recursive: true, force: true }); }
+});
+
 test("macOS keeps native editing roles and offers input context actions", async () => {
   const d = await desktop();
   assert.deepEqual(Array.from(d.app.menu.items, x => x.role), ["appMenu", "editMenu", "windowMenu"]);

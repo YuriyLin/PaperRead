@@ -232,6 +232,19 @@ JSON 里 TeX 的反斜杠要写两个（`\\frac`）。`\f` `\b` `\t` `\n` `\r` �
 - `image_en` 是图内可读文字原文，`image_zh` 是目标语言的译文（字段名沿用历史叫法），在图下单独显示，不改图片像素。只读原文先显示 `image_en`，补译时按 `id#image` 写入，编辑和重译用同一个键
 - 旧论文不会自动调模型补提取图内文字；要重新整理对应页，或由 agent 核对原页后补上
 
+## 獨立 Gemini 表格驗證的附加中繼資料
+
+單次驗證沿用既有 `paper.json` 雙語 table block 與 `table_cache`，不另存模型回應作為閱讀資料。
+`meta.validation_source` 包含 `version: 1`、`test_pdf_page: 1`、
+`original_paper_page: 整數或 null`、`input_name: inbox 檔名`。
+block 的 `page`、PDF 定位及頁碼連結始終使用測試 PDF 頁碼；原論文頁碼僅為使用者提供的獨立來源標示。
+不保存原文件路徑或推測原頁碼。
+
+成功表格的 `table_cache.validation` 額外記錄 `provider: "gemini"`、`model`、`http_attempts`。
+來源／譯文雜湊及完整性檢查仍使用原有欄位；模式切換與閱讀器重開不呼叫模型。
+表格補譯不改正文 `translation.done_pages`。API Key 不保存於任何資料欄位。
+操作與驗證見 [單次驗證文件](gemini-table-validation.md)。
+
 ## 为什么用 JSON 文件而不是数据库
 
 PaperRead 是个人工具：一个人、一台电脑、几十到几百篇论文。每篇一个文件夹、几个 JSON，好处是能直接看、能直接备份和同步（网盘、git 都行），agent 在对话里也能直接读写；按“谁写哪个文件”分开之后，也不需要数据库的并发控制。文献库列表每次扫描各文件夹生成，几百篇以内是毫秒级。浏览器 localStorage 只用来暂存还没写进文件的修改和缓存偏好，不是数据的正本。

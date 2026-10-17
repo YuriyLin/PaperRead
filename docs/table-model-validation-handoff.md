@@ -1,5 +1,13 @@
 # Mock／真實模型驗證模式交接
 
+## Gemini 單次驗證已交付
+
+使用者於後續明確同意 Gemini 替代方案，已從 `f4e541c` 完成
+[單次 Gemini 表格驗證與 Mock 閱讀器驗收](gemini-table-validation.md)。
+Python 497、Node 172、實際 Electron 19 檢查點通過；全部使用假傳輸，沒有真實 Gemini 請求。
+這是獨立的單頁／單表／單次命令，不解除 Mock 或 Codex `RealModelValidation` 的阻擋。
+最新操作及限制以新文件為準；以下保留歷史交接。
+
 ## 2026-10-18 恢復後狀態
 
 已依使用者新指示恢復開發，核對起點 `598c90e`、乾淨工作目錄及階段 A／B／C 原始碼。

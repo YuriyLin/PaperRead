@@ -134,6 +134,25 @@ def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None) 
     return _responses_text(res) if kind(o) == "responses" else _chat_text(res)
 
 
+def complete_gemini_validation(prompt: str, model: str, authorization) -> str:
+    """Explicit one-shot command only. Ordinary API/model guards stay intact."""
+    from .gemini_validation import Authorization, ValidationError
+    if type(authorization) is not Authorization:
+        raise ValidationError("Explicit Gemini validation authorization is required")
+    body = _body({"model": model, "api": "chat"}, prompt, [], False, None)
+    result = http.gemini_validation_post(body, authorization)
+    try:
+        choices = result["choices"]
+        if len(choices) != 1 or choices[0].get("finish_reason") != "stop" or choices[0]["message"].get("tool_calls"):
+            raise ValueError()
+        text = _chat_text(result)
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError()
+        return text
+    except Exception:
+        raise ValidationError("Gemini response was incomplete or invalid; discarded without repair") from None
+
+
 def _fetch(o: dict, body: dict, cancel) -> dict:
     """发请求、读完整个回答。请求放在线程里，点取消就不再等它（这次调用的回答丢掉），不然要等接口返回，常常一两分钟。"""
     if cancel is None:

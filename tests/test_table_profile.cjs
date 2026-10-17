@@ -54,3 +54,15 @@ test('review profile rejects redirected data directories, including a test Vault
     }
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
 });
+
+test('Gemini results retain Mock mode and never create real model authority', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'paperread-gemini-profile-'));
+  try {
+    const result = testProfile({ PAPERREAD_TEST_PROFILE: path.join(base, 'results'), PAPERREAD_REVIEW_KIND: 'GeminiResults' },
+      path.join(base, 'appdata'), path.join(base, 'user'));
+    assert.equal(result.kind, 'GeminiResults');
+    assert.equal(result.env.PAPERREAD_REVIEW_MODE, 'Mock');
+    assert.equal(result.env.PAPERREAD_OFFLINE_TEST, '1');
+    assert.throws(() => testProfile({ PAPERREAD_TEST_PROFILE: base, PAPERREAD_REVIEW_MODE: 'GeminiValidation' }, base), /blocked/);
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
