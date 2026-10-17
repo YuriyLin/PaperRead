@@ -41,6 +41,52 @@
 
 可选 `box: [x0, y0, x1, y1]`（按页宽高归一化）手工指定原页高亮区域，覆盖自动定位。
 
+### 雙語表格（階段 A：資料與呈現）
+
+沿用 `type: "table"`、block ID、`page`、`num`、`align`、`caption_pos` 與
+`caption_en/caption_zh`。新增欄位為可選擴充，不變更 paper.json 的 schema 2：
+
+```json
+{
+  "id": "tab1", "type": "table", "page": 3, "num": "1",
+  "table_schema": 1, "align": "lr", "caption_pos": "above",
+  "caption_en": "Table 1: Regression results",
+  "caption_zh": "表 1：迴歸分析結果",
+  "head_en": [["Variable", "Coefficient"]],
+  "rows_en": [["Treatment", "0.123***\n(0.045)"]],
+  "head_zh": [["變數", "係數"]],
+  "rows_zh": [["處理", "0.123***\n(0.045)"]],
+  "footnotes_en": ["Standard errors in parentheses; *** p < 0.01."],
+  "footnotes_zh": ["括號內為標準誤；*** p < 0.01。"]
+}
+```
+
+- `head_*/rows_*` 是矩形二維**字串**陣列，英文與譯文形狀相同。數字也使用字串，
+  保留尾零、符號、顯著性標記及原始精度；無表頭可使用空的 `head_*`。
+- `footnotes_*` 是逐項對應的字串陣列。譯文尚未完整提供時可以省略譯文欄位；
+  閱讀器只顯示完整英文版本，譯文位置提供缺漏說明及既有 PDF 入口，不逐格混入英文。
+- 舊 `head/rows` 保留原值，其語言不由文字或欄位名稱推測。不自動遷移、不倒推英文；
+  沒有明確雙語欄位的舊表格繼續使用原頁入口。合併新版資料時保留同 ID 表格的舊矩陣，
+  即使舊矩陣格式不規則，也不為了呈現新版表格而改寫它。
+- 繁體正規化只處理明確標示的譯文矩陣與譯文註腳，不處理英文或舊矩陣。
+- 整張表的題注、本體與註腳放在同一語言容器；沿用 `mode/lead/biOrder` 控制英文、
+  譯文、英文在前、譯文在前。切換只改顯隱及 DOM 順序，不產生翻譯任務。
+- 題注仍使用 `id#caption`，使用者編輯優先。階段 A 不新增表格本體的編輯或批註鍵。
+
+預留 `table_spans: [{section, row, col, rowspan, colspan}]` 與
+`table_segments: [{page, box, row_start, row_end}]` 表達合併儲存格及跨頁來源。
+索引為零起算，列範圍採 `[row_start, row_end)`；`section` 為 `head` 或 `rows`。
+階段 A 只保存這些結構資訊，不解讀或合併；任一欄位非空時，整表安全退回 PDF 查看。
+沒有合併範圍的矩形多列表頭可直接呈現。
+
+可選 `table_status: "unreliable"` 與 `table_issue` 說明無法還原的原因；未填狀態或
+`"ready"` 只代表資料可供結構呈現，不代表 OCR 或翻譯經過數據核對。
+未知 `table_schema`、不規則英文矩陣及其他不安全結構也退回 PDF。
+未知版本會被寫入驗證拒絕，但已存在的檔案仍可開啟並查看原頁。
+
+**階段 A 沒有實作 PDF 表格辨識、逐格翻譯、數據一致性驗證或局部補譯。**
+這些流程在後續階段接入；舊論文不會因為開啟閱讀器而自動補譯。
+
 浮动体（表、图）放在正文第一次提到它的段落之后，`page` 仍写它实际所在页。
 
 新增一批块（`easyread blocks ID --from 批次.json --done 4-6`）时可带 `"_after": "某块id"` 指定插入位置，否则追加到末尾；同 id 的块整块替换。

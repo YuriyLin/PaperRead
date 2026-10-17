@@ -1,4 +1,7 @@
 {
+ "{id}：雙語表格資料格式有誤（{field}）": "{id}: invalid bilingual table data ({field})",
+ "表格譯文尚未完整提供，請查看原始 PDF。": "The table translation is incomplete. Please consult the original PDF.",
+ "表格結構尚無法可靠呈現，請查看原始 PDF。": "The table structure cannot be rendered reliably. Please consult the original PDF.",
  "AI 提煉主題關鍵字": "Distill Topic Keywords with AI",
  "AI 提煉：": "AI Distilled: ",
  "AI 關鍵字提煉失敗：{message}": "Failed to distill keywords with AI: {message}",

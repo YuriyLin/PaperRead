@@ -18,7 +18,8 @@
   PR.agentText = function (key) { const [zh, en] = fields(key); return zh || en; };
   /* 这处还没有译文、正文排的是英文原文（只读原文） */
   PR.isEnKey = function (key) { const [zh, en] = fields(key); return !zh && !!en && !PR.editOf(key); };
-  PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
+  PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh ||
+    (b.type === "table" && tableVersions(b).zh) || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
   PR.textFor = function (key) { const e = PR.editOf(key); return e ? e.zh : PR.agentText(key); };
   PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && e.base && e.base !== PR.hashText(PR.agentText(key))); };
@@ -68,6 +69,62 @@
   }
   function linkify(t) { return PR.esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 
+  // Only explicit, rectangular bilingual data is rendered. Legacy head/rows
+  // remain untouched: their language cannot be recovered from field names.
+  function tableVersions(b) {
+    const fallback = { en: null, zh: null };
+    if (b.table_schema !== 1 || ("table_status" in b && (typeof b.table_status !== "string" || b.table_status && b.table_status !== "ready")) ||
+        ["table_spans", "table_segments"].some((key) => key in b && (!Array.isArray(b[key]) || b[key].length))) return fallback;
+    function sideData(side) {
+      const head = b["head_" + side], rows = b["rows_" + side], notes = "footnotes_" + side in b ? b["footnotes_" + side] : [];
+      if (!Array.isArray(head) || !Array.isArray(rows) || !rows.length || !Array.isArray(notes) || notes.some((n) => typeof n !== "string")) return null;
+      const width = Array.isArray(rows[0]) ? rows[0].length : 0;
+      if (!width || [...head, ...rows].some((row) => !Array.isArray(row) || row.length !== width || row.some((cell) => typeof cell !== "string"))) return null;
+      return { head, rows, notes, width };
+    }
+    const en = sideData("en");
+    if (!en) return fallback;
+    let zh = sideData("zh");
+    if (zh && (zh.width !== en.width || zh.head.length !== en.head.length || zh.rows.length !== en.rows.length || zh.notes.length !== en.notes.length)) zh = null;
+    // A translated caption supplied by the reader still takes precedence.
+    if (zh && b.caption_en && !b.caption_zh && !PR.editOf(b.id + "#caption")) zh = null;
+    return { en, zh };
+  }
+
+  function tablePlaceholder(b, reason) {
+    return '<div class="figure-media"><button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
+      '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>' +
+      (reason ? '<p class="table-status">' + PR.esc(reason) + '</p>' : "") + '</div>';
+  }
+
+  function tableCaption(b, side) {
+    const key = b.id + "#caption", primaryEn = PR.isEnKey(key);
+    if (side === "zh" && primaryEn) return "";
+    const text = side === "en" ? b.caption_en || "" : PR.textFor(key);
+    if (!text) return "";
+    const primary = side === "zh" || primaryEn;
+    return '<div class="caption"><div class="' + (side === "zh" ? "zh" : primaryEn ? "zh en-main" : "en") + '"' +
+      (side === "en" ? ' lang="en"' : "") + (primary ? ' data-key="' + PR.esc(key) + '"' : "") +
+      ' data-table-caption="true">' + PR.md(text) + (primary ? staleTag(key) : "") + '</div></div>';
+  }
+
+  function tableVersion(b, side, data) {
+    let content;
+    if (!data) content = tablePlaceholder(b, PR.t("表格譯文尚未完整提供，請查看原始 PDF。"));
+    else {
+      const rowHtml = (row, tag) => '<tr>' + row.map((cell, i) => {
+        const align = ({ l: "left", c: "center", r: "right" })[String(b.align || "")[i]] || "left";
+        return '<' + tag + (tag === "th" ? ' scope="col"' : "") + ' style="text-align:' + align + '"><span class="table-cell-text">' + PR.md(cell) + '</span></' + tag + '>';
+      }).join("") + '</tr>';
+      content = '<div class="tbl-wrap"><table class="tbl">' + (data.head.length ? '<thead>' + data.head.map((row) => rowHtml(row, "th")).join("") + '</thead>' : "") +
+        '<tbody>' + data.rows.map((row) => rowHtml(row, "td")).join("") + '</tbody></table></div>' +
+        (data.notes.length ? '<div class="table-footnotes">' + data.notes.map((note) => '<p>' + PR.md(note) + '</p>').join("") + '</div>' : "");
+    }
+    const caption = tableCaption(b, side);
+    return '<div class="table-version" data-table-side="' + side + '"' + (side === "en" ? ' lang="en"' : "") + '>' +
+      (b.caption_pos === "above" ? caption + content : content + caption) + '</div>';
+  }
+
   const R = {
     heading(b) {
       const tag = (b.level || 1) === 1 ? "h2" : "h3";
@@ -84,10 +141,14 @@
     },
     math: (b) => '<div class="math-row"><div class="math-body" tabindex="0" role="button" aria-label="' + PR.t("公式，點擊可選擇螢光筆或底線") + '">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
-      const placeholder = '<button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
-        '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
-      const table = '<div class="figure-media">' + placeholder + '</div>';
-      return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
+      const versions = tableVersions(b);
+      if (!versions.en) {
+        const reason = typeof b.table_issue === "string" && b.table_issue ||
+          (b.table_schema != null ? PR.t("表格結構尚無法可靠呈現，請查看原始 PDF。") : "");
+        const table = tablePlaceholder(b, reason);
+        return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
+      }
+      return '<div class="table-pair">' + tableVersion(b, "zh", versions.zh) + tableVersion(b, "en", versions.en) + '</div>';
     },
     figure(b) {
       const placeholder = '<button class="fig-placeholder" data-t="page" aria-label="' + PR.t("圖表保留於原文") + '">' +

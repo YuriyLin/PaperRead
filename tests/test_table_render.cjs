@@ -4,7 +4,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { test } = require("node:test");
 
-function render(blocks) {
+function render(blocks, options = {}) {
   const paperEl = { innerHTML: "" };
   const bodyClass = new Set();
   const PR = {
@@ -12,7 +12,7 @@ function render(blocks) {
     titleOf: (m) => m.title_en || "",
     state: {
       paper: { meta: { title_en: "Table test", pages: [{ n: 1, img: "pages/page-001.webp" }] }, translation: { done_pages: [1] }, blocks },
-      reader: { edits: {} },
+      reader: { edits: options.edits || {} },
       discussion: { entries: [] },
       layout: {},
       item: {},
@@ -21,7 +21,7 @@ function render(blocks) {
     $: (sel) => sel === "#paper" ? paperEl : null,
     $$: () => [],
     esc: (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
-    md: (s) => String(s == null ? "" : s),
+    md: (s) => PR.esc(s),
     plain: (s) => String(s == null ? "" : s),
     textFor: (key) => {
       const [id, field] = String(key).split("#");
@@ -40,19 +40,38 @@ function render(blocks) {
     emit() {},
     on() {},
     fitWide() {},
+    hashText: (s) => String(s),
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/render.js"), "utf8"), {
+  const context = {
     window: { PR },
     document: {
       documentElement: { dataset: {} },
-      body: { classList: { toggle() {} } },
+      body: { classList: { toggle: (key, on) => on ? bodyClass.add(key) : bodyClass.delete(key) } },
       getElementById: () => null,
       createElement: () => ({ innerHTML: "", firstChild: null, classList: { contains: () => false, add() {} }, querySelector: () => null }),
     },
     console,
-  });
+    katex: require("../easyread/web/vendor/katex/katex.min.js"), URL,
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/render.js"), "utf8"), context);
   PR.renderPaper();
-  return paperEl.innerHTML;
+  return options.inspect ? { html: paperEl.innerHTML, PR, bodyClass } : paperEl.innerHTML;
+}
+
+function bilingual(overrides = {}) {
+  return {
+    id: "tab1", type: "table", page: 1, table_schema: 1, align: "lrr",
+    head: [["LEGACY_HEADER"]], rows: [["LEGACY_BODY"]],
+    head_en: [["Variable", "Estimate", "p value"]],
+    rows_en: [["Treatment", "0.123***\n(0.045)", "0.007"]],
+    head_zh: [["變數", "估計值", "p 值"]],
+    rows_zh: [["處理", "0.123***\n(0.045)", "0.007"]],
+    footnotes_en: ["Standard errors in parentheses."],
+    footnotes_zh: ["括號內為標準誤。"],
+    caption_en: "Regression results", caption_zh: "迴歸分析結果",
+    ...overrides,
+  };
 }
 
 test("tables keep their caption and become clickable original-page placeholders", () => {
@@ -75,5 +94,99 @@ test("one malformed block does not blank the rest of the reader", () => {
   ]);
   assert.match(html, /AFTER_MALFORMED_BLOCK/);
   assert.match(html, /bad/);
+});
+
+test("explicit bilingual tables render two complete versions without changing legacy data", () => {
+  const blocks = [bilingual()];
+  const before = JSON.stringify(blocks);
+  const html = render(blocks);
+  assert.equal((html.match(/<table class="tbl">/g) || []).length, 2);
+  const [translated, original] = html.split('data-table-side="en"');
+  assert.match(translated, /變數[\s\S]*處理[\s\S]*括號內為標準誤。[\s\S]*迴歸分析結果/);
+  assert.match(original, /Variable[\s\S]*Treatment[\s\S]*Standard errors in parentheses\.[\s\S]*Regression results/);
+  assert.doesNotMatch(html, /LEGACY_HEADER|LEGACY_BODY|data-view=|data-order=/);
+  assert.equal(JSON.stringify(blocks), before);
+  assert.match(html, /id="b-tab1" data-id="tab1"/);
+  assert.equal((html.match(/data-key="tab1#caption"/g) || []).length, 1);
+  assert.equal((html.match(/0\.123\*\*\*/g) || []).length, 2);
+  assert.equal((html.match(/\(0\.045\)/g) || []).length, 2);
+});
+
+test("descriptive, correlation and hypothesis tables retain their supplied values and dimensions", () => {
+  const fixtures = [
+    { head_en: [["Measure", "Mean", "SD"]], head_zh: [["指標", "平均數", "標準差"]], rows_en: [["Age", "31.20", "4.50"]], rows_zh: [["年齡", "31.20", "4.50"]] },
+    { head_en: [["", "X", "Y"]], head_zh: [["", "X", "Y"]], rows_en: [["X", "1.000", "−0.32**"], ["Y", "−0.32**", "1.000"]], rows_zh: [["X", "1.000", "−0.32**"], ["Y", "−0.32**", "1.000"]] },
+    { head_en: [["Test", "Statistic", "p"]], head_zh: [["檢定", "統計量", "p"]], rows_en: [["Welch t", "2.45", "<0.05"]], rows_zh: [["Welch t 檢定", "2.45", "<0.05"]] },
+  ];
+  for (const fixture of fixtures) {
+    const html = render([bilingual(fixture)]);
+    assert.equal((html.match(/<tbody>/g) || []).length, 2);
+    assert.equal((html.match(/<td /g) || []).length, fixture.rows_en.length * fixture.rows_en[0].length * 2);
+    assert.doesNotMatch(html, /table-placeholder/);
+  }
+});
+
+test("incomplete or mismatched translations keep the full source and an explicit PDF fallback", () => {
+  for (const override of [
+    { rows_zh: undefined }, { rows_zh: [["wrong column count"]] },
+    { footnotes_zh: [] }, { caption_zh: undefined },
+  ]) {
+    const html = render([bilingual(override)]);
+    assert.equal((html.match(/<table class="tbl">/g) || []).length, 1);
+    assert.match(html, /Treatment/);
+    assert.match(html, /表格譯文尚未完整提供/);
+    assert.match(html, /table-placeholder" data-t="page"/);
+  }
+});
+
+test("unverified, merged and cross-page tables safely retain the existing PDF entry", () => {
+  for (const override of [
+    { table_schema: undefined }, { table_schema: 2 }, { table_schema: true },
+    { rows_en: [["bad dimensions"]] }, { rows_en: [["Treatment", 0.123, "0.007"]] },
+    { table_status: "unreliable" },
+    { footnotes_en: null }, { table_status: 0 },
+    { table_spans: [{ section: "head", row: 0, col: 0, colspan: 3 }] },
+    { table_segments: [{ page: 1 }, { page: 2 }] }, { table_spans: "malformed" },
+  ]) {
+    const html = render([bilingual(override)]);
+    assert.doesNotMatch(html, /<table class="tbl">|Treatment/);
+    assert.match(html, /table-placeholder" data-t="page"/);
+  }
+});
+
+test("rectangular multiple header rows render without inferring merged cells", () => {
+  const html = render([bilingual({ head_en: [["Model", "Model", "Model"], ["Variable", "Estimate", "p value"]], head_zh: [["模型", "模型", "模型"], ["變數", "估計值", "p 值"]] })]);
+  assert.equal((html.match(/<th /g) || []).length, 12);
+  assert.doesNotMatch(html, /rowspan=|colspan=/);
+});
+
+test("caption edits remain authoritative and table-only translations enable existing mode controls", () => {
+  const block = bilingual();
+  const result = render([block], { inspect: true, edits: { "tab1#caption": { zh: "我的表題" } } });
+  assert.match(result.html, /我的表題/);
+  assert.doesNotMatch(result.html, /迴歸分析結果/);
+  assert.deepEqual(Array.from(result.PR.blockKeys(block)), ["tab1#caption"]);
+  const tableOnly = render([bilingual({ caption_en: "", caption_zh: "" })], { inspect: true });
+  assert.equal(tableOnly.PR.hasZh(tableOnly.PR.blockById.tab1), true);
+  assert.equal(tableOnly.bodyClass.has("en-only"), false);
+});
+
+test("supplied table text and fallback explanations cannot inject HTML", () => {
+  const html = render([bilingual({ rows_en: [["<script>bad()</script>", "1", "2"]] })]);
+  assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+  const fallback = render([bilingual({ table_status: "unreliable", table_issue: '<img src=x onerror="bad()">' })]);
+  assert.match(fallback, /&lt;img/);
+  assert.doesNotMatch(fallback, /<img src=x/);
+});
+
+test("table formulas use the existing KaTeX renderer and retain literal variable notation in storage", () => {
+  const block = bilingual({ rows_en: [["$\\beta_1$", "$\\begin{aligned}a&=1\\\\\nb&=2\\end{aligned}$", "$p < 0.01$"]], rows_zh: [["$\\beta_1$", "$\\begin{aligned}a&=1\\\\\nb&=2\\end{aligned}$", "$p < 0.01$"]] });
+  const before = JSON.stringify(block);
+  const html = render([block]);
+  assert.match(html, /class="katex"/);
+  assert.match(html, /application\/x-tex/);
+  assert.doesNotMatch(html, /katex-error/);
+  assert.equal(JSON.stringify(block), before);
 });
 

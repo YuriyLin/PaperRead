@@ -143,6 +143,15 @@ table.tbl th, table.tbl td { padding: .45em .95em; vertical-align: top; white-sp
 table.tbl td:first-child, table.tbl th:first-child { padding-left: .3em; }
 table.tbl td:last-child, table.tbl th:last-child { padding-right: .3em; }
 table.tbl td .sub { color: var(--ink-3); }
+.table-version[hidden] { display: none !important; }
+.table-version:not([hidden]) ~ .table-version:not([hidden]) { margin-top: 1.5em; }
+.table-version .caption .en { display: table; padding: 0; border: 0; font-size: 1em; }
+.table-version .caption:first-child { margin: 0 auto .9em; }
+.table-version[lang="en"] table.tbl th { font-family: var(--serif-en); }
+.table-footnotes, .table-status { margin: .65em auto 0; max-width: 48em; font-size: .82em; line-height: 1.6; }
+.table-footnotes p { margin: .3em 0; }
+.table-cell-text { white-space: pre-line; }
+.table-version table.tbl th, .table-version table.tbl td { white-space: normal; min-width: 3em; overflow-wrap: anywhere; }
 .caption { margin: .9em auto 0; max-width: 40em; font-size: .86em; line-height: 1.75; color: var(--ink-2); }
 .caption .zh { display: table; margin: 0 auto; }
 .caption .en { width: fit-content; margin-left: auto; margin-right: auto; }

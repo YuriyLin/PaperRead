@@ -11,6 +11,7 @@
     const host = document.getElementById("b-" + id);
     if (!host) return;
     host.classList.toggle("show-en", force);
+    if (PR.applyTableReadingLanguage) PR.applyTableReadingLanguage();
     PR.layoutMargin();
     placeBar();
   };
