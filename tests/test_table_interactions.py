@@ -134,7 +134,8 @@ class TableInteractionTest(unittest.TestCase):
     def test_offline_profile_blocks_models_before_transport_and_does_not_save_settings(self):
         with mock.patch.dict(os.environ, {"PAPERREAD_OFFLINE_TEST": "1"}), mock.patch.object(config, "read_json", return_value={}), \
                 mock.patch.object(engines.netcheck, "problem", side_effect=AssertionError("No transport")):
-            self.assertEqual(config.load()["engine"], "none")
+            self.assertEqual(config.load()["engine"], config.DEFAULTS["engine"])
+            self.assertFalse(config.load()["auto_translate"])
             with self.assertRaises(engines.EngineError):
                 engines.run({"engine": "openai"}, "test", Path("."))
             with self.assertRaises(engines.EngineError):

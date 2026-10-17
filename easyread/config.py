@@ -120,9 +120,9 @@ def load() -> dict:
     if lib:  # 测试或多库时临时指定文献库
         cfg["library_dir"] = lib
     if os.environ.get("PAPERREAD_OFFLINE_TEST") == "1":
-        # Runtime-only review profile; no API keys or saved settings are edited.
-        cfg.update(engine="none", auto_translate=False, check_updates=False)
-        cfg["chat"] = {"models": [], "default": ""}
+        # Keep saved model selections visible for settings round trips. The
+        # engines.run / chat.stream guards block model transport independently.
+        cfg.update(auto_translate=False, check_updates=False)
     return cfg
 
 
