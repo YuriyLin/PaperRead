@@ -1805,5 +1805,13 @@
  "表格補譯完成": "Table translation finished",
  "這次要檢查 {n} 頁的表格，超過設定的 {cap} 頁，確認後再開始。": "Checking tables on {n} pages exceeds your {cap}-page limit. Confirm to continue.",
  "全部補譯表格": "Translate all missing tables",
- "只補譯前 {cap} 頁的表格": "Translate tables on the first {cap} pages only"
+ "只補譯前 {cap} 頁的表格": "Translate tables on the first {cap} pages only",
+ "表格 {num}，原文第 {page} 頁": "Table {num}, PDF page {page}",
+ "選取原話": "Selected quotation",
+ "英文儲存格": "English cell",
+ "中文儲存格": "Chinese cell",
+ "中文譯文": "Chinese translation",
+ "來源已變更或儲存格無法定位，請核對原始 PDF。": "The source changed or this cell cannot be located. Inspect the original PDF.",
+ "核對原始 PDF": "Check the original PDF",
+ "隔離測試模式禁止呼叫模型。": "Model calls are disabled in the isolated test profile."
 }

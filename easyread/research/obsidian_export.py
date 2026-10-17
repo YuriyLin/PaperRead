@@ -89,8 +89,9 @@ def _existing_path(root: Path, identity: str, index: dict) -> Path | None:
     research = root / "Research"
     if research.is_dir():
         for path in research.rglob("*.md"):
-            if _read_research_id(path) == identity:
-                return path
+            contained = _contained_file(root, _relative(root, path))
+            if contained and _read_research_id(contained) == identity:
+                return contained
     return None
 
 
@@ -141,6 +142,8 @@ def _render_new(doc: dict, identity: str, paths: dict[str, str]) -> str:
 
 
 def _merge_existing(existing: str, generated: str) -> str | None:
+    if any(text.count(marker) != 1 for text in (existing, generated) for marker in (MANAGED_START, MANAGED_END)):
+        return None
     start = existing.find(MANAGED_START)
     end = existing.find(MANAGED_END, start + len(MANAGED_START)) if start >= 0 else -1
     if start < 0 or end < 0:
@@ -162,6 +165,8 @@ def _plan(root: Path, documents: list[dict], index: dict) -> tuple[list[dict], d
         if kind not in EXPORT_FOLDERS:
             raise ValueError("匯出資料類型不受支援。")  # i18n-ok: export validation message is fixed Traditional Chinese.
         body = str(doc.get("body") or "")
+        if any(marker in body or marker in str(doc.get("title") or "") for marker in (MANAGED_START, MANAGED_END)):
+            raise ValueError("匯出內容含有保留的管理區塊標記。")  # i18n-ok: export validation
         if len(body.encode("utf-8")) > MAX_DOCUMENT_SIZE:
             raise ValueError("單一匯出檔案過大，請拆分後再匯出。")  # i18n-ok: export validation message is fixed Traditional Chinese.
         existing = _existing_path(root, identity, index)
@@ -173,6 +178,8 @@ def _plan(root: Path, documents: list[dict], index: dict) -> tuple[list[dict], d
             if candidate.exists() and identity not in used:
                 candidate = candidate.with_name(candidate.stem + "-" + identity.replace(":", "-")[-12:] + candidate.suffix)
             rel = _relative(root, candidate)
+        if _contained_file(root, rel) is None:
+            raise ValueError("匯出檔案位置必須位於 Vault 內。")  # i18n-ok: export path validation
         if rel in used:
             raise ValueError("同一匯出中出現重複的檔案位置。")  # i18n-ok: export validation message is fixed Traditional Chinese.
         used.add(rel)
@@ -187,7 +194,7 @@ def _render(planned: list[dict], paths: dict[str, str]) -> list[dict]:
         doc, identity = item["doc"], item["id"]
         generated = _render_new(doc, identity, paths)
         existing = item["existing"]
-        current = existing.read_text(encoding="utf-8-sig") if existing else ""
+        current = existing.read_bytes().decode("utf-8") if existing else ""
         content = generated if not current else _merge_existing(current, generated)
         output.append({**item, "generated": generated, "current": current, "content": content})
     return output

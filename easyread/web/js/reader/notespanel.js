@@ -299,6 +299,7 @@
     const [id, field] = String(key || "").split("#");
     const block = PR.blockById && PR.blockById[id];
     if (!block) return { zh: "", en: "", sents: null };
+    if (PR.isTableCellKey && PR.isTableCellKey(key)) { const c = PR.tableCell(key); return c ? { zh: c.zh, en: c.en, sents: null } : { zh: "", en: "", sents: null }; }
     if (field === "caption") { const edit = PR.editOf && PR.editOf(key); return { zh: edit && edit.zh != null ? edit.zh : block.caption_zh || "", en: block.caption_en || "", sents: block.sents || null }; }
     if (field === "image") { const edit = PR.editOf && PR.editOf(key); return { zh: edit && edit.zh != null ? edit.zh : block.image_zh || "", en: block.image_en || "", sents: block.sents || null }; }
     if (/^\d+$/.test(field || "")) {
@@ -364,6 +365,7 @@
 
   function mineAnnotationLines(item, pick) {
     const d = item.data || {};
+    if ([d, ...(d.parts || [])].some((part) => PR.isTableCellKey && PR.isTableCellKey(part.key))) return tableAnnotationLines(d, pick);
     const quote = exportQuoteDetails(item, pick);
     const noteLabel = d.kind === "question" ? PR.t("我的問題") : PR.t("我的注記");
     const lines = [];
@@ -379,6 +381,59 @@
       lines.push("- **" + noteLabel + "：** " + markdownLines(d.body, "  ").join("\n")); // i18n-ok: Markdown formatting punctuation, not UI copy.
     }
     return lines;
+  }
+
+  function mdValue(text) {
+    const math = /(\$\$[\s\S]*?\$\$|\$(?:\\.|[^$])+?\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/g;
+    return String(text || "").split(math).map((part, i) => i % 2
+      ? part.replace(/\\\|/g, "\\Vert ").replace(/(?<!\\)\|/g, "\\vert ").replace(/</g, "\\lt ").replace(/>/g, "\\gt ").replace(/\r?\n/g, " ")
+      : part.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\|/g, "&#124;").replace(/\r?\n/g, "<br>")).join("");
+  }
+  function tableAnnotationLines(note, pick) {
+    const lines = [];
+    for (const part of note.parts?.length ? note.parts : [note]) {
+      const b = PR.blockById[part.anchor] || {}, cell = PR.tableCell(part.key);
+      lines.push("- **" + PR.t("表格 {num}，原文第 {page} 頁", { num: mdValue(b.num || b.id || ""), page: b.page || "?" }) + "**", "  - Cell ID: `" + String(part.key || "").replace(/`/g, "") + "`");
+      if (pick.quote) {
+        lines.push("  - " + PR.t("選取原話") + " (" + (part.side || "zh") + "): " + mdValue(part.quote));
+        if (cell && (!part.table_source || part.table_source === cell.source)) {
+          lines.push("  - " + PR.t("英文儲存格") + ": " + mdValue(cell.en), "  - " + PR.t("中文儲存格") + ": " + mdValue(PR.textFor(part.key)));
+        } else lines.push("  - " + PR.t("來源已變更或儲存格無法定位，請核對原始 PDF。"));
+      }
+    }
+    if (note.body) lines.push("  - **" + PR.t("我的注記") + ":** " + markdownLines(note.body, "    ").join("\n"));
+    return lines;
+  }
+  function tableEvidence(out, pick, annotations, chat) {
+    if (!pick.quote || !PR.tableCell) return out.join("\n");
+    const ids = new Set();
+    for (const it of annotations) {
+      const d = it.data || {}, kind = d.kind === "question" ? "question" : d.kind === "highlight" ? "highlight" : "note";
+      if (it.src !== "mine" || !pick[kind]) continue;
+      for (const part of d.parts?.length ? d.parts : [d]) if (PR.isTableCellKey(part.key)) ids.add(part.anchor);
+    }
+    if (pick.chat) for (const message of chat || []) for (const ref of message.refs || []) if (PR.isTableCellKey(ref.key)) ids.add(ref.anchor);
+    for (const id of ids) {
+      const b = PR.blockById[id];
+      if (!b) continue;
+      out.push("", "## " + PR.t("表格 {num}，原文第 {page} 頁", { num: mdValue(b.num || id), page: b.page || "?" }), "");
+      if (/^[A-Za-z0-9_-]{1,64}$/.test(PR.pid || "") && /^[A-Za-z0-9_-]{1,64}$/.test(id)) out.push("[PaperRead](easyread://open?id=" + encodeURIComponent(PR.pid) + "&block=" + encodeURIComponent(id) + ")", "");
+      if (!PR.tableCell(PR.tableCellKey(b, "rows", 0, 0))) { out.push(PR.t("表格結構尚無法可靠呈現，請查看原始 PDF。")); continue; }
+      for (const side of ["en", "zh"]) {
+        out.push("### " + (side === "en" ? PR.t("英文原文") : PR.t("中文譯文")), "", mdValue(b["caption_" + side]), "");
+        const head = b["head_" + side], rows = b["rows_" + side];
+        if (!Array.isArray(head) || !Array.isArray(rows)) { out.push(PR.t("表格譯文尚未完整提供，請查看原始 PDF。")); continue; }
+        // Markdown has one header row; preserve further header levels as rows
+        // rather than inventing spans or dropping labels.
+        const display = (matrix, section) => matrix.map((cells, r) => cells.map((value, c) => side === "zh" ? PR.textFor(PR.tableCellKey(b, section, r, c)) : value));
+        const shownHead = display(head, "head"), shownRows = display(rows, "rows");
+        const first = shownHead.length ? shownHead[0] : rows[0].map(() => "");
+        const row = (cells) => "| " + cells.map(mdValue).join(" | ") + " |";
+        out.push(row(first), row(first.map(() => "---")), ...shownHead.slice(1).map(row), ...shownRows.map(row), "");
+        for (const [i, footnote] of (b["footnotes_" + side] || []).entries()) out.push("- " + mdValue(side === "zh" ? PR.textFor(PR.tableCellKey(b, "note", i)) : footnote));
+      }
+    }
+    return out.join("\n");
   }
 
   PR.notesMarkdown = function (pick, chat, exportOptions) {
@@ -416,7 +471,7 @@
           for (const c of exportOptions.chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : PR.t("**AI**（{model}）：", { model: c.model || "" }) + c.content, "");
         } else if (kind === "mindmap" && pick.mindmap && exportOptions.mindmap) { const fence = String.fromCharCode(96).repeat(3); out.push("## " + PR.t("論文心智圖"), "", fence + "mermaid", exportOptions.mindmap, fence, ""); }
       }
-      return out.join("\n");
+      return tableEvidence(out, pick, annotations, exportOptions.chat);
     }
     const pn = (S.reader.paper_note || {}).body;
     if (pick.paper && pn) out.push("## " + PR.t("论文笔记"), "", pn, "");
@@ -436,6 +491,6 @@
       out.push("", "## " + PR.t("问 AI 的对话"), "");
       for (const c of chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : PR.t("**AI**（{model}）：", { model: c.model || "" }) + c.content, "");
     }
-    return out.join("\n");
+    return tableEvidence(out, pick, list, chat);
   };
 })(window.PR);

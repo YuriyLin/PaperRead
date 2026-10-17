@@ -78,7 +78,11 @@ def _matrix(page, table, method):
         raise UnreliableTable("Glyph coverage mismatch")
     if any("\ufffd" in c["text"] or any(ord(ch) < 32 for ch in c["text"]) for c in chars):
         raise UnreliableTable("Unmapped PDF glyphs")
-    matrix = table.extract(x_tolerance=2, y_tolerance=2)
+    extracted = table.extract(x_tolerance=2, y_tolerance=2)
+    if len(extracted) != len(rows) or any(not isinstance(cell, str) for row in extracted for cell in row):
+        raise UnreliableTable("Invalid extracted cells")
+    physical_rows = [row for row, values in zip(rows, extracted) if any(cell and cell.strip() for cell in values)]
+    matrix = extracted
     # text-strategy creates physical whitespace rows; only truly empty rows go.
     matrix = [row for row in matrix if any(cell.strip() for cell in row)]
     if len(matrix) < 2 or any(not isinstance(cell, str) for row in matrix for cell in row):
@@ -120,7 +124,7 @@ def _matrix(page, table, method):
         raise UnreliableTable("Insufficient borderless alignment evidence")
     if method == "text" and any(not any(re.search(r"\d", c) for c in row) for row in matrix[header_count:]):
         raise UnreliableTable("Borderless rows lack statistical alignment evidence")
-    return matrix[:header_count], matrix[header_count:]
+    return matrix[:header_count], matrix[header_count:], physical_rows
 
 
 def extract_page(page, number: int) -> PageTables:
@@ -134,7 +138,17 @@ def extract_page(page, number: int) -> PageTables:
             return PageTables([], ["Partially cropped table glyphs require PDF review"])
         page = page.crop(box)
     lines = _lines(page)
-    captions = [(ln, _CAPTION.match(ln["text"])) for ln in lines if _CAPTION.match(ln["text"])]
+    # "Table 1 contains ..." in body prose is a reference, not a caption.
+    # Without punctuation or bold label evidence, leave it to PDF review.
+    def caption_line(line):
+        match = _CAPTION.match(line["text"])
+        if not match:
+            return False
+        if line["text"][match.end():].lstrip().startswith((".", ":")):
+            return True
+        label_chars = [c for c in page.chars if line["top"] - 1 <= c["top"] <= line["bottom"] and c["x0"] <= line["words"][1]["x1"]]
+        return bool(label_chars) and all(re.search(r"bold|black|demi", c.get("fontname", ""), re.I) for c in label_chars)
+    captions = [(ln, _CAPTION.match(ln["text"])) for ln in lines if caption_line(ln)]
     found, issues, unresolved = [], [], []
     ruled = page.find_tables()
     for caption, match in captions:
@@ -162,7 +176,7 @@ def extract_page(page, number: int) -> PageTables:
             if len(candidates) != 1:
                 raise UnreliableTable("Missing or ambiguous table geometry")
             table = candidates[0]
-            head, rows = _matrix(page, table, method)
+            head, rows, physical_rows = _matrix(page, table, method)
             if table.bbox[3] >= page.bbox[3] - 30:
                 raise UnreliableTable("Table touches page boundary")
             # A caption may wrap above the table. Reject prose between the
@@ -171,7 +185,7 @@ def extract_page(page, number: int) -> PageTables:
             if len(extra) > 2:
                 raise UnreliableTable("Caption boundary is ambiguous")
             cap = " ".join([caption["text"], *(ln["text"] for ln in extra)])
-            notes, last, note_size = [], table.bbox[3], None
+            notes, note_boxes, last, note_size = [], [], table.bbox[3], None
             below = [ln for ln in lines if ln["top"] >= table.bbox[3] - 1]
             for ln in below:
                 if ln["top"] - last > 18 or _CAPTION.match(ln["text"]):
@@ -180,9 +194,12 @@ def extract_page(page, number: int) -> PageTables:
                 size = min((c["size"] for c in note_chars), default=0)
                 if _NOTE.match(ln["text"]):
                     notes.append(ln["text"])
+                    note_boxes.append([min(w["x0"] for w in ln["words"]), ln["top"], max(w["x1"] for w in ln["words"]), ln["bottom"]])
                     note_size = size
                 elif notes and ln["top"] - last < 7 and note_size and abs(size - note_size) <= note_size * 0.05:
                     notes[-1] += " " + ln["text"]
+                    note_boxes[-1] = [min(note_boxes[-1][0], min(w["x0"] for w in ln["words"])), note_boxes[-1][1],
+                                      max(note_boxes[-1][2], max(w["x1"] for w in ln["words"])), ln["bottom"]]
                 elif not notes:
                     raise UnreliableTable("Text below the table may contain unmarked footnotes")
                 else:
@@ -196,6 +213,17 @@ def extract_page(page, number: int) -> PageTables:
                      "table_source_box": [round((table.bbox[i] - page.bbox[i % 2]) /
                                           (page.width if i % 2 == 0 else page.height), 6) for i in range(4)],
                      "table_evidence": {"extractor": VERSION, "method": method, "glyphs_verified": True}}
+            def location(box):
+                return {"page": number, "box": [round((box[i] - page.bbox[i % 2]) /
+                                                     (page.width if i % 2 == 0 else page.height), 6) for i in range(4)]}
+            block["table_cell_boxes"] = {}
+            for i, row in enumerate(physical_rows):
+                section, index = ("head", i) if i < len(head) else ("rows", i - len(head))
+                for col, box in enumerate(row.cells):
+                    block["table_cell_boxes"][f"{section}:{index}:{col}"] = location(box)
+            for i, box in enumerate(note_boxes):
+                block["table_cell_boxes"][f"note:{i}"] = location(box)
+            block["table_geometry_source"] = tables.source_token(block)
             if tables.shape_problem(block):
                 raise UnreliableTable("Invalid rectangular structure")
             found.append(block)

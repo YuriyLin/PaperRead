@@ -41,6 +41,8 @@ def engine_name(engine: str | None) -> str:
 def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, cancel: threading.Event | None = None,
         meter: usage.Meter | None = None) -> str:
     """meter：传了就把这次调用的 token 用量记进去（整篇翻译时用）。"""
+    if os.environ.get("PAPERREAD_OFFLINE_TEST") == "1":
+        raise EngineError(tr("隔離測試模式禁止呼叫模型。"))
     bad = netcheck.problem(cfg)
     if bad:
         raise EngineError(bad)

@@ -133,6 +133,8 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
                     edits[block] = {"reverted": True, "prev": cur.get("zh"), "at": at}
             else:
                 entry = {"zh": op["zh"], "base": op.get("base", ""), "at": at}
+                if op.get("table_source"):
+                    entry["table_source"] = op["table_source"]
                 if cur and cur.get("zh") and cur.get("zh") != op["zh"]:
                     entry["prev"] = cur.get("zh")
                 edits[block] = entry

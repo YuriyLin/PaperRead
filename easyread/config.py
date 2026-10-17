@@ -119,6 +119,10 @@ def load() -> dict:
     lib = os.environ.get("EASYREAD_LIBRARY") or os.environ.get("COREAD_LIBRARY")
     if lib:  # 测试或多库时临时指定文献库
         cfg["library_dir"] = lib
+    if os.environ.get("PAPERREAD_OFFLINE_TEST") == "1":
+        # Runtime-only review profile; no API keys or saved settings are edited.
+        cfg.update(engine="none", auto_translate=False, check_updates=False)
+        cfg["chat"] = {"models": [], "default": ""}
     return cfg
 
 

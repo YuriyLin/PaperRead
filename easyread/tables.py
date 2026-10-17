@@ -13,6 +13,63 @@ from .i18n import tr
 MATRICES = ("head_en", "rows_en", "head_zh", "rows_zh")
 FOOTNOTES = ("footnotes_en", "footnotes_zh")
 
+
+def cell_ref(block: dict, key: str) -> dict | None:
+    """A language-independent address. Never search other cells by quote."""
+    match = re.fullmatch(re.escape(str(block.get("id", ""))) + r"#cell:(head|rows|note):(0|[1-9]\d*)(?::(0|[1-9]\d*))?", str(key or ""))
+    if not match or block.get("type") != "table" or shape_problem(block) or not is_bilingual(block):
+        return None
+    section, row, col = match.group(1), int(match.group(2)), match.group(3)
+    if block.get("table_status") not in (None, "", "ready") or block.get("table_spans") or block.get("table_segments"):
+        return None
+    try:
+        if section == "note":
+            if col is not None:
+                return None
+            en = block.get("footnotes_en", [])[row]
+            zh = (block.get("footnotes_zh") or [])[row] if row < len(block.get("footnotes_zh", [])) else ""
+        else:
+            if col is None:
+                return None
+            col = int(col)
+            en = block[f"{section}_en"][row][col]
+            zh = block[f"{section}_zh"][row][col] if f"{section}_zh" in block else ""
+    except (IndexError, KeyError, TypeError):
+        return None
+    return {"key": key, "section": section, "row": row, "col": col, "en": en, "zh": zh, "source": source_token(block)}
+
+
+def source_token(block: dict) -> str:
+    from .store import text_hash
+    import json
+    return text_hash(json.dumps([block.get("caption_en", ""), block.get("head_en", []), block.get("rows_en", []),
+                                 block.get("footnotes_en", [])], ensure_ascii=False, separators=(",", ":")))
+
+
+def context(block: dict, key: str = "", source: str = "", *, include_table: bool = True) -> str:
+    """Evidence for chat: bilingual rows, headers, notes and precise selection."""
+    import json
+    label = f"Table {block.get('num', '')}; PDF page {block.get('page', '?')}; block {block.get('id', '')}"
+    if not is_bilingual(block) or shape_problem(block) or block.get("table_status") not in (None, "", "ready") or block.get("table_spans") or block.get("table_segments"):
+        return label + "\nUnverified table; inspect the original PDF.\n" + str(block.get("caption_en") or "")
+    selected = cell_ref(block, key) if key else None
+    if key and (not selected or source and source != selected["source"]):
+        return label + "\nSelected cell is unavailable or its source changed; inspect the original PDF."
+    parts = [label]
+    if selected:
+        parts.append("Selected cell: " + json.dumps(selected, ensure_ascii=False))
+        if selected["section"] == "rows":
+            row = selected["row"]
+            parts.append("Selected row (English / Chinese): " + json.dumps([block["rows_en"][row],
+                         (block.get("rows_zh") or [])[row] if "rows_zh" in block else []], ensure_ascii=False))
+    if include_table:
+        parts.append("Bilingual table (English source / Chinese translation):")
+        for field in ("caption", "head", "rows", "footnotes"):
+            parts.append(field + ": " + json.dumps({side: block.get(f"{field}_{side}", "" if field == "caption" else [])
+                                                   for side in ("en", "zh")}, ensure_ascii=False))
+    text = "\n".join(parts)
+    return text if len(text) <= 16000 else text[:16000] + "\n[Table context truncated; inspect the PDF for remaining rows.]"
+
 # Ordered, literal invariants. Group numerical expressions with their syntax,
 # so a changed sign, exponent, interval, comparator or significance attachment
 # cannot pass by merely retaining the same bag of digits.

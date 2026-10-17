@@ -105,8 +105,9 @@ class Handler(BaseHTTPRequestHandler):
         options = chat_options.apply(ecfg, body.get("chat_options"))
         model = chat_models.label(m)
         tid = thread["id"] if thread else chat_store.new_id()
-        refs = [{"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000]}
-                for r in (body.get("refs") or [])[:12] if isinstance(r, dict) and r.get("anchor")]
+        refs = [{"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000],
+                 **{k: str(r[k])[:300] for k in ("key", "side", "table_source") if r.get(k)}}
+                for r in (body.get("refs") or [])[:200] if isinstance(r, dict) and r.get("anchor")]
         first = refs[0] if refs else {}
         user = {"content": text, "anchor": body.get("anchor") or first.get("anchor"), "quote": (body.get("quote") or first.get("quote") or "")[:1000],
                 "note": body.get("note"), "refs": refs, "answer_style": style, "chat_options": options}

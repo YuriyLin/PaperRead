@@ -33,6 +33,17 @@ test("progress keeps the block, the position inside it and the ratio", async () 
   assert.equal(PR.state.reader.progress.off, undefined);
 });
 
+test("cell edits retain source fingerprints through offline operation export and import", async () => {
+  const PR = await offlineReader();
+  const block = "tab1#cell:rows:0:0";
+  PR.commit({ op: "edit", block, zh: "實驗組", base: "base", table_source: "source" });
+  const operation = PR.exportOps().ops.find(op => op.op === "edit");
+  assert.equal(operation.table_source, "source");
+  const other = await offlineReader(); other.commit(operation);
+  assert.equal(other.state.reader.edits[block].table_source, "source");
+  assert.equal(other.state.reader.edits[block].zh, "實驗組");
+});
+
 test("exit waits for an in-flight save and drains the newer progress", async () => {
   const pending = [];
   const PR = { t: s => s, uid: () => "client", nowIso: () => "2026-10-14T00:00:00Z", emit() {},

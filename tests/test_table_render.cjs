@@ -40,7 +40,7 @@ function render(blocks, options = {}) {
     emit() {},
     on() {},
     fitWide() {},
-    hashText: (s) => String(s),
+    hashText: (text) => { let h = 2166136261; for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619); return (h >>> 0).toString(16); },
   };
   const context = {
     window: { PR },
@@ -208,5 +208,44 @@ test("table formulas use the existing KaTeX renderer and retain literal variable
   assert.match(html, /application\/x-tex/);
   assert.doesNotMatch(html, /katex-error/);
   assert.equal(JSON.stringify(block), before);
+});
+
+test("both table languages share exact cell IDs including headers and footnotes", () => {
+  const { html, PR } = render([bilingual()], { inspect: true });
+  for (const key of ["tab1#cell:head:0:0", "tab1#cell:rows:0:0", "tab1#cell:note:0"]) {
+    assert.equal(html.split('data-cell-id="' + key + '"').length - 1, 2);
+    assert.equal(PR.tableCell(key).key, key);
+  }
+  for (const key of ["tab1#cell:rows:01:0", "tab1#cell:rows:99:0", "tab1#cell:note:0:0", "tab1#cell:head:0"]) assert.equal(PR.tableCell(key), null);
+});
+
+test("cell PDF navigation validates exact geometry and safely falls back to page only", () => {
+  const b = bilingual(), { PR } = render([b], { inspect: true });
+  const key = "tab1#cell:rows:0:0", calls = [];
+  PR.openPage = (...args) => calls.push(args);
+  const source = PR.tableSource(b);
+  b.table_geometry_source = source;
+  const loc = { page: 1, box: [.1, .2, .4, .3] };
+  b.table_cell_boxes = { "rows:0:0": loc };
+  PR.openTableCell(key, source); assert.equal(calls.at(-1)[2], loc);
+  PR.openTableCell(key, "old"); assert.equal(calls.at(-1)[2], false);
+  b.table_cell_boxes["rows:0:0"] = { page: 2, box: [.1, .2, .4, .3] };
+  PR.openTableCell(key, source); assert.equal(calls.at(-1)[2], false);
+  b.table_status = "fallback";
+  PR.openTableCell(key, source); assert.equal(calls.at(-1)[2], false);
+});
+
+test("reader cell edits remain separate from source and do not attach after source changes", () => {
+  const b = bilingual(), key = "tab1#cell:rows:0:0";
+  const { PR } = render([b], { inspect: true });
+  const source = PR.tableSource(b), before = JSON.stringify(b);
+  PR.state.reader.edits[key] = { zh: "個人修訂", base: PR.hashText(PR.agentText(key)), table_source: source };
+  assert.equal(PR.textFor(key), "個人修訂");
+  assert.equal(PR.isStale(key), false);
+  assert.equal(JSON.stringify(b), before);
+  b.rows_en[0][0] = "Changed source";
+  assert.equal(PR.isStale(key), true);
+  assert.equal(PR.textFor(key), b.rows_zh[0][0]);
+  assert.equal(PR.editOf(key).zh, "個人修訂");
 });
 

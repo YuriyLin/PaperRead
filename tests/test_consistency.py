@@ -16,7 +16,8 @@ def page_of(prompt: str) -> int:
 
 def run_pages(ws, cfg, pages, engine, cancel=None, plan=None):
     patches = [mock.patch.object(engines, "run", engine), mock.patch.object(translate.pdfwork, "locate", lambda r: None),
-               mock.patch.object(translate, "tex_problems", lambda t: [])]
+               mock.patch.object(translate, "tex_problems", lambda t: []),
+               mock.patch.object(translate.netcheck, "problem", return_value=None)]
     if plan:
         patches.append(mock.patch.object(translate.segments, "plan", plan))
     for p in patches:

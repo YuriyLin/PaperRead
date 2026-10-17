@@ -4,12 +4,44 @@
   "use strict";
   const S = PR.state;
 
+  PR.isTableCellKey = (key) => /#cell:(head|rows|note):\d+(?::\d+)?$/.test(String(key || ""));
+  PR.tableCellKey = (b, section, row, col) => b.id + "#cell:" + section + ":" + row + (col == null ? "" : ":" + col);
+  PR.tableSource = (b) => PR.hashText(JSON.stringify([b.caption_en || "", b.head_en || [], b.rows_en || [], b.footnotes_en || []]));
+  PR.tableCell = function (key) {
+    const [id, field] = String(key || "").split("#"), b = PR.blockById[id];
+    const m = /^(head|rows|note):(0|[1-9]\d*)(?::(0|[1-9]\d*))?$/.exec((field || "").replace(/^cell:/, ""));
+    if (!PR.isTableCellKey(key) || !b || b.type !== "table" || !m) return null;
+    const versions = tableVersions(b);
+    if (!versions.en) return null;
+    const section = m[1], row = +m[2], col = m[3] == null ? null : +m[3];
+    if ((section === "note") !== (col == null)) return null;
+    const en = section === "note" ? (b.footnotes_en || [])[row] : b[section + "_en"]?.[row]?.[col];
+    const zh = section === "note" ? (b.footnotes_zh || [])[row] : b[section + "_zh"]?.[row]?.[col];
+    return typeof en === "string" ? { key, block: b, section, row, col, en, zh: versions.zh && typeof zh === "string" ? zh : "", source: PR.tableSource(b) } : null;
+  };
+  PR.openTableCell = function (key, source) {
+    const cell = PR.tableCell(key);
+    if (!cell) {
+      const b = PR.blockById[String(key).split("#")[0]];
+      if (b && b.type === "table" && b.page) PR.openPage(b.page, b.id, false);
+      return;
+    }
+    const b = cell.block, slot = key.split("#cell:")[1];
+    const valid = (loc) => loc && Number.isInteger(loc.page) && loc.page === b.page && Array.isArray(loc.box) && loc.box.length === 4 &&
+      loc.box.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1) && loc.box[0] < loc.box[2] && loc.box[1] < loc.box[3];
+    let location = null;
+    if ((!source || source === cell.source) && b.table_geometry_source === cell.source && valid(b.table_cell_boxes?.[slot])) location = b.table_cell_boxes[slot];
+    if (!location && (!source || source === cell.source) && b.table_geometry_source === cell.source && valid({ page: b.page, box: b.table_source_box })) location = { page: b.page, box: b.table_source_box };
+    PR.openPage(b.page, b.id, location || false);
+  };
+
   /* ---------- 译文取值：key 形如 "s1-p1"、"tab1#caption"、"s1-recs#2" ---------- */
   PR.blockById = {};
   function fields(key) {  // [译文, 原文]
     const [id, field] = key.split("#");
     const b = PR.blockById[id];
     if (!b) return ["", ""];
+    if (PR.isTableCellKey(key)) { const cell = PR.tableCell(key); return cell ? [cell.zh, cell.en] : ["", ""]; }
     if (field === "caption") return [b.caption_zh || "", b.caption_en || ""];
     if (field === "image") return [b.image_zh || "", b.image_en || ""];
     if (field != null && /^\d+$/.test(field)) { const it = (Array.isArray(b.items) ? b.items : [])[+field] || {}; return [it.zh || "", it.en || ""]; }
@@ -21,8 +53,9 @@
   PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh ||
     (b.type === "table" && tableVersions(b).zh) || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
-  PR.textFor = function (key) { const e = PR.editOf(key); return e ? e.zh : PR.agentText(key); };
-  PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && e.base && e.base !== PR.hashText(PR.agentText(key))); };
+  const sourceChanged = (key, e) => PR.isTableCellKey(key) && e.table_source !== PR.tableCell(key)?.source;
+  PR.textFor = function (key) { const e = PR.editOf(key); return e && !sourceChanged(key, e) ? e.zh : PR.agentText(key); };
+  PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && (sourceChanged(key, e) || e.base && e.base !== PR.hashText(PR.agentText(key)))); };
   PR.blockKeys = function (b) {
     if (b.type === "list") return (Array.isArray(b.items) ? b.items : []).map((_, i) => b.id + "#" + i);
     if (b.type === "table") return [b.id + "#caption"];
@@ -112,13 +145,19 @@
     let content;
     if (!data) content = tablePlaceholder(b, PR.t("表格譯文尚未完整提供，請查看原始 PDF。"));
     else {
-      const rowHtml = (row, tag) => '<tr>' + row.map((cell, i) => {
+      const sourceOnly = side === "en" && !tableVersions(b).zh, sourceToken = PR.tableSource(b);
+      const cellHtml = (text, section, row, col) => {
+        const key = PR.tableCellKey(b, section, row, col);
+        return '<span class="table-cell-text ' + (side === "zh" ? "zh" : sourceOnly ? "zh en-main" : "en") + '" data-key="' + PR.esc(key) +
+          '" data-cell-id="' + PR.esc(key) + '" data-table-source="' + PR.esc(sourceToken) + '">' + PR.md(side === "zh" ? PR.textFor(key) : text) + (side === "zh" ? staleTag(key) : "") + '</span>';
+      };
+      const rowHtml = (row, tag, index) => '<tr>' + row.map((cell, i) => {
         const align = ({ l: "left", c: "center", r: "right" })[String(b.align || "")[i]] || "left";
-        return '<' + tag + (tag === "th" ? ' scope="col"' : "") + ' style="text-align:' + align + '"><span class="table-cell-text">' + PR.md(cell) + '</span></' + tag + '>';
+        return '<' + tag + (tag === "th" ? ' scope="col"' : "") + ' style="text-align:' + align + '">' + cellHtml(cell, tag === "th" ? "head" : "rows", index, i) + '</' + tag + '>';
       }).join("") + '</tr>';
-      content = '<div class="tbl-wrap"><table class="tbl">' + (data.head.length ? '<thead>' + data.head.map((row) => rowHtml(row, "th")).join("") + '</thead>' : "") +
-        '<tbody>' + data.rows.map((row) => rowHtml(row, "td")).join("") + '</tbody></table></div>' +
-        (data.notes.length ? '<div class="table-footnotes">' + data.notes.map((note) => '<p>' + PR.md(note) + '</p>').join("") + '</div>' : "");
+      content = '<div class="tbl-wrap" tabindex="0" role="region" aria-label="' + PR.esc(PR.t("表格 {num}，原文第 {page} 頁", { num: b.num || "", page: b.page })) + '"><table class="tbl">' + (data.head.length ? '<thead>' + data.head.map((row, i) => rowHtml(row, "th", i)).join("") + '</thead>' : "") +
+        '<tbody>' + data.rows.map((row, i) => rowHtml(row, "td", i)).join("") + '</tbody></table></div>' +
+        (data.notes.length ? '<div class="table-footnotes">' + data.notes.map((note, i) => '<p>' + cellHtml(note, "note", i) + '</p>').join("") + '</div>' : "");
     }
     const caption = tableCaption(b, side);
     return '<div class="table-version" data-table-side="' + side + '"' + (side === "en" ? ' lang="en"' : "") + '>' +

@@ -258,8 +258,9 @@ def translate_missing(ws, cfg, pages=None, cancel=None, report=lambda *a: None, 
                 cache = block.get("table_cache") if isinstance(block.get("table_cache"), dict) else {}
                 if cache.get("source_hash") == key and cache.get("translation_hash") == _hash({k: block.get(k) for k in _ZH}) and \
                         all(source.get(k) == block.get(k) for k in _SOURCE) and not tables.translation_problem(block):
-                    if block.get("table_status") != "ready":
-                        _commit(ws, block, {"table_status": "ready", "table_issue": ""}, digest, cancel)
+                    geometry = {k: source[k] for k in ("table_cell_boxes", "table_geometry_source", "table_source_box", "table_evidence") if k in source}
+                    if block.get("table_status") != "ready" or any(block.get(k) != value for k, value in geometry.items()):
+                        _commit(ws, block, {"table_status": "ready", "table_issue": "", **geometry}, digest, cancel)
                     result["cached"] += 1
                     continue
                 translated = None

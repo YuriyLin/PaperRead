@@ -3,7 +3,7 @@
   "use strict";
   const S = PR.state;
   const body = document.body;
-  let pvPage = 1, pvBlock = null;
+  let pvPage = 1, pvBlock = null, pvLocation;
   const pages = () => (S.paper.meta || {}).pages || [];
   const boxesOf = (loc) => loc.boxes && loc.boxes.length ? loc.boxes : [loc.box];
 
@@ -36,10 +36,12 @@
     PR.openSide(open ? "pages" : null);
     if (open) PR.syncPage(true); else pair(null);
   };
-  PR.openPage = function (page, blockId) {
+  PR.openPage = function (page, blockId, location) {
     pvBlock = blockId || null;
+    pvLocation = location;
+    holdUntil = Date.now() + 1500;
     if (PR.side !== "pages") PR.openSide("pages");
-    showPage(page, blockId);
+    showPage(page, blockId, location);
   };
 
   /* 原图是 2.4 倍渲染（约 1500 像素宽、几百 KB），面板用不了那么大：要一张和面板一样宽的，服务端生成一次后缓存 */
@@ -103,6 +105,7 @@
   let panelInput = false, programmaticUntil = 0;
   ["wheel", "pointerdown", "touchstart", "keydown"].forEach(type => scroller.addEventListener(type, () => {
     panelInput = true;
+    pvLocation = undefined;
     holdUntil = Date.now() + 2000;
   }, { passive: true }));
   scroller.addEventListener("scrollend", () => { programmaticUntil = 0; });
@@ -130,8 +133,9 @@
     if (!best) best = Object.keys(PR.blockById).find(id => PR.blockById[id].page === pvPage);
     const node = best && document.getElementById("b-" + best);
     if (!node) return;
+    if (best !== pvBlock) pvLocation = undefined;
     pvBlock = best;
-    highlightBlock(pvPage, best);
+    highlightBlock(pvPage, best, pvLocation);
     const rect = node.getBoundingClientRect();
     const fraction = bestBox ? Math.max(0, Math.min(1, (y - bestBox[1]) / Math.max(0.001, bestBox[3] - bestBox[1]))) : 0;
     window.scrollTo({ top: Math.max(0, window.scrollY + rect.top + fraction * rect.height - window.innerHeight * 0.3), behavior: "instant" });
@@ -148,10 +152,10 @@
     if (panelInput) followPanel(entry, middle);
   }, { passive: true });
 
-  function highlightBlock(page, blockId) {
+  function highlightBlock(page, blockId, location) {
     pageNodes.forEach(p => p.hl.classList.remove("on"));
     const hl = pageNodes[page - 1].hl;
-    const loc = blockId && S.layout[blockId];
+    const loc = location === false ? null : location || blockId && S.layout[blockId];
     pair(loc && loc.page === page ? blockId : null);
     if (loc && loc.page === page) {
       const boxes = boxesOf(loc);
@@ -165,7 +169,7 @@
     }
   }
 
-  function showPage(page, blockId) {
+  function showPage(page, blockId, location) {
     const list = pages();
     if (!list.length) return;
     pvPage = Math.min(list.length, Math.max(1, page));
@@ -174,8 +178,8 @@
     programmaticUntil = Date.now() + 1500;
     const { node } = pageNodes[pvPage - 1];
     loadNearby(pvPage); updatePageLabel();
-    highlightBlock(pvPage, blockId);
-    const loc = blockId && S.layout[blockId];
+    highlightBlock(pvPage, blockId, location);
+    const loc = location === false ? null : location || blockId && S.layout[blockId];
     if (loc && loc.page === pvPage) {
       const boxes = boxesOf(loc);
       const [, y0, , y1] = boxes[0];
@@ -197,7 +201,7 @@
   }
   PR.on("block-rendered", (id) => { if (id === paired) { paired = null; pair(id); } });  // 段落重画后补回标记
   PR.on("rendered", () => { const id = paired; paired = null; pair(id); });
-  PR.on("remote", (changed) => { if (PR.side === "pages" && changed.includes("layout")) showPage(pvPage, pvBlock); });
+  PR.on("remote", (changed) => { if (PR.side === "pages" && changed.includes("layout")) showPage(pvPage, pvBlock, pvLocation); });
 
   /* 点原页上的某一段 → 正文跳到那段译文（排版特殊、看不出语序时，从原文找回去） */
   function blockAt(x, y, page = pvPage) {
@@ -218,6 +222,7 @@
     if (!id) return;
     pvPage = page;
     pvBlock = id;
+    pvLocation = undefined;
     holdUntil = Date.now() + 1500;  // 跳过去的滚动会触发“跟随阅读位置”，别让它把刚点的段换掉
     showPage(pvPage, id);
     PR.jumpTo("b-" + id);
@@ -230,12 +235,18 @@
     // Selection controls an explicit click; scrolling follows the viewport.
     const id = force ? (PR.currentBlock && PR.currentBlock()) || reading : reading;
     const b = PR.blockById[id];
+    if (force && pvLocation !== undefined && (!b || id === pvBlock)) {
+      showPage(pvPage, pvBlock, pvLocation);
+      return;
+    }
     if (!b) {  // 还在标题区，不在任何一段上：给第 1 页，别让面板空着
-      if (force || pvBlock) { pvBlock = null; showPage(1); }
+      if (force || pvBlock) { pvBlock = null; pvLocation = undefined; showPage(1); }
       return;
     }
     if (!force && id === pvBlock) return;
+    if (id === pvBlock && pvLocation !== undefined) { showPage(pvPage, pvBlock, pvLocation); return; }
     pvBlock = id;
+    pvLocation = undefined;
     const loc = S.layout[id];
     showPage(loc ? loc.page : b.page, id);
   };
@@ -256,8 +267,9 @@
     if (act === "prev") PR.pageStep(-1);
     if (act === "next") PR.pageStep(1);
   });
-  PR.refreshPages = () => showPage(pvPage);  // 面板宽度变了，按新宽度换图
+  PR.refreshPages = () => showPage(pvPage, pvBlock, pvLocation);  // Preserve explicit cell evidence across panel resize.
   PR.pageStep = (d) => {
+    pvLocation = undefined;
     showPage(pvPage + d);
     const entry = pageNodes[pvPage - 1];
     if (!entry) return;

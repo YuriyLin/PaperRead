@@ -31,6 +31,7 @@
         if (op.zh == null) { if (cur) reader.edits[op.block] = { reverted: true, prev: cur.zh, at }; }
         else {
           const e = { zh: op.zh, base: op.base || "", at };
+          if (op.table_source) e.table_source = op.table_source;
           if (cur && cur.zh && cur.zh !== op.zh) e.prev = cur.zh;
           reader.edits[op.block] = e;
         }
@@ -238,7 +239,7 @@
   /* ---------- 导出 ---------- */
   PR.exportOps = function () {
     const ops = [];
-    for (const [block, e] of Object.entries(S.reader.edits || {})) if (e.zh != null) ops.push({ op: "edit", block, zh: e.zh, base: e.base, at: e.at });
+    for (const [block, e] of Object.entries(S.reader.edits || {})) if (e.zh != null) ops.push({ op: "edit", block, zh: e.zh, base: e.base, at: e.at, ...(e.table_source ? { table_source: e.table_source } : {}) });
     for (const n of Object.values(S.reader.notes || {})) ops.push({ op: "note", note: n, at: n.updated });
     if ((S.reader.paper_note || {}).body) ops.push({ op: "paper_note", body: S.reader.paper_note.body, at: S.reader.paper_note.at });
     return { paper: PR.paperKey, exported: PR.nowIso(), ops };
