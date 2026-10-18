@@ -149,7 +149,7 @@
       '<div class="table-version" data-table-side="zh" lang="zh-Hant">' +
       '<p class="table-status">' + PR.esc(PR.t("閱讀輔助翻譯，非逐格驗證表格")) + '</p>' +
       '<div class="table-reading-text" data-reading-block="' + PR.esc(b.id) + '"></div>' +
-      tablePlaceholder(b, "") + '</div></div>';
+      '<button class="btn sm line table-pdf-check" data-t="page">' + PR.esc(PR.t("開啟原始 PDF")) + '</button></div></div>';
     return b.caption_pos === "above" ? captionHtml(b) + pair : pair + captionHtml(b);
   }
 

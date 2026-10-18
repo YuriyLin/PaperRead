@@ -103,7 +103,8 @@ test("reading fallback uses whole language sides and safe ordered text nodes wit
   assert.match(r.html, /table-pair table-reading-pair/);
   assert.match(r.html, /data-table-side="en"/);
   assert.match(r.html, /data-table-side="zh"/);
-  assert.equal((r.html.match(/class="fig-placeholder table-placeholder"/g) || []).length, 2);
+  assert.equal((r.html.match(/class="fig-placeholder table-placeholder"/g) || []).length, 1);
+  assert.match(r.html, /class="btn sm line table-pdf-check" data-t="page"/);
   assert.match(r.html, /閱讀輔助翻譯，非逐格驗證表格/);
   assert.deepEqual(r.readingNodes()[0].children.map((p) => p.textContent), ["FIRST", "SECOND"]);
   assert.doesNotMatch(r.html, /FIRST|SECOND|data-cell-id|#cell:|<table/);
@@ -112,13 +113,69 @@ test("reading fallback uses whole language sides and safe ordered text nodes wit
   assert.equal(JSON.stringify(b), before);
 });
 
-test("verified inline PDF preview replaces only the English placeholder", () => {
+test("verified inline PDF preview and large PDF placeholder are mutually exclusive", () => {
   const r = render([reading({ table_reading_preview: "data:image/webp;base64,UklGRg==" })]);
   assert.match(r, /class="table-source-preview" data-t="page"/);
   assert.match(r, /<img src="data:image\/webp;base64,UklGRg=="/);
-  assert.equal((r.match(/class="fig-placeholder table-placeholder"/g) || []).length, 1);
-  for (const src of ['javascript:alert(1)', 'https://example.com/stale.webp', 'data:image/svg+xml;base64,AAAA']) {
-    assert.doesNotMatch(render([reading({ table_reading_preview: src })]), /<img/);
+  assert.doesNotMatch(r, /table-placeholder/);
+  assert.match(r, /table-pdf-check/);
+  for (const src of [undefined, '', 'javascript:alert(1)', 'https://example.com/stale.webp', 'data:image/svg+xml;base64,AAAA']) {
+    const fallback = render([reading({ table_reading_preview: src })]);
+    assert.doesNotMatch(fallback, /<img/);
+    assert.equal((fallback.match(/class="fig-placeholder table-placeholder"/g) || []).length, 1);
+    assert.match(fallback, /table-pdf-check/);
+  }
+});
+
+test("paper redraw replaces preview and fallback without stale media", () => {
+  const b = reading(), r = render([b], { inspect: true });
+  for (let i = 0; i < 2; i++) {
+    b.table_reading_preview = "data:image/webp;base64,UklGRg==";
+    r.PR.renderPaper();
+    assert.equal((r.currentHtml().match(/class="table-source-preview"/g) || []).length, 1);
+    assert.doesNotMatch(r.currentHtml(), /table-placeholder/);
+    delete b.table_reading_preview;
+    r.PR.renderPaper();
+    assert.doesNotMatch(r.currentHtml(), /table-source-preview/);
+    assert.equal((r.currentHtml().match(/class="fig-placeholder table-placeholder"/g) || []).length, 1);
+  }
+});
+
+test("all four reading modes keep actual preview/fallback markup exclusive and ordered", () => {
+  for (const preview of [undefined, "data:image/webp;base64,UklGRg=="]) {
+    const html = render([reading({ table_reading_preview: preview })]);
+    const enStart = html.indexOf('data-table-side="en"');
+    const zhStart = html.indexOf('data-table-side="zh"');
+    const pair = { children: [], closest: () => null };
+    const side = (name, content) => ({
+      content, hidden: false,
+      get nextElementSibling() { return pair.children[pair.children.indexOf(this) + 1]; },
+      before(other) { pair.children.splice(pair.children.indexOf(other), 1); pair.children.splice(pair.children.indexOf(this), 0, other); },
+      after(other) { pair.children.splice(pair.children.indexOf(other), 1); pair.children.splice(pair.children.indexOf(this) + 1, 0, other); },
+      name,
+    });
+    const en = side("en", html.slice(enStart, zhStart)), zh = side("zh", html.slice(zhStart));
+    pair.children = [en, zh];
+    pair.querySelector = (s) => s.includes('"en"') ? en : zh;
+    const PR = { state: {}, on() {}, el: () => ({ addEventListener() {} }),
+      $$: () => [pair], prefs: { mode: "zh", lead: "translation", biOrder: "translation" } };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/reading-language.js"), "utf8"), {
+      window: { PR }, document: { body: { append() {} }, addEventListener() {} },
+    });
+    for (let i = 0; i < 2; i++) {
+      for (const [mode, first, expected] of [
+        ["zh", "translation", ["zh"]], ["bi", "translation", ["zh", "en"]],
+        ["bi", "original", ["en", "zh"]], ["zh", "original", ["en"]],
+      ]) {
+        Object.assign(PR.prefs, { mode, lead: first, biOrder: first });
+        PR.applyTableReadingLanguage();
+        assert.deepEqual(pair.children.filter(n => !n.hidden).map(n => n.name), expected);
+        const visible = pair.children.filter(n => !n.hidden).map(n => n.content).join("");
+        assert.equal((visible.match(/table-placeholder/g) || []).length, !preview && expected.includes("en") ? 1 : 0);
+        assert.equal((visible.match(/class="table-source-preview"/g) || []).length, preview && expected.includes("en") ? 1 : 0);
+        assert.equal(visible.includes("table-pdf-check"), expected.includes("zh"));
+      }
+    }
   }
 });
 
@@ -161,6 +218,7 @@ test("ready structured tables keep cell UI even if optional reading data exists"
 test("single block redraw mounts text nodes and drops revoked content", () => {
   const nodes = {};
   const blockNode = (markup = "") => ({
+    markup,
     classList: { contains: () => false, add() {} }, querySelector: () => null,
     readingNodes: markup.includes('class="table-reading-text"') ? [{
       dataset: { readingBlock: "read1" }, children: [],
@@ -175,6 +233,14 @@ test("single block redraw mounts text nodes and drops revoked content", () => {
   b.table_reading_zh[0].zh = "UPDATED";
   r.PR.renderBlock("read1");
   assert.equal(nodes['b-read1'].readingNodes[0].children[0].textContent, "UPDATED");
+  b.table_reading_preview = "data:image/webp;base64,UklGRg==";
+  r.PR.renderBlock("read1");
+  assert.match(nodes['b-read1'].markup, /table-source-preview/);
+  assert.doesNotMatch(nodes['b-read1'].markup, /table-placeholder/);
+  delete b.table_reading_preview;
+  r.PR.renderBlock("read1");
+  assert.doesNotMatch(nodes['b-read1'].markup, /table-source-preview/);
+  assert.equal((nodes['b-read1'].markup.match(/class="fig-placeholder table-placeholder"/g) || []).length, 1);
   delete b.table_reading; delete b.table_reading_zh;
   r.PR.renderBlock("read1");
   assert.equal(nodes['b-read1'].readingNodes.length, 0);
