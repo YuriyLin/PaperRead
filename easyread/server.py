@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, presets as api_presets
+from . import reader_data, __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, presets as api_presets
 from .research import api as research_api
 from . import research_v2
 from . import planning_store
@@ -273,9 +273,11 @@ class Handler(BaseHTTPRequestHandler):
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
                 if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
                     pass  # PaperRead does not generate cropped figure assets.
+                state["paper"], state["versions"]["paper"] = reader_data.reader_paper(ws, state["paper"])
                 return self._json(200, state)
             if action == "versions":
-                return self._json(200, {**ws.versions(), "library_status": app.location.status})
+                _, paper_version = reader_data.reader_paper(ws)
+                return self._json(200, {**ws.versions(), "paper": paper_version, "library_status": app.location.status})
             if action == "chat":
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
             if action == "log":
@@ -287,6 +289,9 @@ class Handler(BaseHTTPRequestHandler):
                 out = build(ws)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
             if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
+                if parts[5] == "paper":
+                    paper, version = reader_data.reader_paper(ws)
+                    return self._json(200, {"data": paper, "version": version})
                 return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
