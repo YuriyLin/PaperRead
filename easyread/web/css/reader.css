@@ -301,8 +301,9 @@ body.dual-margin.side-open #margin-left, body.dual-margin.side-open #margin { di
 body.dual-margin.no-margin #margin-left, body.dual-margin.no-margin #margin { display: none; }
 
 @media (max-width: 1239px) {
-  #stage { grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter); width: calc(var(--measure) + 2 * var(--gutter)); }
-  #margin { display: none; }
+  #stage, body.dual-margin #stage { grid-template-columns: var(--gutter) minmax(0, var(--measure)) var(--gutter); width: calc(var(--measure) + 2 * var(--gutter)); }
+  body.dual-margin #paper { grid-column: 2; }
+  #margin, body.dual-margin #margin { display: none; }
   #margin-left { display: none !important; }
   .note-pin { display: inline-block; }
   .blk.notes-open > .inline-notes { display: block; }
@@ -314,7 +315,7 @@ body.dual-margin.no-margin #margin-left, body.dual-margin.no-margin #margin { di
 }
 @media (max-width: 760px) {
   :root { --gutter: 18px; }
-  #stage { padding-top: calc(var(--bar-h) + 28px); width: 100%; font-size: calc(var(--fs) - 1px); }
+  #stage, body.dual-margin #stage, body.dual-margin.side-open #stage { padding-top: calc(var(--bar-h) + 28px); width: 100%; grid-template-columns: var(--gutter) minmax(0, 1fr) var(--gutter); font-size: calc(var(--fs) - 1px); }
   .zh { text-align: left; }
   .bar-titles, .job-state, [data-act="pages"] span, [data-act="notes"] span { display: none; }
   .note-pin { left: auto; right: 0; top: -.4em; }
