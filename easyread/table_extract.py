@@ -144,7 +144,7 @@ def extract_page(page, number: int) -> PageTables:
         match = _CAPTION.match(line["text"])
         if not match:
             return False
-        if line["text"][match.end():].lstrip().startswith((".", ":")):
+        if line["text"][match.end():].lstrip().startswith((".", ":", "\u2013", "\u2014")):
             return True
         label_chars = [c for c in page.chars if line["top"] - 1 <= c["top"] <= line["bottom"] and c["x0"] <= line["words"][1]["x1"]]
         return bool(label_chars) and all(re.search(r"bold|black|demi", c.get("fontname", ""), re.I) for c in label_chars)
