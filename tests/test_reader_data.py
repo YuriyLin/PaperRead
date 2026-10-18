@@ -1,5 +1,7 @@
 """Reader source projection across HTTP polling and embedded HTML; no models."""
 import copy
+import base64
+import io
 import json
 import os
 import re
@@ -9,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from easyread import build, reader_data, server, table_reading, table_translate
+from easyread import build, pdfwork, reader_data, server, table_reading, table_translate
 from easyread.store import Workspace, write_json_atomic
 from tests.test_table_translation import make_table_pdf
 from tests.test_table_reading_translation import response
@@ -66,6 +68,45 @@ class ReaderProjectionTest(unittest.TestCase):
         self.assertEqual(part['version'], version)
         self.assertEqual(self.route('versions')['paper'], version)
         self.assertEqual(self.ws.paper_path.read_bytes(), self.before)
+
+    def test_preview_is_actual_pdf_pixels_and_never_saved_to_paper(self):
+        from PIL import Image, ImageChops
+        import math
+        from contextlib import closing
+        safe, _ = reader_data.reader_paper(self.ws)
+        b = safe['blocks'][0]
+        prefix, encoded = b['table_reading_preview'].split(',', 1)
+        self.assertEqual(prefix, 'data:image/webp;base64')
+        with Image.open(io.BytesIO(base64.b64decode(encoded))) as preview:
+            with pdfwork.open_pdf(self.ws.source_pdf) as doc:
+                with closing(doc[0]) as page, closing(page.render(scale=3)) as bitmap:
+                    with bitmap.to_pil() as raw, raw.convert('RGB') as image:
+                        w, h = image.size
+                        x0, y0, x1, y1 = b['table_reading']['source']['box']
+                        with image.crop((math.floor(x0*w), math.floor(y0*h), math.ceil(x1*w), math.ceil(y1*h))) as expected:
+                            self.assertEqual(preview.size, expected.size)
+                            self.assertIsNone(ImageChops.difference(preview.convert('RGB'), expected).getbbox())
+                            self.assertGreater(preview.width, 600)
+        self.assertEqual(self.ws.paper_path.read_bytes(), self.before)
+
+    def test_supplied_preview_is_replaced_and_revoked_with_source(self):
+        p = self.ws.load('paper')
+        p['blocks'][0]['table_reading_preview'] = 'data:image/webp;base64,ZmFrZQ=='
+        safe, _ = reader_data.reader_paper(self.ws, p)
+        self.assertNotEqual(safe['blocks'][0]['table_reading_preview'], p['blocks'][0]['table_reading_preview'])
+        self.ws.source_pdf.write_bytes(self.ws.source_pdf.read_bytes() + b'\n% changed')
+        self.assert_hidden(reader_data.reader_paper(self.ws, safe)[0])
+
+    def test_pdf_change_during_preview_render_is_rejected(self):
+        with reader_data._lock:
+            reader_data._previews.clear()
+        original = pdfwork.reading_preview
+        def changed(*args):
+            result = original(*args)
+            self.ws.source_pdf.write_bytes(self.ws.source_pdf.read_bytes() + b'\n% changed')
+            return result
+        with mock.patch.object(pdfwork, 'reading_preview', side_effect=changed):
+            self.assert_hidden(reader_data.reader_paper(self.ws)[0])
 
     def test_success_cache_still_hashes_actual_pdf_and_revalidates_changes(self):
         with mock.patch.object(table_reading, 'verify_source', wraps=table_reading.verify_source) as verify:

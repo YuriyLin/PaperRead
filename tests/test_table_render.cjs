@@ -112,6 +112,16 @@ test("reading fallback uses whole language sides and safe ordered text nodes wit
   assert.equal(JSON.stringify(b), before);
 });
 
+test("verified inline PDF preview replaces only the English placeholder", () => {
+  const r = render([reading({ table_reading_preview: "data:image/webp;base64,UklGRg==" })]);
+  assert.match(r, /class="table-source-preview" data-t="page"/);
+  assert.match(r, /<img src="data:image\/webp;base64,UklGRg=="/);
+  assert.equal((r.match(/class="fig-placeholder table-placeholder"/g) || []).length, 1);
+  for (const src of ['javascript:alert(1)', 'https://example.com/stale.webp', 'data:image/svg+xml;base64,AAAA']) {
+    assert.doesNotMatch(render([reading({ table_reading_preview: src })]), /<img/);
+  }
+});
+
 test("reading model HTML remains literal text and never enters markup", () => {
   const attack = '<img src=x onerror="alert(1)"><script>alert(1)</script>';
   const b = reading(); b.table_reading_zh[0].zh = attack;

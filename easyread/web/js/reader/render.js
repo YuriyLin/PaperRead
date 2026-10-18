@@ -142,8 +142,10 @@
   }
 
   function readingTable(b) {
+    const preview = typeof b.table_reading_preview === "string" && /^data:image\/webp;base64,[A-Za-z0-9+/]+=*$/.test(b.table_reading_preview) ?
+      '<button class="table-source-preview" data-t="page" aria-label="' + PR.esc(PR.t("開啟原始 PDF")) + '"><img src="' + PR.esc(b.table_reading_preview) + '" alt="' + PR.esc(PR.t("原始 PDF 表格")) + '"></button>' : tablePlaceholder(b, "");
     const pair = '<div class="table-pair table-reading-pair">' +
-      '<div class="table-version" data-table-side="en" lang="en">' + tablePlaceholder(b, "") + '</div>' +
+      '<div class="table-version" data-table-side="en" lang="en">' + preview + '</div>' +
       '<div class="table-version" data-table-side="zh" lang="zh-Hant">' +
       '<p class="table-status">' + PR.esc(PR.t("閱讀輔助翻譯，非逐格驗證表格")) + '</p>' +
       '<div class="table-reading-text" data-reading-block="' + PR.esc(b.id) + '"></div>' +

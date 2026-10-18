@@ -15,7 +15,8 @@ from . import table_reading, table_translate
 _verified = OrderedDict()
 _lock = Lock()
 _LIMIT = 64
-_FIELDS = ("table_reading", "table_reading_zh", "table_reading_cache")
+_FIELDS = ("table_reading", "table_reading_zh", "table_reading_cache", "table_reading_preview")
+_previews = OrderedDict()
 
 
 def _digest(ws):
@@ -41,6 +42,8 @@ def reader_paper(ws, paper=None):
     except (OSError, ValueError):
         digest = None
     for block in blocks:
+        # Caller/stored image data never grants access to a preview.
+        block.pop("table_reading_preview", None)
         try:
             if digest is None or table_reading.shape_problem(block):
                 raise ValueError("Reading evidence unavailable")
@@ -69,6 +72,22 @@ def reader_paper(ws, paper=None):
                     cache["version"] != table_translate.READING_VERSION or cache.get("target") != "zh-TW" or
                     cache.get("translation_hash") != table_translate._hash(values)):
                 raise ValueError("Reading translation cache invalid")
+            if block.get("table_status") == "fallback":
+                from . import pdfwork
+                import hashlib
+                with _lock:
+                    preview = _previews.get(key)
+                if preview is None:
+                    snapshot = ws.source_pdf.read_bytes()
+                    if hashlib.sha256(snapshot).hexdigest() != digest:
+                        raise ValueError("PDF changed before rendering")
+                    preview = pdfwork.reading_preview(snapshot, reading["source"]["page"], reading["source"]["box"])
+                    with _lock:
+                        _previews[key] = preview
+                        _previews.move_to_end(key)
+                        while len(_previews) > 8:
+                            _previews.popitem(last=False)
+                block["table_reading_preview"] = preview
         except Exception:  # Malformed PDFs/evidence must not break the reader.
             for field in _FIELDS:
                 block.pop(field, None)

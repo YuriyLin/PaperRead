@@ -145,6 +145,8 @@ table.tbl td:first-child, table.tbl th:first-child { padding-left: .3em; }
 table.tbl td:last-child, table.tbl th:last-child { padding-right: .3em; }
 table.tbl td .sub { color: var(--ink-3); }
 .table-version[hidden] { display: none !important; }
+.table-source-preview { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: white; cursor: pointer; }
+.table-source-preview img { display: block; width: 100%; max-width: 100%; height: auto; }
 .table-version:not([hidden]) ~ .table-version:not([hidden]) { margin-top: 1.5em; }
 .table-version .caption .en { display: table; padding: 0; border: 0; font-size: 1em; }
 .table-version .caption:first-child { margin: 0 auto .9em; }
