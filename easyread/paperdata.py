@@ -24,6 +24,10 @@ def block_shape_problem(block: dict) -> str | None:
     bid = block.get("id")
     if block.get("type") != "table":
         return None
+    if "table_reading" in block:
+        issue = tables.shape_problem(block)
+        if issue:
+            return issue
     if tables.is_bilingual(block):
         return tables.shape_problem(block)
     for field in ("head", "rows"):

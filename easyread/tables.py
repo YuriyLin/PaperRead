@@ -133,6 +133,11 @@ def is_bilingual(block: dict) -> bool:
 
 
 def shape_problem(block: dict) -> str | None:
+    if "table_reading" in block:
+        from .table_reading import shape_problem as reading_problem
+        issue = reading_problem(block)
+        if issue:
+            return issue
     if not is_bilingual(block):
         return None
 
