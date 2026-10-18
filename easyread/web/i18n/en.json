@@ -1,4 +1,7 @@
 {
+ "\u539f\u59cb PDF \u8868\u683c": "Original PDF Table",
+ "\u958b\u555f\u539f\u59cb PDF": "Open Original PDF",
+ "\u95b1\u8b80\u8f14\u52a9\u7ffb\u8b6f\uff0c\u975e\u9010\u683c\u9a57\u8b49\u8868\u683c": "Reading-Aid Translation - Not a Cell-by-Cell Verified Table",
  "{id}：雙語表格資料格式有誤（{field}）": "{id}: invalid bilingual table data ({field})",
  "表格譯文尚未完整提供，請查看原始 PDF。": "The table translation is incomplete. Please consult the original PDF.",
  "表格結構尚無法可靠呈現，請查看原始 PDF。": "The table structure cannot be rendered reliably. Please consult the original PDF.",
