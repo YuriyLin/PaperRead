@@ -1,0 +1,195 @@
+{
+  "table_exists": true,
+  "pages": [
+    1
+  ],
+  "tables": [
+    {
+      "page": 1,
+      "page_bbox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "number": "1",
+      "caption": "Table 1: Estimates",
+      "row_count": 4,
+      "column_count": 3,
+      "header_row_count": 1,
+      "box": [
+        42,
+        112,
+        566,
+        232
+      ],
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Measure",
+          "box": [
+            42,
+            112,
+            196,
+            142
+          ]
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Estimate",
+          "box": [
+            196,
+            112,
+            394,
+            142
+          ]
+        },
+        {
+          "row": 0,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Error",
+          "box": [
+            394,
+            112,
+            566,
+            142
+          ]
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Alpha",
+          "box": [
+            42,
+            142,
+            196,
+            172
+          ]
+        },
+        {
+          "row": 1,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-1.25",
+          "box": [
+            196,
+            142,
+            394,
+            172
+          ]
+        },
+        {
+          "row": 1,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.04",
+          "box": [
+            394,
+            142,
+            566,
+            172
+          ]
+        },
+        {
+          "row": 2,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Beta",
+          "box": [
+            42,
+            172,
+            196,
+            202
+          ]
+        },
+        {
+          "row": 2,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "12.50",
+          "box": [
+            196,
+            172,
+            394,
+            202
+          ]
+        },
+        {
+          "row": 2,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "1.20",
+          "box": [
+            394,
+            172,
+            566,
+            202
+          ]
+        },
+        {
+          "row": 3,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Gamma",
+          "box": [
+            42,
+            202,
+            196,
+            232
+          ]
+        },
+        {
+          "row": 3,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "3.00",
+          "box": [
+            196,
+            202,
+            394,
+            232
+          ]
+        },
+        {
+          "row": 3,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.50",
+          "box": [
+            394,
+            202,
+            566,
+            232
+          ]
+        }
+      ]
+    }
+  ],
+  "logical_table_count": 1,
+  "ambiguous_interpretation": [],
+  "non_table_regions": [],
+  "expected_fallback": false,
+  "fallback_reason": null,
+  "generation_options": {
+    "below": true
+  },
+  "annotation_method": "Declared PDF writer inputs and coordinates, independently reviewed rendered contact sheets; no table extractor output used as truth."
+}

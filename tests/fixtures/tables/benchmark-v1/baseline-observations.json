@@ -1,0 +1,15 @@
+{
+  "synthetic_summary": {
+    "correct": 7,
+    "false_negative": 7,
+    "correct_fallback": 3,
+    "false_positive": 2,
+    "correct_rejection": 2,
+    "ambiguous_accept": 1
+  },
+  "versions": {
+    "pdfplumber": "0.11.10",
+    "pypdf": "6.21.0"
+  },
+  "note": "Observed behavior, including known defects; NOT desired acceptance criteria."
+}

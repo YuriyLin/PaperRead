@@ -10,6 +10,8 @@ import json
 import math
 import re
 
+from . import table_policy
+
 
 def _hash(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
@@ -60,15 +62,16 @@ def shape_problem(block):
 
 
 def _extract(page, block, digest):
-    from .table_extract import _CAPTION, _CONTINUED, _NOTE, _lines, UnreliableTable
+    from .table_extract import _CAPTION, _CONTINUED, _NOTE, _lines, _crop, _visible_page, UnreliableTable
+    if not table_policy.enabled():
+        raise UnreliableTable(table_policy.DISABLED)
 
     def reject():
         raise UnreliableTable("Reading source region or glyph ownership is ambiguous")
 
     if block.get("table_spans") or block.get("table_segments"):
         reject()
-    if tuple(page.bbox) != tuple(page.cropbox):
-        page = page.crop(page.cropbox)
+    page = _visible_page(page)
     lines = _lines(page)
     captions = [l for l in lines if (m := _CAPTION.match(l["text"])) and m.group(1) == block.get("num")]
     if len(captions) != 1 or captions[0]["text"] != block.get("caption_en"):
@@ -86,7 +89,7 @@ def _extract(page, block, digest):
         reject()
     candidates = nearby
     if not candidates:
-        candidates = page.crop((page.bbox[0], cap["bottom"] + 2, page.bbox[2], end)).find_tables(
+        candidates = _crop(page, (page.bbox[0], cap["bottom"] + 2, page.bbox[2], end)).find_tables(
             {"vertical_strategy": "text", "horizontal_strategy": "text", "min_words_vertical": 3,
              "text_x_tolerance": 2, "text_y_tolerance": 2})
         candidates = [t for t in candidates if 0 <= t.bbox[1] - cap["bottom"] < 40]
@@ -138,6 +141,8 @@ def recognize_source(ws, block):
     import io
     import pdfplumber
     from .table_extract import UnreliableTable
+    if not table_policy.enabled():
+        raise UnreliableTable(table_policy.DISABLED)
     data = ws.source_pdf.read_bytes()
     with pdfplumber.open(io.BytesIO(data)) as pdf:
         page = block.get("page")

@@ -1,0 +1,424 @@
+{
+  "schema": 1,
+  "note": "Frozen observations, including known defects; not desired quality criteria. Changes require explicit review, never automatic refresh.",
+  "cases": {
+    "ruled_times": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "ruled_courier_right": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "borderless_times": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "borderless_courier_right": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "ruled_concept": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "borderless_concept": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Borderless extraction may omit an outside column",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Borderless extraction may omit an outside column"
+        ]
+      ]
+    },
+    "ruled_multiline": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "borderless_multiline": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Borderless rows lack statistical alignment evidence",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Borderless rows lack statistical alignment evidence"
+        ]
+      ]
+    },
+    "merged_header": {
+      "outcome": "correct_fallback",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Merged or irregular cells",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Merged or irregular cells"
+        ]
+      ]
+    },
+    "continued_label": {
+      "outcome": "correct_fallback",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table continues on the following page",
+      "page_sources": [
+        1,
+        0
+      ],
+      "page_unresolved": [
+        0,
+        1
+      ],
+      "page_issues": [
+        [],
+        [
+          "Table 1: Continued table requires cross-page evidence"
+        ]
+      ]
+    },
+    "continued_unlabelled": {
+      "outcome": "unsafe_structure_accept",
+      "accepted": true,
+      "exact_cells": false,
+      "reason": "",
+      "page_sources": [
+        1,
+        0
+      ],
+      "page_unresolved": [
+        0,
+        0
+      ],
+      "page_issues": [
+        [],
+        []
+      ]
+    },
+    "prose_negative": {
+      "outcome": "correct_rejection",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Borderless extraction may omit an outside column",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Borderless extraction may omit an outside column"
+        ]
+      ]
+    },
+    "numeric_prose_negative": {
+      "outcome": "ambiguous_accept",
+      "accepted": true,
+      "exact_cells": false,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "caption_gap_45": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Missing or ambiguous table geometry",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Missing or ambiguous table geometry"
+        ]
+      ]
+    },
+    "caption_below": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Missing or ambiguous table geometry",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Missing or ambiguous table geometry"
+        ]
+      ]
+    },
+    "missing_caption": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Caption does not uniquely identify a source table",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "nonbold_header": {
+      "outcome": "correct",
+      "accepted": true,
+      "exact_cells": true,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "unmarked_body_after": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Text below the table may contain unmarked footnotes",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Text below the table may contain unmarked footnotes"
+        ]
+      ]
+    },
+    "duplicate_identity": {
+      "outcome": "correct_fallback",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Caption does not uniquely identify a source table",
+      "page_sources": [
+        2
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "caption_plain_label": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Caption does not uniquely identify a source table",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "natural_prose_captioned": {
+      "outcome": "false_positive",
+      "accepted": true,
+      "exact_cells": false,
+      "reason": "",
+      "page_sources": [
+        1
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "natural_prose_no_caption": {
+      "outcome": "correct_rejection",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Caption does not uniquely identify a source table",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    },
+    "nist-table-1": {
+      "outcome": "correct_fallback",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 1: Merged or irregular cells",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 1: Merged or irregular cells"
+        ]
+      ]
+    },
+    "nist-table-2": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 2: Text below the table may contain unmarked footnotes",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 2: Text below the table may contain unmarked footnotes"
+        ]
+      ]
+    },
+    "nist-table-3": {
+      "outcome": "correct_fallback",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Table 3: Merged or irregular cells",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        1
+      ],
+      "page_issues": [
+        [
+          "Table 3: Merged or irregular cells"
+        ]
+      ]
+    },
+    "fbi-nics-table": {
+      "outcome": "false_negative",
+      "accepted": false,
+      "exact_cells": false,
+      "reason": "Caption does not uniquely identify a source table",
+      "page_sources": [
+        0
+      ],
+      "page_unresolved": [
+        0
+      ],
+      "page_issues": [
+        []
+      ]
+    }
+  }
+}

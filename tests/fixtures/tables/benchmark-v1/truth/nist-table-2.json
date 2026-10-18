@@ -1,0 +1,492 @@
+{
+  "table_exists": true,
+  "logical_table_count": 1,
+  "pages": [
+    2
+  ],
+  "source_pdf_pages": [
+    18
+  ],
+  "tables": [
+    {
+      "page": 2,
+      "page_bbox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "number": "2",
+      "caption": "Table 2. Statistical Moments of marginal cost by year",
+      "row_count": 5,
+      "column_count": 7,
+      "header_row_count": 1,
+      "box": [
+        90.24,
+        95.04,
+        558,
+        207.84
+      ],
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Year",
+          "box": [
+            90.24,
+            95.04,
+            127.92,
+            150.72
+          ]
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Average\nSize",
+          "box": [
+            127.92,
+            95.04,
+            181.2,
+            150.72
+          ]
+        },
+        {
+          "row": 0,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Standard\nDeviation\nSize",
+          "box": [
+            181.2,
+            95.04,
+            241.44,
+            150.72
+          ]
+        },
+        {
+          "row": 0,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Average\nUSD/W",
+          "box": [
+            241.44,
+            95.04,
+            294.96,
+            150.72
+          ]
+        },
+        {
+          "row": 0,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Stand.\nDev.\nUSD/W",
+          "box": [
+            294.96,
+            95.04,
+            345.12,
+            150.72
+          ]
+        },
+        {
+          "row": 0,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Marginal\nCost from\nRegression",
+          "box": [
+            345.12,
+            95.04,
+            416.4,
+            150.72
+          ]
+        },
+        {
+          "row": 0,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Difference between\nAverage USD/W and\nMarginal Cost from\nRegression",
+          "box": [
+            416.4,
+            95.04,
+            558,
+            150.72
+          ]
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2015",
+          "box": [
+            90.24,
+            150.72,
+            127.92,
+            165.12
+          ]
+        },
+        {
+          "row": 1,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "7695",
+          "box": [
+            127.92,
+            150.72,
+            181.2,
+            165.12
+          ]
+        },
+        {
+          "row": 1,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "4255",
+          "box": [
+            181.2,
+            150.72,
+            241.44,
+            165.12
+          ]
+        },
+        {
+          "row": 1,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "3.21",
+          "box": [
+            241.44,
+            150.72,
+            294.96,
+            165.12
+          ]
+        },
+        {
+          "row": 1,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.36",
+          "box": [
+            294.96,
+            150.72,
+            345.12,
+            165.12
+          ]
+        },
+        {
+          "row": 1,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2.94",
+          "box": [
+            345.12,
+            150.72,
+            416.4,
+            165.12
+          ]
+        },
+        {
+          "row": 1,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.27 (9 %)",
+          "box": [
+            416.4,
+            150.72,
+            558,
+            165.12
+          ]
+        },
+        {
+          "row": 2,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2016",
+          "box": [
+            90.24,
+            165.12,
+            127.92,
+            179.28
+          ]
+        },
+        {
+          "row": 2,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "9371",
+          "box": [
+            127.92,
+            165.12,
+            181.2,
+            179.28
+          ]
+        },
+        {
+          "row": 2,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "4297",
+          "box": [
+            181.2,
+            165.12,
+            241.44,
+            179.28
+          ]
+        },
+        {
+          "row": 2,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "3.18",
+          "box": [
+            241.44,
+            165.12,
+            294.96,
+            179.28
+          ]
+        },
+        {
+          "row": 2,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.32",
+          "box": [
+            294.96,
+            165.12,
+            345.12,
+            179.28
+          ]
+        },
+        {
+          "row": 2,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "3.00",
+          "box": [
+            345.12,
+            165.12,
+            416.4,
+            179.28
+          ]
+        },
+        {
+          "row": 2,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.18 (6 %)",
+          "box": [
+            416.4,
+            165.12,
+            558,
+            179.28
+          ]
+        },
+        {
+          "row": 3,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2017",
+          "box": [
+            90.24,
+            179.28,
+            127.92,
+            193.68
+          ]
+        },
+        {
+          "row": 3,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "9203",
+          "box": [
+            127.92,
+            179.28,
+            181.2,
+            193.68
+          ]
+        },
+        {
+          "row": 3,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "4317",
+          "box": [
+            181.2,
+            179.28,
+            241.44,
+            193.68
+          ]
+        },
+        {
+          "row": 3,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2.75",
+          "box": [
+            241.44,
+            179.28,
+            294.96,
+            193.68
+          ]
+        },
+        {
+          "row": 3,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.40",
+          "box": [
+            294.96,
+            179.28,
+            345.12,
+            193.68
+          ]
+        },
+        {
+          "row": 3,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2.60",
+          "box": [
+            345.12,
+            179.28,
+            416.4,
+            193.68
+          ]
+        },
+        {
+          "row": 3,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.15 (6 %)",
+          "box": [
+            416.4,
+            179.28,
+            558,
+            193.68
+          ]
+        },
+        {
+          "row": 4,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2018",
+          "box": [
+            90.24,
+            193.68,
+            127.92,
+            207.84
+          ]
+        },
+        {
+          "row": 4,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "10 454",
+          "box": [
+            127.92,
+            193.68,
+            181.2,
+            207.84
+          ]
+        },
+        {
+          "row": 4,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "5238",
+          "box": [
+            181.2,
+            193.68,
+            241.44,
+            207.84
+          ]
+        },
+        {
+          "row": 4,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "3.02",
+          "box": [
+            241.44,
+            193.68,
+            294.96,
+            207.84
+          ]
+        },
+        {
+          "row": 4,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.36",
+          "box": [
+            294.96,
+            193.68,
+            345.12,
+            207.84
+          ]
+        },
+        {
+          "row": 4,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2.82",
+          "box": [
+            345.12,
+            193.68,
+            416.4,
+            207.84
+          ]
+        },
+        {
+          "row": 4,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.20 (7 %)",
+          "box": [
+            416.4,
+            193.68,
+            558,
+            207.84
+          ]
+        }
+      ]
+    }
+  ],
+  "expected_fallback": false,
+  "fallback_reason": null,
+  "annotation_method": "Fixed manually selected drawing-rule grid; raw PDF text transcription assisted by crop.extract_text (not table extraction); visually reviewed against source pages. Subscripts retained as source line text."
+}

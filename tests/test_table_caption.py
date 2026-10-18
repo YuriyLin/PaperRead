@@ -9,6 +9,7 @@ class CaptionRegexTest(unittest.TestCase):
     def test_existing_caption_formats(self):
         for caption, number in (
             ("Table 1 Statistics", "1"),
+            ("Table 1", "1"),
             ("Table 1: Statistics", "1"),
             ("Table 1. Statistics", "1"),
             ("table A1: Statistics", "A1"),
@@ -62,3 +63,78 @@ class CaptionLineTest(unittest.TestCase):
                 self.assertEqual(result.sources, [])
                 self.assertEqual(result.unresolved, [])
                 self.assertEqual(result.issues, [])
+
+
+class SplitCaptionTest(unittest.TestCase):
+    def extract(self, title="Implications of ICT for ethical public service values",
+                gap=2, x=45, label="Table 1", bounds=(0, 0, 600, 800), ruled=True,
+                prose=False):
+        import tempfile
+        from pathlib import Path
+        import pdfplumber
+        from pypdf import PdfWriter
+        from pypdf.generic import RectangleObject
+        from tests.test_table_translation import make_table_pdf
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "split.pdf"
+            kwargs = {}
+            if prose:
+                kwargs = {"rows": [["Ethical actions", "Public trust", "Reveal reasoning"],
+                                    ["Other actions", "Public values", "Explain decisions"]]}
+            make_table_pdf(path, caption=label, ruled=ruled, **kwargs)
+            writer = PdfWriter(clone_from=str(path))
+            page = writer.pages[0]
+            page.mediabox = page.cropbox = RectangleObject(bounds)
+            if title is not None:
+                content = page["/Contents"].get_object()
+                # Label bottom is 57.277; title height is 9 points.
+                y = 800 - (57.277 + gap) - 7.137
+                content.set_data(content.get_data() +
+                                 f'\nBT /F1 9 Tf {x} {y} Td ({title}) Tj ET'.encode('ascii'))
+            writer.write(path)
+            with pdfplumber.open(path) as pdf:
+                return extract_page(pdf.pages[0], 7)
+
+    def test_split_caption_preserves_source_and_geometry(self):
+        for ruled in (True, False):
+            with self.subTest(ruled=ruled):
+                result = self.extract(ruled=ruled)
+                self.assertEqual(result.issues, [])
+                block = result.sources[0]
+                self.assertEqual(block['caption_en'],
+                                 'Table 1 Implications of ICT for ethical public service values')
+                self.assertEqual((block['num'], block['page']), ('1', 7))
+                self.assertEqual(block['rows_en'][1], ['Control', '-0.50', '0.060'])
+                self.assertEqual(len(block['footnotes_en']), 2)
+                self.assertEqual(len(block['table_cell_boxes']), 11)
+                self.assertEqual(block['table_evidence']['method'], 'lines' if ruled else 'text')
+                self.assertTrue(block['table_evidence']['glyphs_verified'])
+
+    def test_rejects_references_distant_misaligned_and_incomplete_titles(self):
+        for kwargs in ({'title': 'provides an overview of results'},
+                       {'title': 'Shows the results'},
+                       {'title': 'Results are described in the text.'},
+                       {'label': 'See Table 1'}, {'gap': 16}, {'x': 100},
+                       {'title': None}, {'title': 'Table 2'}, {'title': 'Summary'}):
+            with self.subTest(kwargs=kwargs):
+                result = self.extract(**kwargs)
+                self.assertEqual((result.sources, result.unresolved, result.issues), ([], [], []))
+
+    def test_nonstandard_page_preserves_normalized_locations(self):
+        result = self.extract(bounds=(20, 30, 740, 930))
+        self.assertFalse(result.issues)
+        block = result.sources[0]
+        self.assertEqual(block['table_source_box'],
+                         [round(v, 6) for v in (25 / 720, 210 / 900, 520 / 720, 291 / 900)])
+        self.assertEqual(block['table_cell_boxes']['head:0:0']['page'], 7)
+
+    def test_unreliable_borderless_table_has_explicit_fallback(self):
+        result = self.extract(ruled=False, prose=True)
+        self.assertFalse(result.sources)
+        self.assertEqual(len(result.unresolved), 1)
+        block = result.unresolved[0]
+        self.assertEqual((block['num'], block['page'], block['table_status']), ('1', 7, 'fallback'))
+        self.assertIn('Implications of ICT', block['caption_en'])
+        self.assertTrue(block['table_issue'])
+        self.assertEqual(result.issues, ['Table 1: ' + block['table_issue']])

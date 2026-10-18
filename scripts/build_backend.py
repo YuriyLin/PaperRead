@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -39,10 +40,53 @@ def check_dependencies(python: list[str]) -> None:
             raise SystemExit(f"无法加载后端依赖 {module}。请使用打包的 Python 安装：python -m pip install pyinstaller .")
 
 
+def openssl_binary_args(python: list[str]) -> list[str]:
+    """Collect Conda's SSL dependencies into the onefile extraction root."""
+    if os.name != "nt":
+        return []
+    # Query the interpreter used for packaging, not the one running this script.
+    # Read _ssl's PE imports so other OpenSSL versions/architectures work too.
+    probe = subprocess.run(python + ["-c", """
+import importlib.util
+import json
+import sys
+from pathlib import Path
+from PyInstaller.depend.bindepend import get_imports
+
+directory = Path(sys.base_prefix) / "Library" / "bin"
+binaries = []
+if directory.is_dir():
+    import sysconfig
+
+    extension_dir = Path(sysconfig.get_config_var("DESTSHARED") or
+                         Path(sys.base_prefix) / "DLLs")
+    extensions = sorted(extension_dir.glob("*.pyd"))
+
+    # Collect only non-system dependencies located in Conda Library/bin.
+    excluded = ("api-ms-win-", "ext-ms-win-", "vcruntime", "msvcp")
+    for extension in extensions:
+        for name, resolved in get_imports(
+            str(extension), search_paths=[str(directory)]
+        ):
+            if name.lower().startswith(excluded):
+                continue
+            source = directory / name
+            if source.is_file():
+                binaries.append(str(source))
+
+print(json.dumps(sorted(set(binaries))))
+"""], cwd=ROOT, capture_output=True, text=True, check=True)
+    # PyInstaller's Windows bootloader adds sys._MEIPASS to DLL search paths.
+    # Keeping these beside _ssl.pyd needs no application/runtime hook or PATH edit.
+    return [arg for source in json.loads(probe.stdout)
+            for arg in ("--add-binary", f"{source}{os.pathsep}.")]
+
+
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认不是 UTF-8，下面的中文提示会让脚本崩掉
     python = python_with_pyinstaller()
     check_dependencies(python)  # 验证通过后再清理旧产物
+    binary_args = openssl_binary_args(python)
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     for old in OUT.iterdir():
@@ -54,6 +98,7 @@ def main() -> None:
                     "--name", "easyread-backend", "--distpath", str(OUT),
                     "--workpath", str(WORK), "--specpath", str(WORK),
                     *[arg for module in REQUIRED for arg in ("--collect-all", module)],
+                    *binary_args,
                     str(ROOT / "scripts" / "backend_entry.py")]
     subprocess.run(cmd, cwd=ROOT, check=True)
     print(f"后端已生成：{OUT / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")

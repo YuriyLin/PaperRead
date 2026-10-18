@@ -1,0 +1,1346 @@
+{
+  "schema": 1,
+  "id": "paperread-table-benchmark-v1",
+  "sources": [
+    {
+      "id": "ruled_times",
+      "path": "regression/ruled_times.pdf",
+      "sha256": "948374e76c11cb259371be5a325dc1d15b21e70aa711d53f0536660662b72506",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "ruled_courier_right",
+      "path": "regression/ruled_courier_right.pdf",
+      "sha256": "1d61a47a4a8441bc6fb3581905ddbf806fd4a0902c915fb799d723bf60e5399e",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "borderless_times",
+      "path": "regression/borderless_times.pdf",
+      "sha256": "3aebeb7fe48016b7be2f2f22e58953fa0bb56623fe7ed0597d7081cbf977aad2",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "borderless_courier_right",
+      "path": "regression/borderless_courier_right.pdf",
+      "sha256": "b61a2431ec81ef08ec8ac52223d79754b6b26db5077e071d01848df78a32f5bf",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "ruled_concept",
+      "path": "regression/ruled_concept.pdf",
+      "sha256": "000b55cbce55fe046d763730f5025ea8d5055f9e2cb6587e358a1fe4f123c7df",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "borderless_concept",
+      "path": "regression/borderless_concept.pdf",
+      "sha256": "4c2caad1fd7f063d6abf80ab64c7ae00456b36cd4fcf91b42f0727699f26f4c2",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "ruled_multiline",
+      "path": "regression/ruled_multiline.pdf",
+      "sha256": "74db09709d18bbd1151f8d6c53f2920f6c033f7d9bff51192a80c2823db67da0",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "borderless_multiline",
+      "path": "regression/borderless_multiline.pdf",
+      "sha256": "42f08a4654f8789cc956a12402bd8da33e94564631105aa38435c5a6843fdc2e",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "merged_header",
+      "path": "regression/merged_header.pdf",
+      "sha256": "2e5946a0bd51ff94f3bc3f0e2dd3ae00424201a14b80ed297af00214a99392c1",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "continued_label",
+      "path": "regression/continued_label.pdf",
+      "sha256": "c403218d6b8923b2e70d0d1817f87df21679f335cc1dbbcf3bb52e2da6bcbb40",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "continued_unlabelled",
+      "path": "regression/continued_unlabelled.pdf",
+      "sha256": "8ff52b8be002e7d21c3db8357fb7942209834eabb3e807c2534d8003b2abb8ca",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "prose_negative",
+      "path": "regression/prose_negative.pdf",
+      "sha256": "da8fc1f415242513b4cd5f6b8ca551a86801e79871b5cd5d862945bfd6de4b21",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "numeric_prose_negative",
+      "path": "regression/numeric_prose_negative.pdf",
+      "sha256": "6116669f33fcd56b0399d3d3ef167e5ab2c9a7f6430549d82268291c92a618ac",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "caption_gap_45",
+      "path": "regression/caption_gap_45.pdf",
+      "sha256": "f5c35539d6cc5d262fce2bbe22f717fce89d7e20ff1854e9bdd3d45c9e8f8985",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "caption_below",
+      "path": "regression/caption_below.pdf",
+      "sha256": "33a0ca59503a0af0797f194a0ee8670a59e6fb6ad5e68c464a0f8919db5c7f9d",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "missing_caption",
+      "path": "regression/missing_caption.pdf",
+      "sha256": "5adc2acbf1a065dded66b88673b5b67ce042faf0f85701b8d5a9109c6e8ada00",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "nonbold_header",
+      "path": "regression/nonbold_header.pdf",
+      "sha256": "f94aca8ca13a0a53472147e291946ae5a2ae65429f554e58f2f4b78a1897d2bc",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "unmarked_body_after",
+      "path": "regression/unmarked_body_after.pdf",
+      "sha256": "bffaa9fc40ce0090ee61f10629c7cfa084a2c1ce3c747f53be5733830e821860",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "duplicate_identity",
+      "path": "regression/duplicate_identity.pdf",
+      "sha256": "8854c56e98305da5297c77ed34099647e145b9bc9462fbbd993f269731491959",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "caption_plain_label",
+      "path": "regression/caption_plain_label.pdf",
+      "sha256": "d144fc3520b29dfda36bce08e13021ea634401608f476ed7bddf08f4349a6be4",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "natural_prose_captioned",
+      "path": "regression/natural_prose_captioned.pdf",
+      "sha256": "dbff5163f9e1ce4c913209ef42cdce98523f17dbb132bf2f65990d7f57a0ae14",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "natural_prose_no_caption",
+      "path": "regression/natural_prose_no_caption.pdf",
+      "sha256": "07fb0364bdf60de3eec25e94b90b6bac492ca4c15d1296f6f578a1e5c69dc577",
+      "source_document_group": "synthetic-independent-writer-v1",
+      "publisher_group": "synthetic-independent-writer-v1",
+      "split": "regression",
+      "url": null
+    },
+    {
+      "id": "nist-tn-2113",
+      "path": "../nist-tn-2113-pages-17-19.pdf",
+      "sha256": "34337949d20353d834189f819fd2545416f9a00c9092b054a7fa67174612fdbe",
+      "source_document_group": "nist-tn-2113",
+      "publisher_group": "NIST",
+      "split": "regression",
+      "url": "https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2113.pdf"
+    },
+    {
+      "id": "fbi-nics-2015-11",
+      "path": "regression/fbi-nics-2015-11.pdf",
+      "sha256": "4f0ae6e017b0e97de211da8fd97316e55bd927af5740d6ce95e1b7b1539f9407",
+      "source_document_group": "fbi-nics-2015-11",
+      "publisher_group": "FBI",
+      "split": "regression",
+      "url": "https://raw.githubusercontent.com/jsvine/pdfplumber/stable/examples/pdfs/background-checks.pdf"
+    },
+    {
+      "id": "w3c-pdf6",
+      "path": "holdout/w3c-table.pdf",
+      "sha256": "45defa986c7f576d1243928126ad7dddc5deb915490a4b42d31c963076cffbe6",
+      "source_document_group": "w3c-pdf6",
+      "publisher_group": "W3C",
+      "split": "holdout",
+      "url": "https://www.w3.org/WAI/WCAG22/working-examples/pdf-table-headers/table-example-repaired.pdf"
+    }
+  ],
+  "cases": [
+    {
+      "id": "ruled_times",
+      "source": "ruled_times",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/ruled_times.json",
+      "truth_sha256": "f154b3447c3848dcc65bdfc9055855e368ffcdb8b0b04ace694316aa852e16b4",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "ruled_times",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {},
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "ruled_courier_right",
+      "source": "ruled_courier_right",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/ruled_courier_right.json",
+      "truth_sha256": "0efb25bd6f37c16a146ef18b943827918db625e87182b4065b69e588cd0b52d2",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "ruled_courier_right",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "font": "Courier",
+          "right": true
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "borderless_times",
+      "source": "borderless_times",
+      "categories": [
+        "borderless_statistical"
+      ],
+      "truth": "truth/borderless_times.json",
+      "truth_sha256": "856019c0b1273e1250065773d323f39b24268ddcbccdcb82d6750d2ad4872666",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "borderless_times",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "ruled": false
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "borderless_statistical"
+    },
+    {
+      "id": "borderless_courier_right",
+      "source": "borderless_courier_right",
+      "categories": [
+        "borderless_statistical"
+      ],
+      "truth": "truth/borderless_courier_right.json",
+      "truth_sha256": "064f77680134e0c04f6be34d4175a2ce4c95c606d53ccd68da508e95963b7ecd",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "borderless_courier_right",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "ruled": false,
+          "font": "Courier",
+          "right": true
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "borderless_statistical"
+    },
+    {
+      "id": "ruled_concept",
+      "source": "ruled_concept",
+      "categories": [
+        "concept",
+        "ruled"
+      ],
+      "truth": "truth/ruled_concept.json",
+      "truth_sha256": "659b7c4625bdd6cd3f929efc9a95cd30f14c82a02fa93854126ee6a6e148fdbb",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "ruled_concept",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "concept": true
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Dimension",
+            "Mechanism",
+            "Outcome"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Autonomy",
+            "Local judgment",
+            "Flexible service"
+          ],
+          [
+            "Control",
+            "Standard rules",
+            "Uniform service"
+          ],
+          [
+            "Accountability",
+            "Public review",
+            "Open decisions"
+          ]
+        ]
+      },
+      "primary_category": "concept"
+    },
+    {
+      "id": "borderless_concept",
+      "source": "borderless_concept",
+      "categories": [
+        "concept",
+        "borderless"
+      ],
+      "truth": "truth/borderless_concept.json",
+      "truth_sha256": "78423954f7fd9eca720c50259f07eb3d77ed7ccc2c33fd20350bf55c4b7878f5",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "borderless_concept",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Borderless extraction may omit an outside column",
+        "options": {
+          "concept": true,
+          "ruled": false
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Borderless extraction may omit an outside column"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "concept"
+    },
+    {
+      "id": "ruled_multiline",
+      "source": "ruled_multiline",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/ruled_multiline.json",
+      "truth_sha256": "555b3c6b77505d0df4ed2bc9b5532cf54801e439ec8169c77fee036941dd3c7d",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "ruled_multiline",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "multiline": true
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha\nsubgroup",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "borderless_multiline",
+      "source": "borderless_multiline",
+      "categories": [
+        "borderless_statistical"
+      ],
+      "truth": "truth/borderless_multiline.json",
+      "truth_sha256": "1f89e6738626059f9d651adf98369b0c8647abeba5fe07fd56f7588a202c70b4",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "borderless_multiline",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Borderless rows lack statistical alignment evidence",
+        "options": {
+          "multiline": true,
+          "ruled": false
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Borderless rows lack statistical alignment evidence"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "borderless_statistical"
+    },
+    {
+      "id": "merged_header",
+      "source": "merged_header",
+      "categories": [
+        "ruled",
+        "merged_cells"
+      ],
+      "truth": "truth/merged_header.json",
+      "truth_sha256": "ce69902aed90f3eb06982f2d77e9fa55ba3892ac94c522bcd6e24f91fcfd2833",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "name": "merged_header",
+        "label": "unsupported",
+        "outcome": "correct_fallback",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Merged or irregular cells",
+        "options": {
+          "merged": true
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Merged or irregular cells"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "merged_cells"
+    },
+    {
+      "id": "continued_label",
+      "source": "continued_label",
+      "categories": [
+        "ruled",
+        "cross_page"
+      ],
+      "truth": "truth/continued_label.json",
+      "truth_sha256": "958db8e65e927692f4f6f29af2f42219452dd60fbacb1498b9ca591efa68609c",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "name": "continued_label",
+        "label": "unsupported",
+        "outcome": "correct_fallback",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table continues on the following page",
+        "options": {
+          "continuation": true
+        },
+        "page_sources": [
+          1,
+          0
+        ],
+        "page_issues": [
+          [],
+          [
+            "Table 1: Continued table requires cross-page evidence"
+          ]
+        ],
+        "page_unresolved": [
+          0,
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "cross_page"
+    },
+    {
+      "id": "continued_unlabelled",
+      "source": "continued_unlabelled",
+      "categories": [
+        "ruled",
+        "cross_page"
+      ],
+      "truth": "truth/continued_unlabelled.json",
+      "truth_sha256": "b1fb610514fad71c82a42af54ea0bddbd87997cb72632724daae2aae6722d866",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "name": "continued_unlabelled",
+        "label": "unsupported",
+        "outcome": "false_positive",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "continuation": false
+        },
+        "page_sources": [
+          1,
+          0
+        ],
+        "page_issues": [
+          [],
+          []
+        ],
+        "page_unresolved": [
+          0,
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "cross_page"
+    },
+    {
+      "id": "prose_negative",
+      "source": "prose_negative",
+      "categories": [
+        "ordinary_prose"
+      ],
+      "truth": "truth/prose_negative.json",
+      "truth_sha256": "9b7c932267321a5efcbd678c9cbe2143a47c0b9c099651093b1f89e7e681567b",
+      "desired_action": "reject",
+      "baseline_observation": {
+        "name": "prose_negative",
+        "label": "non-table",
+        "outcome": "correct_rejection",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Borderless extraction may omit an outside column",
+        "options": {
+          "prose": true,
+          "ruled": false
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Borderless extraction may omit an outside column"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ordinary_prose"
+    },
+    {
+      "id": "numeric_prose_negative",
+      "source": "numeric_prose_negative",
+      "categories": [
+        "ambiguous"
+      ],
+      "truth": "truth/numeric_prose_negative.json",
+      "truth_sha256": "958806e71b8aab887325199cf8b84542de91aee8fae9c4f1beb925a5a77a0c3d",
+      "desired_action": "review",
+      "baseline_observation": {
+        "name": "numeric_prose_negative",
+        "label": "ambiguous-content",
+        "outcome": "ambiguous_accept",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "numeric_prose": true,
+          "ruled": false
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Annual",
+            "review",
+            "summary"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "In 2020",
+            "we saw",
+            "12 events"
+          ],
+          [
+            "In 2021",
+            "we saw",
+            "15 events"
+          ],
+          [
+            "In 2022",
+            "we saw",
+            "18 events"
+          ]
+        ]
+      },
+      "primary_category": "ambiguous"
+    },
+    {
+      "id": "caption_gap_45",
+      "source": "caption_gap_45",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/caption_gap_45.json",
+      "truth_sha256": "003a9ba2c0ac3013fb95aca6f386a0998d3c949bbdb76f15309c1618b24fd318",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "caption_gap_45",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Missing or ambiguous table geometry",
+        "options": {
+          "gap": 45
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Missing or ambiguous table geometry"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "caption_below",
+      "source": "caption_below",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/caption_below.json",
+      "truth_sha256": "74dceb3bfa2c36b9e12813c633e719e437a59b865dcacf0409957cbef76c40c8",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "caption_below",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Missing or ambiguous table geometry",
+        "options": {
+          "below": true
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Missing or ambiguous table geometry"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "missing_caption",
+      "source": "missing_caption",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/missing_caption.json",
+      "truth_sha256": "058c9fcec943e54c5662c37f5ab9e01a0f3d483548867804f7ef1d307ebe64d1",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "missing_caption",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Caption does not uniquely identify a source table",
+        "options": {
+          "caption": ""
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "nonbold_header",
+      "source": "nonbold_header",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/nonbold_header.json",
+      "truth_sha256": "9e9f90e10e5caf9c1a30600dd9c7cf67b468be799c9368303a510a016a23a5e8",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "nonbold_header",
+        "label": "table",
+        "outcome": "correct",
+        "exact_cells": true,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "bold": false
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "Measure",
+            "Estimate",
+            "Error"
+          ]
+        ],
+        "actual_rows": [
+          [
+            "Alpha",
+            "-1.25",
+            "0.04"
+          ],
+          [
+            "Beta",
+            "12.50",
+            "1.20"
+          ],
+          [
+            "Gamma",
+            "3.00",
+            "0.50"
+          ]
+        ]
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "unmarked_body_after",
+      "source": "unmarked_body_after",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/unmarked_body_after.json",
+      "truth_sha256": "fc14100634a867700ecd1ce8bdb167c101c60b0aebe1448b6c54290da3fb181b",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "unmarked_body_after",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Table 1: Text below the table may contain unmarked footnotes",
+        "options": {
+          "footer": true
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          [
+            "Table 1: Text below the table may contain unmarked footnotes"
+          ]
+        ],
+        "page_unresolved": [
+          1
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "duplicate_identity",
+      "source": "duplicate_identity",
+      "categories": [
+        "ambiguous"
+      ],
+      "truth": "truth/duplicate_identity.json",
+      "truth_sha256": "f636d8a3232ed2692e64d64abdf2eee25f41a5793255c4f23dad27ff568663f7",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "name": "duplicate_identity",
+        "label": "ambiguous",
+        "outcome": "correct_fallback",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Caption does not uniquely identify a source table",
+        "options": {
+          "duplicate": true
+        },
+        "page_sources": [
+          2
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ambiguous"
+    },
+    {
+      "id": "caption_plain_label",
+      "source": "caption_plain_label",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/caption_plain_label.json",
+      "truth_sha256": "eae55122d3cc584326cf6e53df3b4488caba78e9b81c9cc57cd1a1862fb2547c",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "name": "caption_plain_label",
+        "label": "table",
+        "outcome": "false_negative",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Caption does not uniquely identify a source table",
+        "options": {
+          "caption": "Table 1 Estimates",
+          "caption_bold": false
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "natural_prose_captioned",
+      "source": "natural_prose_captioned",
+      "categories": [
+        "ordinary_prose"
+      ],
+      "truth": "truth/natural_prose_captioned.json",
+      "truth_sha256": "6b22e3f83197643649f186501021bd33bcc9e39415f2a80bbe5d5668fd9f4eaf",
+      "desired_action": "reject",
+      "baseline_observation": {
+        "name": "natural_prose_captioned",
+        "label": "non-table",
+        "outcome": "false_positive",
+        "exact_cells": false,
+        "accepted": true,
+        "reason": "",
+        "options": {
+          "natural_prose": true,
+          "ruled": false
+        },
+        "page_sources": [
+          1
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": [
+          [
+            "This ann",
+            "ual",
+            "repo",
+            "rt",
+            "describ",
+            "es ordi",
+            "nary",
+            "event",
+            "s."
+          ]
+        ],
+        "actual_rows": [
+          [
+            "In 2020",
+            "we",
+            "saw",
+            "12",
+            "events",
+            "across",
+            "the",
+            "entire",
+            "region."
+          ],
+          [
+            "In 2021",
+            "we",
+            "saw",
+            "15",
+            "events",
+            "across",
+            "the",
+            "entire",
+            "region."
+          ],
+          [
+            "In 2022",
+            "we",
+            "saw",
+            "18",
+            "events",
+            "across",
+            "the",
+            "entire",
+            "region."
+          ]
+        ]
+      },
+      "primary_category": "ordinary_prose"
+    },
+    {
+      "id": "natural_prose_no_caption",
+      "source": "natural_prose_no_caption",
+      "categories": [
+        "ordinary_prose"
+      ],
+      "truth": "truth/natural_prose_no_caption.json",
+      "truth_sha256": "5559b503e168560658bba55c9c525d0c7d6fa860bf8be0d55d0b10123eff84dc",
+      "desired_action": "reject",
+      "baseline_observation": {
+        "name": "natural_prose_no_caption",
+        "label": "non-table",
+        "outcome": "correct_rejection",
+        "exact_cells": false,
+        "accepted": false,
+        "reason": "Caption does not uniquely identify a source table",
+        "options": {
+          "natural_prose": true,
+          "ruled": false,
+          "caption": ""
+        },
+        "page_sources": [
+          0
+        ],
+        "page_issues": [
+          []
+        ],
+        "page_unresolved": [
+          0
+        ],
+        "actual_head": null,
+        "actual_rows": null
+      },
+      "primary_category": "ordinary_prose"
+    },
+    {
+      "id": "nist-table-1",
+      "source": "nist-tn-2113",
+      "categories": [
+        "ruled",
+        "merged_cells"
+      ],
+      "truth": "truth/nist-table-1.json",
+      "truth_sha256": "c35c86abfa2e5b9d7043c8123d9f018caf3a8e46629ca15c7e4d79db26ac91df",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "file": "tests\\fixtures\\tables\\nist-tn-2113-pages-17-19.pdf",
+        "page": 1,
+        "sources": 0,
+        "issues": [
+          "Table 1: Merged or irregular cells"
+        ],
+        "unresolved": 1,
+        "raw_ruled_candidates": 1,
+        "sha256": "34337949d20353d834189f819fd2545416f9a00c9092b054a7fa67174612fdbe"
+      },
+      "primary_category": "merged_cells"
+    },
+    {
+      "id": "nist-table-2",
+      "source": "nist-tn-2113",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/nist-table-2.json",
+      "truth_sha256": "f3c42e2b0cd4a7b598839072174fde7d04152a9ffbc83138f66ed160a01d56d0",
+      "desired_action": "accept_exact",
+      "baseline_observation": {
+        "file": "tests\\fixtures\\tables\\nist-tn-2113-pages-17-19.pdf",
+        "page": 2,
+        "sources": 0,
+        "issues": [
+          "Table 2: Text below the table may contain unmarked footnotes"
+        ],
+        "unresolved": 1,
+        "raw_ruled_candidates": 1,
+        "sha256": "34337949d20353d834189f819fd2545416f9a00c9092b054a7fa67174612fdbe"
+      },
+      "primary_category": "ruled"
+    },
+    {
+      "id": "nist-table-3",
+      "source": "nist-tn-2113",
+      "categories": [
+        "ruled",
+        "merged_cells"
+      ],
+      "truth": "truth/nist-table-3.json",
+      "truth_sha256": "a0950d556748f5a52a20236074f1884c85dabeb0c7e815a9012b51692d8a3e5f",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "file": "tests\\fixtures\\tables\\nist-tn-2113-pages-17-19.pdf",
+        "page": 3,
+        "sources": 0,
+        "issues": [
+          "Table 3: Merged or irregular cells"
+        ],
+        "unresolved": 1,
+        "raw_ruled_candidates": 1,
+        "sha256": "34337949d20353d834189f819fd2545416f9a00c9092b054a7fa67174612fdbe"
+      },
+      "primary_category": "merged_cells"
+    },
+    {
+      "id": "fbi-nics-table",
+      "source": "fbi-nics-2015-11",
+      "categories": [
+        "ruled",
+        "merged_cells"
+      ],
+      "truth": "truth/fbi-nics-table.json",
+      "truth_sha256": "afee1e6a9cc336cf04af3170c90d59ee26f4de692ff1268516ef2191df9f8aa7",
+      "desired_action": "fallback",
+      "baseline_observation": {
+        "file": "tmp\\table-generalization\\background-checks.pdf",
+        "page": 1,
+        "sources": 0,
+        "issues": [],
+        "unresolved": 0,
+        "raw_ruled_candidates": 1,
+        "sha256": "4f0ae6e017b0e97de211da8fd97316e55bd927af5740d6ce95e1b7b1539f9407"
+      },
+      "primary_category": "merged_cells"
+    },
+    {
+      "id": "w3c-pdf6-table",
+      "source": "w3c-pdf6",
+      "categories": [
+        "ruled"
+      ],
+      "truth": "truth/w3c-pdf6-table.json",
+      "truth_sha256": "9fdd8b43cfa075fcd5819a6636f79f4be7223d4a0328de23fd944c4fb91247a3",
+      "desired_action": "accept_exact",
+      "baseline_observation": null,
+      "primary_category": "ruled"
+    }
+  ],
+  "split_policy": "Split by source_document_group and publisher_group; all related pages remain together. Holdout is excluded unless explicitly released.",
+  "holdout_status": "sealed; annotated but never evaluated by PaperRead in this phase",
+  "observation_baseline": {
+    "path": "observations-v1.json",
+    "sha256": "6a27d4cdc3646ef48d0decdaa5f0de956d1871a48a175b5585268f935f618e89"
+  }
+}

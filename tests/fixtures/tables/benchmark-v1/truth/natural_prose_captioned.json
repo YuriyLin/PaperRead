@@ -1,0 +1,28 @@
+{
+  "table_exists": false,
+  "pages": [
+    1
+  ],
+  "tables": [],
+  "logical_table_count": 0,
+  "ambiguous_interpretation": [],
+  "non_table_regions": [
+    {
+      "page": 1,
+      "box": [
+        42,
+        112,
+        566,
+        232
+      ],
+      "text": "This annual report describes ordinary events.\nIn 2020 we saw 12 events across the entire region.\nIn 2021 we saw 15 events across the entire region.\nIn 2022 we saw 18 events across the entire region."
+    }
+  ],
+  "expected_fallback": false,
+  "fallback_reason": null,
+  "generation_options": {
+    "natural_prose": true,
+    "ruled": false
+  },
+  "annotation_method": "Declared PDF writer inputs and coordinates, independently reviewed rendered contact sheets; no table extractor output used as truth."
+}

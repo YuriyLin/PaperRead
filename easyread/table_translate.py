@@ -14,7 +14,7 @@ import re
 import threading
 from contextlib import contextmanager
 
-from . import engines, table_extract, table_reading, tables, traditional
+from . import engines, table_extract, table_reading, table_policy, tables, traditional
 from .i18n import tr
 from .store import now_iso
 
@@ -286,6 +286,8 @@ def _commit(ws, original, updated, digest, cancel):
 
 def _discover(ws, pages, digest, cancel):
     """Find missing table blocks locally. Existing IDs always win."""
+    if not table_policy.enabled():
+        raise ValueError(table_policy.DISABLED)
     import pdfplumber
     sources, issues = [], []
     with pdfplumber.open(ws.source_pdf) as pdf:
@@ -327,6 +329,8 @@ def translate_missing(ws, cfg, pages=None, cancel=None, report=lambda *a: None, 
     """Idempotent table-only entry; retries each failed table once. All model
     tests mock engines.run. Calling this explicitly authorizes table translation.
     """
+    if not table_policy.enabled():
+        raise ValueError(table_policy.DISABLED)
     if attempts not in (1, 2):
         raise ValueError("Table translation attempts must be 1 or 2")
     result = {"translated": 0, "cached": 0, "fallback": 0, "failed": {}, "issues": []}

@@ -1,0 +1,359 @@
+{
+  "table_exists": true,
+  "logical_table_count": 1,
+  "pages": [
+    1
+  ],
+  "tables": [
+    {
+      "page": 1,
+      "page_bbox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "number": null,
+      "caption": null,
+      "row_count": 5,
+      "column_count": 5,
+      "header_row_count": 1,
+      "box": [
+        66.6,
+        72.24,
+        545.4,
+        201.96
+      ],
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "School",
+          "box": [
+            66.6,
+            72.24,
+            161.28,
+            98.16
+          ]
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "First grade",
+          "box": [
+            161.28,
+            72.24,
+            258.6,
+            98.16
+          ]
+        },
+        {
+          "row": 0,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Second grade",
+          "box": [
+            258.6,
+            72.24,
+            355.92,
+            98.16
+          ]
+        },
+        {
+          "row": 0,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Third grade",
+          "box": [
+            355.92,
+            72.24,
+            450.6,
+            98.16
+          ]
+        },
+        {
+          "row": 0,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Fourth grade",
+          "box": [
+            450.6,
+            72.24,
+            545.4,
+            98.16
+          ]
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Elm Street",
+          "box": [
+            66.6,
+            98.16,
+            161.28,
+            124.08
+          ]
+        },
+        {
+          "row": 1,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "23",
+          "box": [
+            161.28,
+            98.16,
+            258.6,
+            124.08
+          ]
+        },
+        {
+          "row": 1,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "24",
+          "box": [
+            258.6,
+            98.16,
+            355.92,
+            124.08
+          ]
+        },
+        {
+          "row": 1,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "26",
+          "box": [
+            355.92,
+            98.16,
+            450.6,
+            124.08
+          ]
+        },
+        {
+          "row": 1,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "22",
+          "box": [
+            450.6,
+            98.16,
+            545.4,
+            124.08
+          ]
+        },
+        {
+          "row": 2,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Spruce Street",
+          "box": [
+            66.6,
+            124.08,
+            161.28,
+            150.12
+          ]
+        },
+        {
+          "row": 2,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "25",
+          "box": [
+            161.28,
+            124.08,
+            258.6,
+            150.12
+          ]
+        },
+        {
+          "row": 2,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "30",
+          "box": [
+            258.6,
+            124.08,
+            355.92,
+            150.12
+          ]
+        },
+        {
+          "row": 2,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "26",
+          "box": [
+            355.92,
+            124.08,
+            450.6,
+            150.12
+          ]
+        },
+        {
+          "row": 2,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "23",
+          "box": [
+            450.6,
+            124.08,
+            545.4,
+            150.12
+          ]
+        },
+        {
+          "row": 3,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Locust Street",
+          "box": [
+            66.6,
+            150.12,
+            161.28,
+            176.04
+          ]
+        },
+        {
+          "row": 3,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "24",
+          "box": [
+            161.28,
+            150.12,
+            258.6,
+            176.04
+          ]
+        },
+        {
+          "row": 3,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "28",
+          "box": [
+            258.6,
+            150.12,
+            355.92,
+            176.04
+          ]
+        },
+        {
+          "row": 3,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "22",
+          "box": [
+            355.92,
+            150.12,
+            450.6,
+            176.04
+          ]
+        },
+        {
+          "row": 3,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "27",
+          "box": [
+            450.6,
+            150.12,
+            545.4,
+            176.04
+          ]
+        },
+        {
+          "row": 4,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Maple Street",
+          "box": [
+            66.6,
+            176.04,
+            161.28,
+            201.96
+          ]
+        },
+        {
+          "row": 4,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "26",
+          "box": [
+            161.28,
+            176.04,
+            258.6,
+            201.96
+          ]
+        },
+        {
+          "row": 4,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "26",
+          "box": [
+            258.6,
+            176.04,
+            355.92,
+            201.96
+          ]
+        },
+        {
+          "row": 4,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "21",
+          "box": [
+            355.92,
+            176.04,
+            450.6,
+            201.96
+          ]
+        },
+        {
+          "row": 4,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "29",
+          "box": [
+            450.6,
+            176.04,
+            545.4,
+            201.96
+          ]
+        }
+      ]
+    }
+  ],
+  "expected_fallback": false,
+  "fallback_reason": null,
+  "annotation_method": "Manual transcription of W3C PDF6 example and drawing-rule centers, visually reviewed. No PaperRead detection or extraction evaluation performed."
+}

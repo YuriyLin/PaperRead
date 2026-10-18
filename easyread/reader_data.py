@@ -10,7 +10,7 @@ import copy
 from collections import OrderedDict
 from threading import Lock
 
-from . import table_reading, table_translate
+from . import table_reading, table_translate, table_policy
 
 _verified = OrderedDict()
 _lock = Lock()
@@ -36,6 +36,13 @@ def reader_paper(ws, paper=None):
     blocks = [b for b in result.get("blocks", []) if isinstance(b, dict) and
               b.get("type") == "table" and any(k in b for k in _FIELDS)]
     if not blocks:
+        return result, table_translate._hash(result)
+    if not table_policy.enabled():
+        # Preserve saved data, legacy matrices and notes. Only hide optional
+        # evidence in this read-only projection; no digest/parser/cache lookup.
+        for block in blocks:
+            for field in _FIELDS:
+                block.pop(field, None)
         return result, table_translate._hash(result)
     try:
         digest = _digest(ws)

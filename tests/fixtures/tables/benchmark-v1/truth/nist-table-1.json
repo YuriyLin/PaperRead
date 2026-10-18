@@ -1,0 +1,661 @@
+{
+  "table_exists": true,
+  "logical_table_count": 1,
+  "pages": [
+    1
+  ],
+  "source_pdf_pages": [
+    17
+  ],
+  "tables": [
+    {
+      "page": 1,
+      "page_bbox": [
+        0,
+        0,
+        612,
+        792
+      ],
+      "number": "1",
+      "caption": "Table 1. Equation 1 Regression Results",
+      "row_count": 7,
+      "column_count": 7,
+      "header_row_count": 1,
+      "box": [
+        90.24,
+        181.92,
+        500.16,
+        319.44
+      ],
+      "cells": [
+        {
+          "row": 0,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Regression\nVariable\nCoefficient",
+          "box": [
+            90.24,
+            181.92,
+            193.44,
+            226.56
+          ]
+        },
+        {
+          "row": 0,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Coef.",
+          "box": [
+            193.44,
+            181.92,
+            246.24,
+            226.56
+          ]
+        },
+        {
+          "row": 0,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Robust\nStd. Err.",
+          "box": [
+            246.24,
+            181.92,
+            298.8,
+            226.56
+          ]
+        },
+        {
+          "row": 0,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "t",
+          "box": [
+            298.8,
+            181.92,
+            346.8,
+            226.56
+          ]
+        },
+        {
+          "row": 0,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "P>t",
+          "box": [
+            346.8,
+            181.92,
+            394.8,
+            226.56
+          ]
+        },
+        {
+          "row": 0,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 2,
+          "text": "[95% Conf.\nInterval]",
+          "box": [
+            394.8,
+            181.92,
+            500.16,
+            226.56
+          ]
+        },
+        {
+          "row": 1,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Size ($/kW )\nDC",
+          "box": [
+            90.24,
+            226.56,
+            193.44,
+            241.92
+          ]
+        },
+        {
+          "row": 1,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2.943",
+          "box": [
+            193.44,
+            226.56,
+            246.24,
+            241.92
+          ]
+        },
+        {
+          "row": 1,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": ".0673",
+          "box": [
+            246.24,
+            226.56,
+            298.8,
+            241.92
+          ]
+        },
+        {
+          "row": 1,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "43.74",
+          "box": [
+            298.8,
+            226.56,
+            346.8,
+            241.92
+          ]
+        },
+        {
+          "row": 1,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "<0.000",
+          "box": [
+            346.8,
+            226.56,
+            394.8,
+            241.92
+          ]
+        },
+        {
+          "row": 1,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2.811",
+          "box": [
+            394.8,
+            226.56,
+            447.36,
+            241.92
+          ]
+        },
+        {
+          "row": 1,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "3.075",
+          "box": [
+            447.36,
+            226.56,
+            500.16,
+            241.92
+          ]
+        },
+        {
+          "row": 2,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Year#Size",
+          "box": [
+            90.24,
+            241.92,
+            193.44,
+            257.52
+          ]
+        },
+        {
+          "row": 2,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "",
+          "box": [
+            193.44,
+            241.92,
+            246.24,
+            257.52
+          ]
+        },
+        {
+          "row": 2,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "",
+          "box": [
+            246.24,
+            241.92,
+            298.8,
+            257.52
+          ]
+        },
+        {
+          "row": 2,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "",
+          "box": [
+            298.8,
+            241.92,
+            346.8,
+            257.52
+          ]
+        },
+        {
+          "row": 2,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "",
+          "box": [
+            346.8,
+            241.92,
+            394.8,
+            257.52
+          ]
+        },
+        {
+          "row": 2,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "",
+          "box": [
+            394.8,
+            241.92,
+            447.36,
+            257.52
+          ]
+        },
+        {
+          "row": 2,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "",
+          "box": [
+            447.36,
+            241.92,
+            500.16,
+            257.52
+          ]
+        },
+        {
+          "row": 3,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2016 ($/kW )\nDC",
+          "box": [
+            90.24,
+            257.52,
+            193.44,
+            272.88
+          ]
+        },
+        {
+          "row": 3,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.0607",
+          "box": [
+            193.44,
+            257.52,
+            246.24,
+            272.88
+          ]
+        },
+        {
+          "row": 3,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.0636",
+          "box": [
+            246.24,
+            257.52,
+            298.8,
+            272.88
+          ]
+        },
+        {
+          "row": 3,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.95",
+          "box": [
+            298.8,
+            257.52,
+            346.8,
+            272.88
+          ]
+        },
+        {
+          "row": 3,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.340",
+          "box": [
+            346.8,
+            257.52,
+            394.8,
+            272.88
+          ]
+        },
+        {
+          "row": 3,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-0.0640",
+          "box": [
+            394.8,
+            257.52,
+            447.36,
+            272.88
+          ]
+        },
+        {
+          "row": 3,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.185",
+          "box": [
+            447.36,
+            257.52,
+            500.16,
+            272.88
+          ]
+        },
+        {
+          "row": 4,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2017 ($/kW )\nDC",
+          "box": [
+            90.24,
+            272.88,
+            193.44,
+            288.48
+          ]
+        },
+        {
+          "row": 4,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-0.339",
+          "box": [
+            193.44,
+            272.88,
+            246.24,
+            288.48
+          ]
+        },
+        {
+          "row": 4,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.0653",
+          "box": [
+            246.24,
+            272.88,
+            298.8,
+            288.48
+          ]
+        },
+        {
+          "row": 4,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-5.19",
+          "box": [
+            298.8,
+            272.88,
+            346.8,
+            288.48
+          ]
+        },
+        {
+          "row": 4,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "<0.000",
+          "box": [
+            346.8,
+            272.88,
+            394.8,
+            288.48
+          ]
+        },
+        {
+          "row": 4,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-0.467",
+          "box": [
+            394.8,
+            272.88,
+            447.36,
+            288.48
+          ]
+        },
+        {
+          "row": 4,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-0.211",
+          "box": [
+            447.36,
+            272.88,
+            500.16,
+            288.48
+          ]
+        },
+        {
+          "row": 5,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "2018 ($/kW )\nDC",
+          "box": [
+            90.24,
+            288.48,
+            193.44,
+            304.08
+          ]
+        },
+        {
+          "row": 5,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-0.119",
+          "box": [
+            193.44,
+            288.48,
+            246.24,
+            304.08
+          ]
+        },
+        {
+          "row": 5,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.0623",
+          "box": [
+            246.24,
+            288.48,
+            298.8,
+            304.08
+          ]
+        },
+        {
+          "row": 5,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-1.90",
+          "box": [
+            298.8,
+            288.48,
+            346.8,
+            304.08
+          ]
+        },
+        {
+          "row": 5,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.057",
+          "box": [
+            346.8,
+            288.48,
+            394.8,
+            304.08
+          ]
+        },
+        {
+          "row": 5,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "-0.241",
+          "box": [
+            394.8,
+            288.48,
+            447.36,
+            304.08
+          ]
+        },
+        {
+          "row": 5,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "0.00351",
+          "box": [
+            447.36,
+            288.48,
+            500.16,
+            304.08
+          ]
+        },
+        {
+          "row": 6,
+          "col": 0,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "Constant ($)",
+          "box": [
+            90.24,
+            304.08,
+            193.44,
+            319.44
+          ]
+        },
+        {
+          "row": 6,
+          "col": 1,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "1409",
+          "box": [
+            193.44,
+            304.08,
+            246.24,
+            319.44
+          ]
+        },
+        {
+          "row": 6,
+          "col": 2,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "215.0",
+          "box": [
+            246.24,
+            304.08,
+            298.8,
+            319.44
+          ]
+        },
+        {
+          "row": 6,
+          "col": 3,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "6.55",
+          "box": [
+            298.8,
+            304.08,
+            346.8,
+            319.44
+          ]
+        },
+        {
+          "row": 6,
+          "col": 4,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "<0.000",
+          "box": [
+            346.8,
+            304.08,
+            394.8,
+            319.44
+          ]
+        },
+        {
+          "row": 6,
+          "col": 5,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "987.2",
+          "box": [
+            394.8,
+            304.08,
+            447.36,
+            319.44
+          ]
+        },
+        {
+          "row": 6,
+          "col": 6,
+          "rowspan": 1,
+          "colspan": 1,
+          "text": "1830",
+          "box": [
+            447.36,
+            304.08,
+            500.16,
+            319.44
+          ]
+        }
+      ]
+    }
+  ],
+  "expected_fallback": true,
+  "fallback_reason": "merged_cells",
+  "annotation_method": "Fixed manually selected drawing-rule grid; raw PDF text transcription assisted by crop.extract_text (not table extraction); visually reviewed against source pages. Subscripts retained as source line text."
+}

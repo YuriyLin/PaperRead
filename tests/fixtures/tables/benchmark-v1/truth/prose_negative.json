@@ -1,0 +1,28 @@
+{
+  "table_exists": false,
+  "pages": [
+    1
+  ],
+  "tables": [],
+  "logical_table_count": 0,
+  "ambiguous_interpretation": [],
+  "non_table_regions": [
+    {
+      "page": 1,
+      "box": [
+        42,
+        112,
+        566,
+        232
+      ],
+      "text": "Annual review summary\nThe report describes ordinary work\nSeveral staff discuss local concerns\nThese words form a paragraph"
+    }
+  ],
+  "expected_fallback": false,
+  "fallback_reason": null,
+  "generation_options": {
+    "prose": true,
+    "ruled": false
+  },
+  "annotation_method": "Declared PDF writer inputs and coordinates, independently reviewed rendered contact sheets; no table extractor output used as truth."
+}

@@ -1,0 +1,96 @@
+%PDF-1.3
+%‚„œ”
+1 0 obj
+<<
+/Producer (pypdf)
+>>
+endobj
+2 0 obj
+<<
+/Type /Pages
+/Count 1
+/Kids [ 4 0 R ]
+>>
+endobj
+3 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+4 0 obj
+<<
+/Type /Page
+/Resources <<
+/Font <<
+/R 5 0 R
+/B 6 0 R
+>>
+>>
+/MediaBox [ 0.0 0.0 612 792 ]
+/Parent 2 0 R
+/Contents 7 0 R
+>>
+endobj
+5 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Times-Roman
+>>
+endobj
+6 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Times-Bold
+>>
+endobj
+7 0 obj
+<<
+/Length 679
+>>
+stream
+BT /B 11 Tf 42 695 Td (Table 1: Estimates) Tj ET
+BT /R 10 Tf 49 662 Td (Measure) Tj ET
+BT /R 10 Tf 203 662 Td (Estimate) Tj ET
+BT /R 10 Tf 401 662 Td (Error) Tj ET
+BT /R 10 Tf 49 632 Td (Alpha) Tj ET
+BT /R 10 Tf 203 632 Td (-1.25) Tj ET
+BT /R 10 Tf 401 632 Td (0.04) Tj ET
+BT /R 10 Tf 49 602 Td (Beta) Tj ET
+BT /R 10 Tf 203 602 Td (12.50) Tj ET
+BT /R 10 Tf 401 602 Td (1.20) Tj ET
+BT /R 10 Tf 49 572 Td (Gamma) Tj ET
+BT /R 10 Tf 203 572 Td (3.00) Tj ET
+BT /R 10 Tf 401 572 Td (0.50) Tj ET
+42 680 m 566 680 l S
+42 650 m 566 650 l S
+42 620 m 566 620 l S
+42 590 m 566 590 l S
+42 560 m 566 560 l S
+42 560 m 42 680 l S
+196 560 m 196 680 l S
+394 560 m 394 680 l S
+566 560 m 566 680 l S
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000054 00000 n 
+0000000113 00000 n 
+0000000162 00000 n 
+0000000302 00000 n 
+0000000374 00000 n 
+0000000445 00000 n 
+trailer
+<<
+/Size 8
+/Root 3 0 R
+/Info 1 0 R
+>>
+startxref
+1175
+%%EOF

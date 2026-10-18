@@ -6,13 +6,14 @@ headers are rejected. Footnotes and sources are kept as ordered source strings.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 
-from . import tables
+from . import tables, table_policy
 
 VERSION = 1
-_CAPTION = re.compile(r"^Table\s+([A-Za-z]?\d+(?:[.\-]\d+)*)(?=\s|[:.\u2013\u2014])", re.I)
+_CAPTION = re.compile(r"^Table\s+([A-Za-z]?\d+(?:[.\-]\d+)*)(?=$|\s|[:.\u2013\u2014])", re.I)
 _NOTE = re.compile(r"^(?:(?:Notes?|Sources?)\s*[:.]|Standard errors?\b|\*|†|‡)", re.I)
 _CONTINUED = re.compile(r"\bcontinu(?:ed|ation)\b", re.I)
 
@@ -55,6 +56,8 @@ def _lines(page):
 
 
 def _matrix(page, table, method):
+    if not table_policy.enabled():
+        raise UnreliableTable(table_policy.DISABLED)
     rows = table.rows
     if len(rows) < 2 or len(rows[0].cells) < 2:
         raise UnreliableTable("Insufficient rows or columns")
@@ -76,6 +79,15 @@ def _matrix(page, table, method):
     cells = [cell for row in rows for cell in row.cells]
     if not chars or any(sum(_inside(c, cell) for cell in cells) != 1 for c in chars):
         raise UnreliableTable("Glyph coverage mismatch")
+    if method == "text":
+        # Implied grid lines must not turn intact source words into fragments.
+        # Statistical digits and a caption alone also occur in ordinary prose.
+        for word in page.extract_words(x_tolerance=2, y_tolerance=2):
+            box = (word["x0"], word["top"], word["x1"], word["bottom"])
+            owners = {i for c in chars if _inside(c, box)
+                      for i, cell in enumerate(cells) if _inside(c, cell)}
+            if len(owners) > 1:
+                raise UnreliableTable("Borderless grid splits a source word")
     if any("\ufffd" in c["text"] or any(ord(ch) < 32 for ch in c["text"]) for c in chars):
         raise UnreliableTable("Unmapped PDF glyphs")
     extracted = table.extract(x_tolerance=2, y_tolerance=2)
@@ -89,8 +101,12 @@ def _matrix(page, table, method):
         raise UnreliableTable("Empty table")
     # Extraction must neither drop nor duplicate any non-whitespace glyph.
     from collections import Counter
-    glyphs = Counter(ch for c in chars for ch in c["text"] if not ch.isspace())
-    text = Counter(ch for row in matrix for cell in row for ch in cell if not ch.isspace())
+    # Expand only Latin presentation ligatures for comparison, never cell data.
+    # General compatibility normalization could also change numbers or units.
+    ligatures = str.maketrans({"\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl",
+                               "\ufb03": "ffi", "\ufb04": "ffl", "\ufb05": "st", "\ufb06": "st"})
+    glyphs = Counter(ch for c in chars for ch in c["text"].translate(ligatures) if not ch.isspace())
+    text = Counter(ch for row in matrix for cell in row for ch in cell.translate(ligatures) if not ch.isspace())
     if glyphs != text:
         raise UnreliableTable("Extracted text does not match source glyphs")
     if any(re.search(r"[\u3400-\u9fff]", c["text"]) for c in chars):
@@ -127,16 +143,44 @@ def _matrix(page, table, method):
     return matrix[:header_count], matrix[header_count:], physical_rows
 
 
-def extract_page(page, number: int) -> PageTables:
-    """Use pdfplumber's actual cell geometry, never model-supplied rows."""
+def _bounded_box(page, box):
+    """Intersect in PDF coordinates; never round or assume a zero origin."""
+    if (len(box) != 4 or not all(math.isfinite(n) for n in box) or
+            box[0] >= box[2] or box[1] >= box[3]):
+        raise UnreliableTable("Invalid PDF crop region")
+    bounds = page.bbox
+    box = (max(bounds[0], box[0]), max(bounds[1], box[1]),
+           min(bounds[2], box[2]), min(bounds[3], box[3]))
+    if box[0] >= box[2] or box[1] >= box[3]:
+        raise UnreliableTable("Empty PDF crop region")
+    return box
+
+
+def _crop(page, box):
+    box = _bounded_box(page, box)
+    return page if box == tuple(page.bbox) else page.crop(box)
+
+
+def _visible_page(page):
     # pdfplumber otherwise includes hidden text outside CropBox, unlike the
     # page image shown to the reader. Partial glyphs need visual verification.
     if tuple(page.bbox) != tuple(page.cropbox):
-        box = page.cropbox
+        box = _bounded_box(page, page.cropbox)
         if any(_inside(c, box) and (c["x0"] < box[0] or c["x1"] > box[2] or c["top"] < box[1] or c["bottom"] > box[3])
                for c in page.chars):
-            return PageTables([], ["Partially cropped table glyphs require PDF review"])
-        page = page.crop(box)
+            raise UnreliableTable("Partially cropped table glyphs require PDF review")
+        page = _crop(page, box)
+    return page
+
+
+def extract_page(page, number: int) -> PageTables:
+    """Use pdfplumber's actual cell geometry, never model-supplied rows."""
+    if not table_policy.enabled():
+        return PageTables([], [table_policy.DISABLED])
+    try:
+        page = _visible_page(page)
+    except ValueError as exc:
+        return PageTables([], [str(exc)])
     lines = _lines(page)
     # "Table 1 contains ..." in body prose is a reference, not a caption.
     # Without punctuation or bold label evidence, leave it to PDF review.
@@ -148,7 +192,32 @@ def extract_page(page, number: int) -> PageTables:
             return True
         label_chars = [c for c in page.chars if line["top"] - 1 <= c["top"] <= line["bottom"] and c["x0"] <= line["words"][1]["x1"]]
         return bool(label_chars) and all(re.search(r"bold|black|demi", c.get("fontname", ""), re.I) for c in label_chars)
-    captions = [(ln, _CAPTION.match(ln["text"])) for ln in lines if caption_line(ln)]
+    captions = []
+    for index, line in enumerate(lines):
+        match = _CAPTION.match(line["text"])
+        if match and not line["text"][match.end():].strip():
+            # A bare label needs a nearby, aligned title, even if it is bold.
+            # Do not let wrapped body references become caption candidates.
+            if index + 1 >= len(lines):
+                continue
+            title = lines[index + 1]
+            height = line["bottom"] - line["top"]
+            left, right = line["words"][0]["x0"], line["words"][-1]["x1"]
+            tl, tr = title["words"][0]["x0"], title["words"][-1]["x1"]
+            text = title["text"]
+            if (not 0 <= title["top"] - line["bottom"] <= min(12, height) or
+                    not (abs(left - tl) <= 6 or abs((left + right) - (tl + tr)) <= 12) or
+                    len(text.split()) < 2 or not re.match(r"[A-Z]", text) or
+                    text.endswith((".", ":", ";", "?", "!")) or
+                    _CAPTION.match(text) or _NOTE.match(text) or
+                    re.match(r"(?:shows?|provides?|presents?|contains?|reports?|summarizes?|"
+                             r"illustrates?|lists?|compares?|is|are|was|were|and|for|in|of|the)\b", text, re.I)):
+                continue
+            line = {**line, "text": line["text"] + " " + text,
+                    "bottom": title["bottom"], "words": line["words"] + title["words"]}
+        elif not caption_line(line):
+            continue
+        captions.append((line, match))
     found, issues, unresolved = [], [], []
     ruled = page.find_tables()
     for caption, match in captions:
@@ -168,7 +237,7 @@ def extract_page(page, number: int) -> PageTables:
                 method = "text"
                 if end - caption["bottom"] < 20:
                     raise UnreliableTable("No table below caption")
-                area = page.crop((page.bbox[0], caption["bottom"] + 2, page.bbox[2], end))
+                area = _crop(page, (page.bbox[0], caption["bottom"] + 2, page.bbox[2], end))
                 candidates = [t for t in area.find_tables({"vertical_strategy": "text", "horizontal_strategy": "text",
                                                          "min_words_vertical": 3, "text_x_tolerance": 2,
                                                          "text_y_tolerance": 2})
@@ -238,6 +307,8 @@ def recognize(ws, block: dict) -> dict:
     """Match one existing table by its original caption number, without using
     legacy matrices as English evidence. Raises on zero or multiple matches.
     """
+    if not table_policy.enabled():
+        raise UnreliableTable(table_policy.DISABLED)
     import pdfplumber
     page = block.get("page")
     if not isinstance(block.get("caption_en", ""), str):
