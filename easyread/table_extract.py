@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from . import tables
 
 VERSION = 1
-_CAPTION = re.compile(r"^Table\s+([A-Za-z]?\d+(?:[.\-]\d+)*)(?=\s|[:.])", re.I)
+_CAPTION = re.compile(r"^Table\s+([A-Za-z]?\d+(?:[.\-]\d+)*)(?=\s|[:.\u2013\u2014])", re.I)
 _NOTE = re.compile(r"^(?:(?:Notes?|Sources?)\s*[:.]|Standard errors?\b|\*|†|‡)", re.I)
 _CONTINUED = re.compile(r"\bcontinu(?:ed|ation)\b", re.I)
 
