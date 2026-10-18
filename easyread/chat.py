@@ -10,13 +10,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 from collections.abc import Iterator
 from pathlib import Path
 
 from . import answer_styles, engines, netcheck, openai_api, usage
-from . import langs
+from . import langs, tables
 from .i18n import tr
 from .log import log
 from .prompts import _block_text
@@ -46,15 +47,24 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
         lines.append("附近的段落（有譯文用譯文，沒有譯文則使用原文）：\n" + "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near))  # i18n-ok
         focus = blocks[idx]
         lines.append(f"讀者指向的段落 [{focus['id']}]：\n譯文：{_block_text(focus)}\n原文：{focus.get('en') or focus.get('caption_en') or focus.get('tex', '')}")  # i18n-ok
+        for ref in refs or []:
+            if ref.get("anchor") == anchor and ref.get("key") and focus.get("type") == "table":
+                lines.append(tables.context(focus, ref["key"], ref.get("table_source", ""), include_table=False))
     if quote:
         lines.append(f"讀者選取的原話：「{quote}」")  # i18n-ok
-    extra = [r for r in (refs or []) if r.get("anchor") != anchor or (r.get("quote") or "") != quote]
+    extra = [r for r in (refs or []) if r.get("anchor") != anchor or
+             (r.get("quote") or "") != quote and "#cell:" not in str(r.get("key", ""))]
     if extra:
         by_id = {b.get("id"): b for b in blocks}
         parts = []
-        for r in extra[:12]:
+        shown_tables = set()
+        for r in extra[:200]:
             b = by_id.get(r.get("anchor")) or {}
             q = (r.get("quote") or "").strip()
+            if b.get("type") == "table" and r.get("key"):
+                parts.append(tables.context(b, r["key"], r.get("table_source", ""), include_table=b.get("id") not in shown_tables))
+                shown_tables.add(b.get("id"))
+                continue
             parts.append(f"[{r.get('anchor')}] " + (f"讀者選取：「{q[:800]}」\n  所在段落：" if q else "") + _block_text(b)[:1200])  # i18n-ok
         lines.append("讀者引用了這幾處（問題可能是在問它們之間的關係）：\n" + "\n".join(parts))  # i18n-ok
     gl = paper.get("glossary", [])
@@ -73,8 +83,11 @@ def _paper_context(ws: Workspace) -> str:
         if b.get("type") == "list":
             text = "\n".join("- " + (it.get("en") or it.get("zh", "")) for it in b.get("items", []))
         elif b.get("type") == "table":
-            rows = b.get("head", []) + b.get("rows", [])
-            text += "\n" + "\n".join(" | ".join(str(cell) for cell in row) for row in rows)
+            if tables.is_bilingual(b):
+                text = tables.context(b)
+            else:
+                rows = b.get("head", []) + b.get("rows", [])
+                text += "\n" + "\n".join(" | ".join(str(cell) for cell in row) for row in rows)
         if text:
             page = f"第 {b['page']} 頁" if b.get("page") else ""  # i18n-ok
             parts.append(f"[{b.get('id', '')}] {page}\n{text}")
@@ -123,6 +136,10 @@ def _marks(ws: Workspace, colors: set[str] | None = None) -> str:
             line += f"：「{n['quote']}」" + ("（英文原文）" if n.get("side") == "en" else "")  # i18n-ok 发给模型的上下文
         if n.get("body"):
             line += f"；讀者寫道：{n['body'][:300]}"  # i18n-ok
+        for part in n.get("parts") or [n]:
+            table = blocks.get(part.get("anchor")) or {}
+            if table.get("type") == "table" and "#cell:" in str(part.get("key", "")):
+                line += "\n" + tables.context(table, part["key"], part.get("table_source", ""), include_table=False)[:2400]
         if b and b.get("id") not in shown:
             shown.add(b["id"])
             line += f"\n  所在段落：{_block_text(b)[:600]}"  # i18n-ok
@@ -195,7 +212,8 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
 
 # ---------- 流式输出 ----------
 def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=None, meter=None) -> Iterator[str]:
-    """on_model(实际模型名)：Claude Code 开头会报它实际用的模型。meter：传了就记下这次回答的 token 用量。"""
+    """on_model reports the model actually used; meter records token usage."""
+    engines.require_model_access()
     e = ecfg.get("engine")
     bad = netcheck.problem(ecfg)
     if bad:
@@ -214,6 +232,7 @@ def stream(ecfg: dict, text: str, cwd: Path, cancel: threading.Event, on_model=N
 def _stream_claude(c: dict, text: str, cwd: Path, cancel, on_model=None, meter=None) -> Iterator[str]:
     """只给 Read 一个工具（--tools Read）：其余内置工具的定义每问一次都要发，约 2.7 万 token。
     这版 Claude Code 不认 --tools、还没输出任何字时，去掉它再问一次。"""
+    engines.require_model_access()
     exe = engines.claude_path(c)
     if not exe:
         raise engines.EngineError(tr("找不到 Claude Code 命令（先装好并登录 Claude Code）"))

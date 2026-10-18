@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from . import sentences
+from . import sentences, tables
 from .i18n import tr
 from .log import log
 from .store import Workspace, now_iso
@@ -24,6 +24,12 @@ def block_shape_problem(block: dict) -> str | None:
     bid = block.get("id")
     if block.get("type") != "table":
         return None
+    if "table_reading" in block:
+        issue = tables.shape_problem(block)
+        if issue:
+            return issue
+    if tables.is_bilingual(block):
+        return tables.shape_problem(block)
     for field in ("head", "rows"):
         value = block.get(field, [])
         if not _is_matrix(value):
@@ -67,6 +73,7 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
 
     def apply(paper):
         blocks = paper.setdefault("blocks", [])
+        previous_tables = {b["id"]: b for b in blocks if b.get("type") == "table"}
         if replace_pages:
             drop = set(replace_pages)
             blocks[:] = [b for b in blocks if b.get("page") not in drop]
@@ -77,6 +84,17 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
         for b in data.get("blocks", []):
             b = dict(b)
             after = b.pop("_after", None)
+            previous = previous_tables.get(b["id"])
+            if b.get("type") == "table" and tables.is_bilingual(b) and previous:
+                # New explicit fields are additive, including when a page is
+                # replaced. Retain unknown legacy content and source metadata.
+                content_fields = tables.MATRICES + tables.FOOTNOTES + (
+                    "table_schema", "table_spans", "table_segments", "table_status", "table_issue",
+                )
+                b = {**{key: value for key, value in previous.items() if key not in content_fields}, **b}
+                for field in ("head", "rows"):
+                    if field in previous:
+                        b[field] = previous[field]
             index = {x["id"]: i for i, x in enumerate(blocks)}
             if b["id"] in index:
                 blocks[index[b["id"]]] = b

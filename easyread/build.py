@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-from . import i18n
+from . import i18n, reader_data
 from .config import WEB
 from .store import Workspace
 
@@ -58,6 +58,8 @@ def build(ws: Workspace, out: Path | None = None, assets: Path | None = None, ex
             images[rel] = _data_uri(src, "image/webp")
     data = {n: ws.load(n) for n in ("discussion", "reader", "layout", "item")}
     data.update({"paper": paper, "images": images}, **(extra or {}))
+    # Validate after extras too: embedded paper overrides cannot bypass D2.5.
+    data["paper"], _ = reader_data.reader_paper(ws, data["paper"])
     payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
     page = page.replace("<!--PR:DATA-->", f'<script id="pr-data" type="application/json">{payload}</script>')
     title = paper.get("meta", {}).get("title_zh") or paper.get("meta", {}).get("title_en") or i18n.tr("论文")

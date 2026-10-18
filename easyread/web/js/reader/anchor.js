@@ -153,12 +153,17 @@
     if (item.key) {
       const exact = host.querySelector('.zh[data-key="' + CSS.escape(item.key) + '"]');
       if (exact) return exact;
+      if (PR.isTableCellKey && PR.isTableCellKey(item.key)) return null;
     }
     return PR.$$(".zh", host).find((z) => findQuoteSpan(fullText(z), item.quote, item.prefix, item.suffix)) || host.querySelector(".zh");
   }
   /* 标注挂在原文（side: "en"）还是译文上；找不到原话再到另一边找一次：
      只读原文时划在英文上的旧划线没有 side，翻译后英文挪到了 .en 里 */
   function locate(n) {
+    if (PR.isTableCellKey && PR.isTableCellKey(n.key)) {
+      const cell = PR.tableCell(n.key);
+      if (!cell || n.table_source && n.table_source !== cell.source) return null;
+    }
     const math = document.getElementById("b-" + n.anchor)?.querySelector(".math-body");
     if (math) {
       const hit = findQuoteSpan(fullText(math), n.quote, n.prefix, n.suffix);
@@ -166,7 +171,7 @@
     }
     const zh = zhFor(n);
     const first = PR.noteEl(zh, n.side), second = PR.noteEl(zh, n.side === "en" ? "zh" : "en");
-    for (const el of [first, second]) {
+    for (const el of PR.isTableCellKey?.(n.key) ? [first] : [first, second]) {
       const hit = el ? findQuoteSpan(fullText(el), n.quote, n.prefix, n.suffix) : null;
       if (hit) return { el, i: hit.i, len: hit.len };
     }
@@ -267,6 +272,7 @@
     const quote = text.slice(s, e);
     if (!quote.trim()) return null;
     const out = { anchor: blk.dataset.id, key: zh.dataset.key, quote, prefix: text.slice(Math.max(0, s - 32), s), suffix: text.slice(e, e + 32) };
+    if (el.dataset.cellId) out.table_source = el.dataset.tableSource;
     if (PR.isEnEl(el)) out.side = "en";
     return out;
   }
@@ -286,16 +292,18 @@
     else {  // 跨段（#46）：起点在译文就取选中的每段译文，在原文就取原文，并包含中间的独立公式
       const endEl = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
       const textSide = el.classList.contains("math-body") ? (endEl && endEl.closest(".zh, .en")) : el;
-      const same = (textSide && textSide.classList.contains("en") ? "#paper .en" : "#paper .zh") + ", #paper .math-body";
-      parts = PR.$$(same).filter((x) => range.intersectsNode(x)).map((x) => partOf(x, range));
+      const same = (textSide && PR.isEnEl(textSide) ? "#paper .en, #paper .en-main" : "#paper .zh:not(.en-main)") + ", #paper .math-body";
+      parts = PR.$$(same).filter((x) => !x.closest(".table-version")?.hidden && range.intersectsNode(x)).map((x) => partOf(x, range));
     }
     parts = parts.filter(Boolean);
-    if (!parts.length || parts.length > MAX_PARTS) return null;
+    const limit = parts.every((p) => PR.isTableCellKey && PR.isTableCellKey(p.key)) ? 200 : MAX_PARTS;
+    if (!parts.length || parts.length > limit) return null;
     const rect = range.getBoundingClientRect();
     if (parts.length === 1) return Object.assign(parts[0], { rect });
     return Object.assign({}, parts[0], { target: undefined, quote: parts.map((p) => p.quote.trim()).join("\n"), parts, rect });
   }
   PR.hasPendingSelection = () => !!pendingSel && selbar().classList.contains("open");
+  PR.readSelection = readSelection;
 
   // 原生复制包含 KaTeX 的逐字排版层与隐藏 MathML，粘贴到富文本编辑器会变成一字一行且重复两次（#65）
   document.addEventListener("copy", (e) => {
@@ -321,6 +329,8 @@
       '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
       '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? PR.t("（{k}）", { k: i + 1 }) : "") + '"></button>').join("") + "</span>" +
       '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
+      (PR.isTableCellKey && PR.isTableCellKey(pendingSel.key) ? '<button data-s="page">' + PR.t("核對原始 PDF") + '</button>' : '') +
+      (PR.isTableCellKey?.(pendingSel.key) && !pendingSel.parts && !pendingSel.side && PR.feature("edit") ? '<button data-s="edit">' + PR.t("改译文") + '</button>' : '') +
       (pendingSel.target === "formula" ? "" : '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
         (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
         (pendingSel.side || pendingSel.parts ? "" : '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>") +
@@ -344,13 +354,15 @@
 
   PR.selectionAction = function (kind, color) {
     if (!pendingSel) return;
-    const { anchor, key, quote, prefix, suffix, side, parts, target } = pendingSel;
+    const { anchor, key, quote, prefix, suffix, side, parts, target, table_source } = pendingSel;
     selbar().classList.remove("open");
     getSelection().removeAllRanges();
     pendingSel = null;
     if (kind === "en") { PR.toggleEn(anchor, true); return; }
+    if (kind === "page") { PR.openTableCell(key, table_source); return; }
+    if (kind === "edit") { const zh = PR.$('#paper .zh[data-key="' + CSS.escape(key) + '"]'); if (zh) PR.editZh(zh); return; }
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
-    if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
+    if (kind === "chat") { PR.chatAsk({ anchor, key, quote, side, table_source, parts }); return; }
     const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
     color = color || (PR.prefs.penColors || {})[pen] || "yellow";
     if (target === "formula") {
@@ -369,6 +381,7 @@
       return;
     }
     const note = { anchor, key, quote, prefix, suffix, kind, color };
+    if (table_source) note.table_source = table_source;
     if (side) note.side = side;
     if (parts) note.parts = parts;
     if (PR.prefs.pen === "underline") note.style = "underline";

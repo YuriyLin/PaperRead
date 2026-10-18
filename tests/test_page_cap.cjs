@@ -38,6 +38,24 @@ test("confirm-all keeps scope, reading mode, model and target", async () => {
   assert.equal(refreshed, 1);
 });
 
+test("table-only confirmation and first-pages retain the table task", async () => {
+  const { PR, job, button, calls } = setup();
+  job.tables_only = true;
+  job.read = false;
+  job.message = "Review tables on 80 pages";
+  const html = PR.pageCapHtml(job);
+  assert.match(html, /Review tables on 80 pages/);
+  assert.match(html, /Translate all missing tables/);
+  assert.match(html, /Translate tables on the first 30 pages only/);
+  for (const action of ["all", "first"]) {
+    await PR.handlePageCap(button(action), "paper1", job, async () => {});
+  }
+  assert.equal(calls[0].body.tables_only, true);
+  assert.equal(calls[0].body.confirmed, true);
+  assert.equal(calls[1].body.tables_only, true);
+  assert.equal(calls[1].body.scope, "range:1-30");
+});
+
 test("first-pages submits a range and deferring only calls cancel", async () => {
   const { PR, job, button, calls } = setup();
   await PR.handlePageCap(button("first"), "paper1", job, async () => {});

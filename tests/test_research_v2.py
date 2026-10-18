@@ -614,7 +614,8 @@ class ResearchV2Test(unittest.TestCase):
         self.assertIsNone(research_v2._unwrap_json_list("not a list"))
         self.assertIsNone(research_v2._unwrap_json_list(None))
 
-    def test_reading_path_unwraps_dict_and_resolves_candidates(self):
+    @mock.patch.object(research_v2, "_search_works", return_value={"results": []})
+    def test_reading_path_unwraps_dict_and_resolves_candidates(self, _search):
         papers = [
             {"id": "https://openalex.org/W100", "title": "Paper Foundations", "year": 2021},
             {"id": "https://openalex.org/W200", "title": "Paper Core", "year": 2023},

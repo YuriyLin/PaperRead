@@ -14,6 +14,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from . import review_policy
 
 SCHEMA = 2
 
@@ -23,11 +24,17 @@ def now_iso() -> str:
 
 
 def read_json(path: Path, default=None):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return default
+    for attempt in range(20):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return default
+        except PermissionError:
+            # Windows can briefly deny opening a file during atomic replace.
+            if attempt == 19:
+                raise
+            time.sleep(0.01 * (attempt + 1))
 
 
 def write_json_atomic(path: Path, data) -> None:
@@ -127,6 +134,8 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
                     edits[block] = {"reverted": True, "prev": cur.get("zh"), "at": at}
             else:
                 entry = {"zh": op["zh"], "base": op.get("base", ""), "at": at}
+                if op.get("table_source"):
+                    entry["table_source"] = op["table_source"]
                 if cur and cur.get("zh") and cur.get("zh") != op["zh"]:
                     entry["prev"] = cur.get("zh")
                 edits[block] = entry
@@ -182,7 +191,7 @@ class Workspace:
     PARTS = ("paper", "discussion", "reader", "layout")
 
     def __init__(self, root: Path):
-        self.root = Path(root).resolve()
+        self.root = review_policy.require_path(Path(root), "library").resolve()
 
     @property
     def id(self) -> str:
@@ -200,8 +209,8 @@ class Workspace:
         meta = (self.load("paper") or {}).get("meta", {})
         linked = meta.get("source_pdf_path")
         if not linked:
-            return self.root / "source.pdf"
-        path = Path(linked)
+            return review_policy.require_path(self.root / "source.pdf", "library")
+        path = review_policy.require_path(Path(linked), "library")
         if not path.is_absolute() or not path.is_file():
             from .i18n import tr
             raise ValueError(tr("链接的 PDF 不存在或不可读：{path}；请恢复原文件到此位置", path=str(path)))

@@ -4,6 +4,7 @@
   easyread list                           列出文献库
   easyread import 论文.pdf|arXiv编号 [--no-translate]
   easyread translate ID [--pages 3-5]     排队翻译（需要服务在跑；否则直接前台译）
+  easyread translate ID --tables-only    只補譯表格，保留已完成正文
   easyread status ID                      译文进度、用户改过的译文、笔记、待回答的问题
   easyread blocks ID --from 批次.json [--done 4-6] [--replace]
   easyread discuss ID --from 讨论.json | --delete 讨论ID
@@ -21,10 +22,11 @@ import argparse
 import json
 import sys
 import threading
+import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import config, paperdata, pdfwork
+from . import config, paperdata, pdfwork, review_policy
 from .checks import check
 from .library import Library, migrate_folder
 from .store import read_json, text_hash
@@ -46,6 +48,7 @@ def find(pid: str):
 
 
 def running_server() -> str | None:
+    review_policy.require_path(config.SERVER_INFO, "home")
     info = read_json(config.SERVER_INFO, {}) or {}
     if not info.get("url"):
         return None
@@ -57,6 +60,7 @@ def running_server() -> str | None:
 
 
 def cmd_serve(a):
+    review_policy.require_launch()
     url = None if (a.port is not None or config.temp_library()) else running_server()
     if url:
         out(f"服务已在运行：{url}")
@@ -105,19 +109,31 @@ def cmd_translate(a):
     if url:
         try:
             token = json.loads(urllib.request.urlopen(url + "/api/library").read())["token"]
-            req = urllib.request.Request(f"{url}/api/p/{ws.id}/translate", data=json.dumps({"pages": pages}).encode(),
+            req = urllib.request.Request(f"{url}/api/p/{ws.id}/translate", data=json.dumps({"pages": pages, "tables_only": bool(getattr(a, "tables_only", False))}).encode(),
                                          headers={"X-Token": token, "Content-Type": "application/json"})
             urllib.request.urlopen(req)
             out("已交给服务排队翻译，进度在文献库页面上看。")
             return
-        except OSError:  # 服务刚好在退出：就在这里译
+        except OSError as exc:  # 服务刚好在退出：就在这里译
+            if getattr(a, "tables_only", False) and isinstance(exc, urllib.error.HTTPError):
+                raise  # A rejected table job must not bypass the service queue.
             pass
     from .translate import translate_pages
     cfg = config.load()
+    if getattr(a, "tables_only", False):
+        from . import table_translate
+        out(json.dumps(table_translate.translate_missing(ws, cfg, pages, threading.Event(),
+                                                        lambda d, t, m: out(f"[{d}/{t}] {m}")), ensure_ascii=False))
+        return
     paper = ws.load("paper")
     done = set(paper.get("translation", {}).get("done_pages", []))
     pages = pages or [p["n"] for p in paper["meta"]["pages"] if p["n"] not in done]
     failed = translate_pages(ws, cfg, pages, threading.Event(), lambda d, t, m: out(f"[{d}/{t}] {m}"))
+    from . import langs, table_translate
+    if langs.of_paper(paper.get("meta")) == "zh-TW" and ws.source_pdf.exists():
+        result = table_translate.translate_missing(ws, cfg, [p for p in pages if p not in failed], threading.Event(),
+                                                   lambda d, t, m: out(f"[{d}/{t}] {m}"))
+        out(json.dumps(result, ensure_ascii=False))
     if failed:
         out(f"没译成功的页：{sorted(failed)}，原因见 {ws.root / 'job.log'}")
 
@@ -222,7 +238,7 @@ def main(argv=None):
     p.set_defaults(fn=cmd_serve)
     p = sub.add_parser("list"); p.set_defaults(fn=cmd_list)
     p = sub.add_parser("import"); p.add_argument("source"); p.add_argument("--no-translate", action="store_true"); p.set_defaults(fn=cmd_import)
-    p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.set_defaults(fn=cmd_translate)
+    p = sub.add_parser("translate"); p.add_argument("id"); p.add_argument("--pages"); p.add_argument("--tables-only", action="store_true"); p.set_defaults(fn=cmd_translate)
     for name, fn in (("status", cmd_status), ("check", cmd_check), ("locate", cmd_locate), ("export", cmd_export)):
         p = sub.add_parser(name); p.add_argument("id"); p.set_defaults(fn=fn)
     p = sub.add_parser("blocks"); p.add_argument("id"); p.add_argument("--from", dest="from_file", required=True)

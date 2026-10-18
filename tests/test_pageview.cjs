@@ -126,6 +126,27 @@ test("legacy single boxes work and layout refresh replaces the visible regions",
   assert.equal(r.node(".pv-hl").children.length, 2);
 });
 
+test("explicit table cell geometry survives resize and forced sync while reading the title", () => {
+  const r = reader();
+  r.PR.state.layout.first = crossing();
+  const cell = { page: 1, box: [0.2, 0.3, 0.4, 0.35] };
+  r.PR.openPage(1, "first", cell);
+  const left = () => parseFloat(r.node(".pv-hl").children[0].style.left);
+  assert.equal(left(), 19.6);
+  r.PR.refreshPages(); assert.equal(left(), 19.6);
+  r.PR.syncPage(true); assert.equal(left(), 19.6);
+  r.events.get("remote")(["layout"]); assert.equal(left(), 19.6);
+});
+
+test("page-only table fallback suppresses unrelated paragraph boxes across refresh", () => {
+  const r = reader();
+  r.PR.state.layout.first = crossing();
+  r.PR.openPage(1, "first", false);
+  assert.equal(r.node(".pv-hl").children.length, 0);
+  r.PR.refreshPages(); assert.equal(r.node(".pv-hl").children.length, 0);
+  r.PR.syncPage(true); assert.equal(r.node(".pv-hl").children.length, 0);
+});
+
 
 test("continuous pages load nearby images and scrollbar updates the page without follow stealing it", () => {
   const r = reader();

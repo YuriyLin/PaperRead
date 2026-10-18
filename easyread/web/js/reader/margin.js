@@ -219,9 +219,10 @@
     const n = noteById(nid);
     if (!n) return;
     const answered = PR.repliesTo(nid).length > 0;
-    if (n.kind === "question" && answered) return PR.chatAsk({ anchor: n.anchor, quote: n.quote, draft: "" });
+    const cellRef = { key: n.key, side: n.side, table_source: n.table_source, parts: n.parts };
+    if (n.kind === "question" && answered) return PR.chatAsk({ anchor: n.anchor, quote: n.quote, ...cellRef, draft: "" });
     const text = n.kind === "question" ? n.body : "这是我读这里时写的笔记，请点评：我理解得对不对、有没有漏掉或想错的地方、还可以往哪想。\n\n我的笔记：" + n.body;  // i18n-ok 发给模型的提示词
-    PR.chatAsk({ anchor: n.anchor, quote: n.quote, text, note: nid });
+    PR.chatAsk({ anchor: n.anchor, quote: n.quote, ...cellRef, text, note: nid });
   };
   PR.on("job-finished", (j) => {
     if (j.kind !== "answer") return;

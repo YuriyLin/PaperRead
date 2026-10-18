@@ -5,6 +5,7 @@
   const draftKey = (key) => "pr-draft-" + PR.paperKey + "-" + key;
 
   PR.editZh = function (zh) {
+    if (zh.dataset.cellId && PR.isEnEl(zh)) return;
     if (PR.editingKey) return;
     PR.hideBlockbar && PR.hideBlockbar();
     const key = zh.dataset.key;
@@ -35,7 +36,7 @@
       if (action === "save") {
         const text = ta.value.replace(/\s+$/, "");
         if (text === agent) { if (edited) PR.commit({ op: "edit", block: key, zh: null }); }
-        else if (text !== current || PR.isStale(key)) PR.commit({ op: "edit", block: key, zh: text, base: PR.hashText(agent) });
+        else if (text !== current || PR.isStale(key)) PR.commit({ op: "edit", block: key, zh: text, base: PR.hashText(agent), ...(zh.dataset.cellId ? { table_source: zh.dataset.tableSource } : {}) });
       } else if (action === "revert") PR.commit({ op: "edit", block: key, zh: null });
       PR.renderBlock(blockId);
       PR.applyMarks(blockId);
@@ -50,7 +51,7 @@
 
   document.addEventListener("dblclick", (e) => {
     const zh = e.target.closest("#paper .zh[data-key]");
-    if (!zh || e.target.closest("a, button, textarea") || zh.closest(".blk-references")) return;
+    if (!zh || zh.dataset.cellId && PR.isEnEl(zh) || e.target.closest("a, button, textarea") || zh.closest(".blk-references")) return;
     getSelection().removeAllRanges();
     PR.$("#selbar").classList.remove("open");
     PR.editZh(zh);
@@ -61,14 +62,14 @@
     const key = zh.dataset.key;
     const agent = PR.agentText(key);
     PR.popover(zh, '<div class="hd">' + PR.t("译者稿（更新后）") + '</div><div class="cap">' + PR.md(agent) + "</div>" +
-      '<div class="hd" style="margin-top:10px">' + PR.t("你的版本") + '</div><div class="cap">' + PR.md(PR.textFor(key)) + "</div>" +
+      '<div class="hd" style="margin-top:10px">' + PR.t("你的版本") + '</div><div class="cap">' + PR.md(PR.editOf(key)?.zh || "") + "</div>" +
       '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm line" data-st="agent">' + PR.t("换成译者稿") + '</button><button class="btn sm line" data-st="mine">' + PR.t("保留我的") + "</button></div>", { sticky: true, wide: true });
     PR.$("#popover").onclick = (ev) => {
       const b = ev.target.closest("[data-st]");
       if (!b) return;
       PR.hidePopover();
       if (b.dataset.st === "agent") PR.commit({ op: "edit", block: key, zh: null });
-      else PR.commit({ op: "edit", block: key, zh: PR.textFor(key), base: PR.hashText(agent) });
+      else PR.commit({ op: "edit", block: key, zh: PR.editOf(key).zh, base: PR.hashText(agent), ...(zh.dataset.cellId ? { table_source: zh.dataset.tableSource } : {}) });
       const id = key.split("#")[0];
       PR.renderBlock(id); PR.applyMarks(id);
     };

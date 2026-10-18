@@ -7,7 +7,7 @@ import time
 import webbrowser
 from http.server import ThreadingHTTPServer
 
-from . import __version__, config, detect
+from . import __version__, config, detect, review_policy
 from .log import log, setup as setup_log
 from .presence import Presence
 from .server import App, Handler
@@ -22,6 +22,8 @@ class _Server(ThreadingHTTPServer):
 def serve(port: int | None = None, open_browser: bool = False, path: str = "/", exit_on_close: bool = False,
           host: str | None = None):
     """exit_on_close：start.cmd / start.sh 启动时为真，页面都关了、后台任务也做完了就退出。"""
+    review_policy.require_launch()
+    review_policy.require_path(config.LOG_PATH, "home")
     setup_log(config.LOG_PATH)
     started = time.monotonic()
     cfg = config.load()

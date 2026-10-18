@@ -88,6 +88,20 @@
     if (menu.classList.contains("open")) renderMenu();
   }
 
+  PR.applyTableReadingLanguage = function () {
+    const first = PR.originalFirst(), view = PR.readingView();
+    PR.$$("#paper .table-pair").forEach((pair) => {
+      const en = pair.querySelector('[data-table-side="en"]');
+      const zh = pair.querySelector('[data-table-side="zh"]');
+      if (!en || !zh) return;
+      const expanded = !!pair.closest(".show-en");
+      en.hidden = !expanded && view === "translation";
+      zh.hidden = !expanded && view === "original";
+      if (first) { if (en.nextElementSibling !== zh) zh.before(en); }
+      else if (zh.nextElementSibling !== en) zh.after(en);
+    });
+  };
+
   PR.applyReadingLanguage = function () {
     const first = PR.originalFirst();
     document.body.classList.toggle("original-first", first);
@@ -112,6 +126,9 @@
       if (first) { if (en.nextElementSibling !== zh) zh.before(en); }
       else if (zh.nextElementSibling !== en) zh.after(en);
     });
+    // Whole tables move as a unit. Cells are never interleaved, retranslated or
+    // recreated when switching the existing reading preferences.
+    PR.applyTableReadingLanguage();
     const title = PR.$("#paper .paper-head h1"), meta = S.paper.meta;
     const secondary = PR.$("#paper .title-en");
     if (title && secondary && meta && meta.title_zh && meta.title_en) {

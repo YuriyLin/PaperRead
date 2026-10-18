@@ -50,7 +50,10 @@
   function ensureTranslationCard(s) {
     if (s.transChecked || !s.chat) return;
     s.transChecked = true;
-    if (s.cfg.engine === "none") { s.cfg.engine = "claude"; s.cfg.auto_translate = false; }  // 旧的“不翻译”= 关掉自动翻译
+    if (s.cfg.engine === "none") {
+      if (s.cfg.review_policy) return;  // Keep the explicit saved selection in review mode.
+      s.cfg.engine = "claude"; s.cfg.auto_translate = false;
+    }  // 旧的“不翻译”= 关掉自动翻译
     if (transIndex(s) >= 0) return;
     const c = s.cfg, e = c.engine, o = c.openai, p = preset(s, o.preset);
     const f = e === "openai" ? { kind: "api", preset: o.preset || "", model: o.model || "", base_url: o.base_url || "", api: o.api || "chat" }
@@ -151,6 +154,7 @@
     const c = s.cfg, ti = transIndex(s), m = s.chat.models[ti];
     const e = c.engine;
     let h = '<h4 class="set-h">' + (m ? PR.t("翻译：{name}", { name: PR.esc(m.label || m.name) }) : PR.t("翻译")) + "</h4>";
+    if (c.review_policy) h += '<p role="status">' + PR.esc(c.review_policy.mode) + ' · ' + PR.esc(PR.t(c.review_policy.reason || "")) + '</p>';
     if (m) h += '<p class="hint">' + PR.t("推理强度") + ': ' + PR.esc(m.reasoning_effort || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "reasoning_effort")) +
       (e === "claude" ? "" : ' · Fast: ' + PR.esc(m.service_tier || PR.modelDefaultLabel(s, { kind: kindOf(m), model: m.model }, "service_tier"))) + '</p>';
     if (e === "openai") h += '<label class="check" style="margin:0 0 10px"><input type="checkbox" data-k="openai.vision"' + (c.openai.vision ? " checked" : "") + ">" + PR.t("模型能看图") + "</label>";

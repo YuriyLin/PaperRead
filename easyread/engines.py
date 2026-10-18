@@ -17,7 +17,7 @@ import threading
 from pathlib import Path
 
 from .i18n import tr
-from . import codex_lean, netcheck, usage
+from . import codex_lean, netcheck, review_policy, usage
 from .log import log
 
 
@@ -38,9 +38,16 @@ def engine_name(engine: str | None) -> str:
     return tr("不翻译") if engine == "none" else ENGINE_NAMES.get(engine, engine or "")
 
 
+def require_model_access() -> None:
+    error = review_policy.model_error()
+    if error:
+        raise EngineError(error)
+
+
 def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, cancel: threading.Event | None = None,
         meter: usage.Meter | None = None) -> str:
     """meter：传了就把这次调用的 token 用量记进去（整篇翻译时用）。"""
+    require_model_access()
     bad = netcheck.problem(cfg)
     if bad:
         raise EngineError(bad)
@@ -51,6 +58,7 @@ def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, can
 
 
 def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None, meter) -> str:
+    require_model_access()
     engine = cfg.get("engine")
     if engine == "claude":
         return run_claude(cfg["claude"], prompt, cwd, cancel, meter)
@@ -94,12 +102,14 @@ def codex_path(c: dict) -> str | None:
 
 
 def _popen(args: list[str], cwd: Path):
+    require_model_access()
     return subprocess.Popen(args, cwd=str(cwd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             text=True, encoding="utf-8", errors="replace", creationflags=_NO_WINDOW,
                             env=netcheck.proxy_env())
 
 
 def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
+    require_model_access()
     exe = claude_path(c)
     if not exe:
         raise EngineError(tr("找不到 Claude Code 命令：{cmd}（先装好并登录 Claude Code）", cmd=c.get("command") or "claude"))
@@ -136,6 +146,7 @@ def run_claude(c: dict, prompt: str, cwd: Path, cancel=None, meter=None) -> str:
 def run_codex(c: dict, prompt: str, cwd: Path, images: list[Path], cancel=None, meter=None) -> str:
     """c["lean"]：不拉起用户 Codex 配置里的 MCP 服务（翻译时用，见 codex_lean）。
     这些覆盖参数让 Codex 报配置错误时，去掉它们照旧再调一次。"""
+    require_model_access()
     exe = codex_path(c)
     if not exe:
         raise EngineError(tr("找不到 Codex 命令：{cmd}（先装好并登录 Codex CLI）", cmd=c.get("command") or "codex"))
@@ -180,6 +191,7 @@ def for_translation(cfg: dict) -> dict:
 
 
 def _codex_once(exe: str, c: dict, prompt: str, cwd: Path, images: list[Path], cancel, extra: list[str]) -> tuple[str, str]:
+    require_model_access()
     fd, last = tempfile.mkstemp(suffix=".txt", prefix="easyread-codex-")
     os.close(fd)
     args = [exe, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never", "--json", "-o", last]
@@ -238,6 +250,7 @@ def _communicate(proc, stdin_text: str, timeout: int, cancel) -> str:
 
 # ---------- OpenAI 兼容接口 ----------
 def run_openai(c: dict, prompt: str, images: list[Path], cancel=None, meter=None) -> str:
+    require_model_access()
     from . import openai_api  # 它要用本文件的 EngineError，放这里免得循环导入
     return openai_api.complete(c, prompt, images, cancel, meter)
 
@@ -282,6 +295,8 @@ def parse_json(text: str):
 
 
 def _version(exe: str) -> str:
+    if review_policy.isolated():
+        return ""
     try:
         return subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=30,
                               creationflags=_NO_WINDOW).stdout.strip().splitlines()[0]

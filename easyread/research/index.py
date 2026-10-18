@@ -5,8 +5,6 @@ import struct
 import threading
 from pathlib import Path
 
-import numpy as np
-
 from ..i18n import tr
 from .markdown import chunks, parse_note, readable
 from .store import index_folders, sha256_text, state_dir, vault_path
@@ -101,11 +99,13 @@ def _embedder():
 
 
 def _vec_bytes(vector) -> bytes:
+    import numpy as np
     values = np.asarray(vector, dtype=np.float32)
     return struct.pack("<I", len(values)) + values.tobytes()
 
 
 def _vec_values(raw: bytes):
+    import numpy as np
     size = struct.unpack("<I", raw[:4])[0]
     return np.frombuffer(raw, dtype=np.float32, count=size, offset=4)
 
@@ -343,6 +343,7 @@ def index_vault(rebuild: bool = False, library=None, semantic: bool = True, canc
 
 
 def _query_vector(query: str):
+    import numpy as np
     encoder = _embedder()
     return np.asarray(next(iter(encoder.query_embed("query: " + query))), dtype=np.float32)
 
@@ -389,6 +390,7 @@ def search(query: str, limit: int = 10, kind: str = "", library=None) -> dict:
             if needs_model:
                 raise FileNotFoundError(tr("語意模型尚未下載。"))
             if has_vectors:
+                import numpy as np
                 query_vector = _query_vector(query)
             else:
                 raise FileNotFoundError(tr("語意索引尚未建立。"))

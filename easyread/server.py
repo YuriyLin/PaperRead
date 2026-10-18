@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, presets as api_presets
+from . import reader_data, __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, presets as api_presets
 from .research import api as research_api
 from . import research_v2
 from . import planning_store
@@ -20,6 +20,7 @@ from .jobs import Jobs
 from .library import Library
 from .i18n import tr
 from .store import now_iso
+from . import review_policy
 from .reader_files import refresh_layout as _refresh_layout, warm as _warm, reveal as _reveal, _warming
 
 WEB = config.WEB
@@ -58,6 +59,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
+        if getattr(self, "close_connection", False):
+            self.send_header("Connection", "close")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -105,8 +108,9 @@ class Handler(BaseHTTPRequestHandler):
         options = chat_options.apply(ecfg, body.get("chat_options"))
         model = chat_models.label(m)
         tid = thread["id"] if thread else chat_store.new_id()
-        refs = [{"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000]}
-                for r in (body.get("refs") or [])[:12] if isinstance(r, dict) and r.get("anchor")]
+        refs = [{"anchor": str(r.get("anchor") or ""), "quote": str(r.get("quote") or "")[:1000],
+                 **{k: str(r[k])[:300] for k in ("key", "side", "table_source") if r.get(k)}}
+                for r in (body.get("refs") or [])[:200] if isinstance(r, dict) and r.get("anchor")]
         first = refs[0] if refs else {}
         user = {"content": text, "anchor": body.get("anchor") or first.get("anchor"), "quote": (body.get("quote") or first.get("quote") or "")[:1000],
                 "note": body.get("note"), "refs": refs, "answer_style": style, "chat_options": options}
@@ -185,6 +189,8 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self):
         url = urlparse(self.path)
         path = unquote(url.path)
+        if not review_policy.results_route_allowed("GET", path):
+            return self._json(403, {"error": "Gemini result viewer is Mock-only; this operation is disabled"})
         app, lib = self.app, self.app.lib
         research = research_api.get(app, path + ("?" + url.query if url.query else ""))
         if research is not None:
@@ -267,9 +273,11 @@ class Handler(BaseHTTPRequestHandler):
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
                 if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
                     pass  # PaperRead does not generate cropped figure assets.
+                state["paper"], state["versions"]["paper"] = reader_data.reader_paper(ws, state["paper"])
                 return self._json(200, state)
             if action == "versions":
-                return self._json(200, {**ws.versions(), "library_status": app.location.status})
+                _, paper_version = reader_data.reader_paper(ws)
+                return self._json(200, {**ws.versions(), "paper": paper_version, "library_status": app.location.status})
             if action == "chat":
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
             if action == "log":
@@ -281,6 +289,9 @@ class Handler(BaseHTTPRequestHandler):
                 out = build(ws)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
             if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
+                if parts[5] == "paper":
+                    paper, version = reader_data.reader_paper(ws)
+                    return self._json(200, {"data": paper, "version": version})
                 return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
@@ -328,6 +339,9 @@ class Handler(BaseHTTPRequestHandler):
     def _post(self):
         url = urlparse(self.path)
         path = unquote(url.path)
+        if not review_policy.results_route_allowed("POST", path):
+            self.close_connection = True  # Rejected request body must not become the next HTTP request.
+            return self._json(403, {"error": "Gemini result viewer is Mock-only; this operation is disabled"})
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         app, lib = self.app, self.app.lib
 

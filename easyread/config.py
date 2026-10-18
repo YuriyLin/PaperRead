@@ -13,6 +13,7 @@ from pathlib import Path
 from .chat_models import DEFAULT_CHAT
 from .presets import PRESET_GROUPS, PRESETS  # noqa: F401
 from .store import read_json, write_json_atomic
+from . import review_policy
 
 PACKAGE = Path(__file__).resolve().parent
 WEB = PACKAGE / "web"
@@ -57,6 +58,7 @@ def is_first_run() -> bool:
 
 
 def _saved() -> dict:
+    review_policy.require_path(CONFIG_PATH, "home")
     _migrate_legacy_home()
     raw = read_json(CONFIG_PATH, {}) or {}
     if raw.get("target") == "zh" and not raw.get("target_locale_v"):
@@ -119,6 +121,10 @@ def load() -> dict:
     lib = os.environ.get("EASYREAD_LIBRARY") or os.environ.get("COREAD_LIBRARY")
     if lib:  # 测试或多库时临时指定文献库
         cfg["library_dir"] = lib
+    if review_policy.isolated():
+        # Keep saved model selections visible for settings round trips. The
+        # engines.run / chat.stream guards block model transport independently.
+        cfg.update(auto_translate=False, check_updates=False)
     return cfg
 
 
@@ -127,6 +133,7 @@ def temp_library() -> bool:
 
 
 def save(patch: dict) -> dict:
+    review_policy.require_path(CONFIG_PATH, "home")
     cfg = _merge(_merge(DEFAULTS, _saved()), patch)
     write_json_atomic(CONFIG_PATH, cfg)
     return load()
@@ -152,6 +159,9 @@ def with_key(o: dict) -> dict:
 def public(cfg: dict) -> dict:
     """给页面看的配置：密钥只露后四位。"""
     out = copy.deepcopy(cfg)
+    out.pop("review_policy", None)
+    if review_policy.isolated():
+        out["review_policy"] = review_policy.status()
     key = out["openai"].get("api_key") or ""
     out["openai"]["api_key"] = ("••••" + key[-4:]) if key else ""
     out["openai"]["has_key"] = bool(key)
@@ -160,6 +170,6 @@ def public(cfg: dict) -> dict:
 
 
 def library_dir(cfg: dict | None = None) -> Path:
-    p = Path((cfg or load())["library_dir"])
+    p = review_policy.require_path(Path((cfg or load())["library_dir"]), "library")
     p.mkdir(parents=True, exist_ok=True)
     return p

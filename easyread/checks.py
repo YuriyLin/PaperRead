@@ -10,6 +10,7 @@ from pathlib import Path
 from .config import WEB
 from .paperdata import BLOCK_TYPES, block_shape_problem
 from .store import Workspace
+from .tables import MATRICES, FOOTNOTES
 
 _CITE = re.compile(r"\[(\d+(?:\s*[,–-]\s*\d+)*)\]")
 _INLINE_MATH = re.compile(r"(?<!\\)\$((?:\\\$|[^$])+?)(?<!\\)\$")
@@ -30,7 +31,7 @@ def texts(block: dict):
                 yield it.get("en", "")
             else:
                 yield str(it)
-    for field in ("head", "rows"):
+    for field in ("head", "rows") + MATRICES:
         matrix = block.get(field, [])
         if not isinstance(matrix, list):
             continue
@@ -38,6 +39,10 @@ def texts(block: dict):
             cells = row if isinstance(row, list) else [row]
             for cell in cells:
                 yield str(cell)
+    for field in FOOTNOTES:
+        notes = block.get(field, [])
+        if isinstance(notes, list):
+            yield from (str(note) for note in notes)
 
 
 def block_problems(blocks: list[dict], refs: set[str] | None = None) -> tuple[list[str], list]:

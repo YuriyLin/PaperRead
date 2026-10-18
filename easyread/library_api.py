@@ -5,7 +5,7 @@ import threading
 from contextlib import contextmanager
 from urllib.parse import unquote, urlparse
 
-from . import cloudlib, config
+from . import cloudlib, config, review_policy
 from .cloudlib_lock import LibraryMarker
 from .i18n import tr
 
@@ -66,6 +66,8 @@ class LibraryLocation:
                                            for ws in self.app.lib.all())
 
     def move(self, body: dict) -> dict:
+        if review_policy.isolated():
+            raise ValueError("Library location operations are disabled in isolated review mode")
         with self.lock:
             if self.status != "idle":
                 raise self._error()
@@ -92,9 +94,10 @@ class LibraryLocation:
                     self.status = "idle"
 
     def location(self) -> dict:
+        review_policy.require_path(self.app.lib.root, "library")
         current = cloudlib.inspect(self.app.lib.root, exact=True)
         candidates = []
-        for candidate in cloudlib.detect():
+        for candidate in ([] if review_policy.isolated() else cloudlib.detect()):
             try:
                 candidates.append({**candidate, **cloudlib.inspect(candidate["path"])})
             except cloudlib.Incomplete as e:
@@ -124,6 +127,8 @@ def incomplete(e: "cloudlib.Incomplete") -> dict:
 
 
 def inspect(body: dict) -> dict:
+    if review_policy.isolated():
+        raise ValueError("Library location operations are disabled in isolated review mode")
     try:
         return cloudlib.inspect(body.get("path", ""))
     except cloudlib.Incomplete as e:
@@ -135,6 +140,8 @@ def get(app, path: str):
 
 
 def post(app, path: str, body: dict):
+    if review_policy.isolated() and path.startswith("/api/library/"):
+        raise ValueError("Library location operations are disabled in isolated review mode")
     if path == "/api/library/inspect":
         return inspect(body)
     if path == "/api/library/pick-folder":  # 浏览器版：后端弹系统的选文件夹窗口

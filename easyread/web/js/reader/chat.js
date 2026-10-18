@@ -28,11 +28,12 @@
     const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock();
     st.auto = PR.blockById[id] ? { anchor: id, quote: "" } : null;
   }
-  function addRef(anchor, quote) {
+  function addRef(anchor, quote, detail = {}) {
     if (!PR.blockById[anchor]) return false;
     quote = (quote || "").trim();
-    if (st.refs.some((r) => r.anchor === anchor && r.quote === quote)) return false;
-    st.refs = st.refs.filter((r) => !(r.anchor === anchor && !r.quote && quote)).concat({ anchor, quote });  // 同段先引整段、再选一句：换成那句
+    if (st.refs.some((r) => r.anchor === anchor && r.quote === quote && r.key === detail.key && r.side === detail.side)) return false;
+    const meta = Object.fromEntries(["key", "side", "table_source"].filter((key) => detail[key]).map((key) => [key, detail[key]]));
+    st.refs = st.refs.filter((r) => !(r.anchor === anchor && !r.quote && quote)).concat({ anchor, quote, ...meta });  // 同段先引整段、再选一句：换成那句
     return true;
   }
   /* 这次提问带哪几段：手动引用的；没有就用正在读的那段 */
@@ -42,8 +43,10 @@
   PR.chatAsk = function (opts) {
     if (PR.side !== "chat") { PR.openSide("chat"); autoContext(); }
     load().then(() => {
-      if (opts.text) return send(opts.text, opts.note, [{ anchor: opts.anchor, quote: opts.quote || "" }]);
-      const added = addRef(opts.anchor, opts.quote);
+      const refs = opts.parts && opts.parts.length ? opts.parts : [opts];
+      if (opts.text) return send(opts.text, opts.note, refs.map((r) => ({ anchor: r.anchor, quote: r.quote || "", ...Object.fromEntries(["key", "side", "table_source"].filter((k) => r[k]).map((k) => [k, r[k]])) })));
+      let added = false;
+      refs.forEach((r) => { added = addRef(r.anchor, r.quote, r) || added; });
       if (opts.draft) st.draft = opts.draft;
       render(); focusInput();
       if (added && st.refs.length > 1) PR.toast(PR.t("已引用 {n} 段", { n: st.refs.length }), null, 1000);
@@ -318,7 +321,7 @@
     const sel = window.getSelection();
     const node = sel && sel.rangeCount && sel.getRangeAt(0).startContainer;
     const host = node && (node.nodeType === 1 ? node : node.parentElement).closest("#paper [id^='b-']");
-    dragRef = host ? { anchor: host.id.slice(2), quote: sel.toString().trim().slice(0, 1000) } : null;
+    dragRef = PR.readSelection && PR.readSelection() || (host ? { anchor: host.id.slice(2), quote: sel.toString().trim().slice(0, 1000) } : null);
     if (dragRef && PR.chatOpen()) panel().classList.add("drop-ok");
   });
   document.addEventListener("dragend", () => { dragRef = null; panel().classList.remove("drop-ok", "drop-on"); });
@@ -328,9 +331,9 @@
     if (!dragRef) return;
     e.preventDefault();
     panel().classList.remove("drop-ok", "drop-on");
-    const { anchor, quote } = dragRef;
+    const refs = dragRef.parts?.length ? dragRef.parts : [dragRef];
     dragRef = null;
-    addRef(anchor, quote);
+    refs.forEach((ref) => addRef(ref.anchor, ref.quote, ref));
     render(); focusInput();
   });
   /* 读到别处时，上下文跟着换成当前段（手动指定的不动） */

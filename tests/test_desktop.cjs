@@ -5,10 +5,11 @@ const vm = require("node:vm");
 const { EventEmitter } = require("node:events");
 const { test } = require("node:test");
 
-async function desktop(platform = "darwin", lock = true, ready = true, argv = []) {
+async function desktop(platform = "darwin", lock = true, ready = true, argv = [], env = {}) {
   const app = new EventEmitter();
+  const paths = {};
   Object.assign(app, {
-    setPath() {}, getPath: () => "/tmp", getLocale: () => "zh-CN", isPackaged: true,
+    setPath(name, value) { paths[name] = value; }, getPath: () => "/tmp", getLocale: () => "zh-CN", isPackaged: true,
     requestSingleInstanceLock: () => lock, whenReady: () => Promise.resolve(), isReady: () => true,
     setAsDefaultProtocolClient(scheme) { this.protocol = scheme; },
     quit() { this.quitCalled = true; this.emit("before-quit", { preventDefault() {} }); },
@@ -30,6 +31,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     static getAllWindows() { return windows.filter(w => !w.closed); }
     async loadURL(url) { this.url = url; }
     show() { this.shown = true; }
+    setTitle(title) { this.title = title; }
     focus() { this.focused = true; }
     isMinimized() { return false; }
     close() { this.closed = true; this.emit("closed"); }
@@ -50,7 +52,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     },
   };
   const proc = new EventEmitter();
-  Object.assign(proc, { platform, env: {}, resourcesPath: "/tmp/Resources", argv: ["EasyRead.exe", ...argv] });
+  Object.assign(proc, { platform, env, resourcesPath: "/tmp/Resources", argv: ["EasyRead.exe", ...argv] });
   const fakeRequire = name => name === "electron" ? { app, BrowserWindow: Window, Menu, ipcMain, dialog: { showErrorBox() {}, showOpenDialog: async () => ({ canceled: false, filePaths: ["/tmp/chosen"] }) }, shell: {} }
     : name === "child_process" ? childProcess : name === "fs" ? { existsSync: () => true }
     : name === "http" ? { request(url, options, callback) {
@@ -64,6 +66,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     : name === "./startup-feedback.cjs" ? { ...require("../electron/startup-feedback.cjs"), mark(_app, stage) { stages.push(stage); }, loginShellPath: async () => "/usr/bin:/bin" }
     : name === "./desktop-updates.cjs" ? { registerUpdates() {} }
     : name === "./deep-link.cjs" ? require("../electron/deep-link.cjs")
+    : name === "./test-profile.cjs" ? require("../electron/test-profile.cjs")
     : name === "electron-updater" ? { autoUpdater: {} }
     : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
     : require(name);
@@ -76,8 +79,48 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     for (let i = 0; i < 4; i += 1) await new Promise(resolve => setImmediate(resolve));
   };
   await settled();
-  return { app, windows, launches, menus, handlers, stages, settled };
+  return { app, windows, launches, menus, handlers, stages, settled, paths };
 }
+
+test("isolated desktop restarts reuse the same profile and leave saved model settings intact", async () => {
+  const base = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'paperread-model-profile-'));
+  try {
+    const profile = path.join(base, 'review');
+    fs.mkdirSync(path.join(profile, 'home'), { recursive: true });
+    const configPath = path.join(profile, 'home', 'config.json');
+    const saved = JSON.stringify({ engine: 'codex', codex: { model: 'gpt-6.1-sol' }, chat: { default: 'sonnet' } });
+    fs.writeFileSync(configPath, saved);
+    for (let launch = 0; launch < 2; launch++) {
+      const d = await desktop('win32', true, true, [], { PAPERREAD_TEST_PROFILE: profile, EASYREAD_HOME: 'unused' });
+      try {
+        const env = d.launches[0].options.env;
+        assert.equal(d.paths.userData, path.join(profile, 'desktop'));
+        assert.equal(env.EASYREAD_HOME, path.join(profile, 'home'));
+        assert.equal(env.EASYREAD_LIBRARY, path.join(profile, 'library'));
+        assert.equal(env.PAPERREAD_OFFLINE_TEST, '1');
+        assert.equal(env.PAPERREAD_REVIEW_MODE, 'Mock');
+        let prevented = false;
+        d.windows[0].webContents.emit('page-title-updated', { preventDefault() { prevented = true; } });
+        assert.equal(prevented, true);
+        assert.match(d.windows[0].title, /Mock.*blocked/);
+        assert.equal(fs.readFileSync(configPath, 'utf8'), saved);
+      } finally { d.app.quit(); await d.settled(); }
+    }
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
+test('Gemini result desktop denies folder picking and file export while preserving offline backend', async () => {
+  const base = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'paperread-gemini-desktop-'));
+  const d = await desktop('win32', true, true, [], { PAPERREAD_TEST_PROFILE: base, PAPERREAD_REVIEW_KIND: 'GeminiResults' });
+  try {
+    assert.equal(d.launches[0].options.env.PAPERREAD_REVIEW_MODE, 'Mock');
+    const contents = d.windows[0].webContents, event = { sender: contents, senderFrame: contents.mainFrame };
+    await assert.rejects(d.handlers.get('easyread:pick-folder')(event), /disabled/);
+    await assert.rejects(d.handlers.get('easyread:save-file')(event), /disabled/);
+    contents.emit('page-title-updated', { preventDefault() {} });
+    assert.match(d.windows[0].title, /Gemini results.*Mock.*blocked/);
+  } finally { d.app.quit(); await d.settled(); fs.rmSync(base, { recursive: true, force: true }); }
+});
 
 test("macOS keeps native editing roles and offers input context actions", async () => {
   const d = await desktop();

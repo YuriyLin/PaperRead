@@ -13,12 +13,13 @@ const deepLink = require("./deep-link.cjs");
 // 新版使用 PaperRead 資料夾；第一次升級時把舊版 EasyRead 的桌面偏好
 // 搬到新位置，避免改名後像是全新安裝。搬移失敗時保留舊資料，不覆蓋任何內容。
 const appData = app.getPath("appData");
+const reviewProfile = (process.env.PAPERREAD_TEST_PROFILE || process.env.PAPERREAD_REVIEW_MODE) ? require("./test-profile.cjs").testProfile(process.env, appData) : null;
 const paperReadUserData = path.join(appData, "PaperRead");
 const legacyUserData = path.join(appData, "EasyRead");
-if (!fs.existsSync(paperReadUserData) && fs.existsSync(legacyUserData)) {
+if (!reviewProfile && !fs.existsSync(paperReadUserData) && fs.existsSync(legacyUserData)) {
   try { fs.renameSync(legacyUserData, paperReadUserData); } catch (_) { /* legacy data remains recoverable */ }
 }
-app.setPath("userData", paperReadUserData);
+app.setPath("userData", reviewProfile ? reviewProfile.userData : paperReadUserData);
 startup.mark(app, "electron-entry");
 
 // 桌面版自己的幾句報錯跟系統語言走（介面語言由後端決定，見 easyread/i18n.py）
@@ -65,7 +66,7 @@ function startBackend() {
   if (backendReady) return backendReady;
   backendReady = (async () => {
   const launch = backendCommand();
-  const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 後端按它決定介面語言
+  const env = { ...process.env, ...(reviewProfile ? reviewProfile.env : {}), PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 後端按它決定介面語言
   startup.mark(app, "shell-path-start");
   const shellPath = await startup.loginShellPath(process.platform);
   startup.mark(app, "shell-path-ready");
@@ -194,11 +195,13 @@ function trustedWindow(event) {
 
 ipcMain.handle("easyread:pick-folder", async event => {
   trustedWindow(event);
+  if (reviewProfile?.kind === "GeminiResults") throw new Error("Folder access is disabled in the Gemini result viewer");
   const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory", "createDirectory"] });
   return result.canceled ? null : result.filePaths[0] || null;
 });
 ipcMain.handle("easyread:save-file", async (event, options = {}) => {
   trustedWindow(event);
+  if (reviewProfile?.kind === "GeminiResults") throw new Error("External file export is disabled in the Gemini result viewer");
   const filename = typeof options.filename === "string" && options.filename.trim() ? options.filename.trim() : "PaperRead-export.md";
   const encoded = typeof options.contentBase64 === "string" ? options.contentBase64 : "";
   if (!encoded || encoded.length > 160 * 1024 * 1024) throw new Error("匯出內容無效或過大");
@@ -268,7 +271,15 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
     },
   });
+  if (reviewProfile) {
+    mainWindow.webContents.on("page-title-updated", event => {
+      event.preventDefault();
+      mainWindow.setTitle(reviewProfile.kind === "GeminiResults"
+        ? "PaperRead [Gemini results / Mock — real models blocked]" : "PaperRead [Mock — real models blocked]");
+    });
+  }
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (reviewProfile?.kind === "GeminiResults") return { action: "deny" };
     if (/^https?:/i.test(target)) shell.openExternal(target);
     if (/^obsidian:/i.test(target)) shell.openExternal(target);
     return { action: "deny" };
@@ -339,10 +350,10 @@ if (!app.requestSingleInstanceLock()) {
     openLink(deepLink.openPath(link));
   });
   app.whenReady().then(() => {
-    deepLink.register(app, process);
+    if (!reviewProfile) deepLink.register(app, process);
     registerUpdates({
       app, ipcMain, updater: require("electron-updater").autoUpdater, trustedWindow,
-      repository: process.env.EASYREAD_UPDATE_REPOSITORY || "",
+      repository: reviewProfile ? "" : process.env.EASYREAD_UPDATE_REPOSITORY || "",
       getWindow: () => mainWindow,
       prepareInstall: stopBackendGracefully,
       recover: async () => {

@@ -7,7 +7,7 @@ from pathlib import Path
 from pathlib import PurePosixPath, PureWindowsPath
 from urllib.parse import quote
 
-from .. import config, prefs
+from .. import config, prefs, review_policy
 from ..i18n import tr
 
 
@@ -71,14 +71,15 @@ def vault_path() -> Path | None:
     raw = settings().get("vault")
     if not raw:
         return None
-    return Path(raw).expanduser().resolve()
+    return review_policy.require_path(Path(raw).expanduser(), "vault").resolve()
 
 
 def set_vault(raw: str, folders=None) -> Path:
     if not raw.strip():
         raise ValueError(tr("請選擇 Obsidian Vault 資料夾。"))
-    path = Path(raw).expanduser()
+    path = review_policy.require_path(Path(raw).expanduser(), "vault")
     selected_folders = normalize_folders(folders)
+    directories = [review_policy.require_path(path / "Research" / name, "vault") for name in {*KINDS.values(), *EXPORT_FOLDERS}]
     path.mkdir(parents=True, exist_ok=True)
     path = path.resolve(strict=True)
     if not path.is_dir():
@@ -86,8 +87,8 @@ def set_vault(raw: str, folders=None) -> Path:
     if path == config.HOME.resolve() or path == config.library_dir().resolve():
         raise ValueError(tr("請選擇 Obsidian Vault 資料夾，不可選 PaperRead 資料目錄。"))
     prefs.save({"research": {"vault": str(path), "folders": selected_folders}})
-    for name in {*KINDS.values(), *EXPORT_FOLDERS}:
-        (path / "Research" / name).mkdir(parents=True, exist_ok=True)
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -119,6 +120,7 @@ def validate_vault_path(path: Path) -> Path:
         except ValueError:
             inside = False
     resolved = Path(candidate_real)
+    review_policy.require_path(resolved, "vault")
     if not inside or resolved.suffix.lower() != ".md":
         raise ValueError(tr("筆記路徑必須是所選 Vault 內的 Markdown 檔案。"))
     return resolved

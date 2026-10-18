@@ -49,13 +49,22 @@
   /* ---------- 原文 / 译文两个元素互相找 ---------- */
   const isEnEl = (el) => el.classList.contains("en") || el.classList.contains("en-main");
   PR.isEnEl = isEnEl;
+  function cellPartner(el, side) {
+    const pair = el.closest(".table-pair");
+    return pair ? Array.from(pair.querySelectorAll(".table-cell-text[data-key]")).find((node) => node.dataset.key === el.dataset.key &&
+      (side === "zh" ? node.classList.contains("zh") : node.classList.contains("en"))) || null : null;
+  }
   /* 原文元素对应的 .zh[data-key]（同一层的兄弟；只读原文没译的块，.zh 自己就是原文） */
   PR.zhOfEl = function (el) {
     if (el.classList.contains("zh")) return el;
+    if (el.dataset.cellId) return cellPartner(el, "zh");
+    if (el.dataset.tableCaption) return el.closest(".table-pair")?.querySelector('.zh[data-key]') || null;
     return Array.from(el.parentElement ? el.parentElement.children : []).find((n) => n.classList.contains("zh") && n.dataset.key) || null;
   };
   PR.enOfZh = function (zh) {
     if (!zh || zh.classList.contains("en-main")) return null;
+    if (zh.dataset.cellId) return cellPartner(zh, "en");
+    if (zh.dataset.tableCaption) return zh.closest(".table-pair")?.querySelector('.en[data-table-caption]') || null;
     return Array.from(zh.parentElement ? zh.parentElement.children : []).find((n) => n.classList.contains("en")) || null;
   };
   /* 一条标注挂在哪个元素上：side 为 en 找原文，其余（旧标注没有 side）找译文 */
@@ -77,16 +86,17 @@
     for (const n of PR.myNotes()) {
       const marks = n.quote && byNote[n.id];
       if (!marks) continue;
-      const src = marks[0].closest(".zh, .en");
+      for (const src of new Set(marks.map((m) => m.closest(".zh, .en")).filter(Boolean))) {
       const other = src && partner(src);
       if (!other) continue;
-      const idx = new Set(marks.map((m) => m.closest(".snt")).filter(Boolean).map((sp) => sp.dataset.s));
+      const idx = new Set(marks.filter((m) => src.contains(m)).map((m) => m.closest(".snt")).filter(Boolean).map((sp) => sp.dataset.s));
       const spans = idx.size ? PR.$$(":scope .snt", other).filter((sp) => idx.has(sp.dataset.s)) : [];
       const targets = spans.length ? spans : [other];
       const cls = [spans.length ? "mir" : "mir-para", "c-" + (n.color || "yellow")].concat(n.kind === "question" ? ["mir-q"] : []);
       const tip = isEnEl(src) ? PR.t("对应原文里的标注") : PR.t("对应译文里的标注");
       // 同一处有几条标注时留第一条（按时间排在前面的），颜色不会叠在一起
       targets.filter((t) => !t.dataset.mirror).forEach((t) => { t.classList.add(...cls); t.dataset.mirror = n.id; t.title = tip; });
+      }
     }
   };
 

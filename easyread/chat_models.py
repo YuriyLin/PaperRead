@@ -10,7 +10,7 @@ import copy
 import re
 from pathlib import Path
 
-from . import engines
+from . import engines, review_policy
 from .presets import PRESETS
 from .i18n import tr
 
@@ -61,6 +61,8 @@ def codex_default_model() -> str:
 
 def codex_config_value(key: str) -> str:
     """Read a top-level string for display, without exposing the full CLI config."""
+    if review_policy.isolated():
+        return ""
     import os
     try:
         home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")

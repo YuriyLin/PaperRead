@@ -1,0 +1,17 @@
+{
+  "title": "Developing Cost Functions for Estimating Solar Photovoltaic System Installed and Life Cycle Costs Using Historical Quote Data",
+  "authors": "David Webb, Joshua Kneifel, Cheyney O'Fallon",
+  "year": 2020,
+  "doi": "10.6028/NIST.TN.2113",
+  "source_url": "https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2113.pdf",
+  "source_sha256": "796d69c969253c9e6ae3762f7f063414b83941bf9f24c4f160b92a2fec598b88",
+  "fixture_sha256": "34337949d20353d834189f819fd2545416f9a00c9092b054a7fa67174612fdbe",
+  "fixture": "nist-tn-2113-pages-17-19.pdf",
+  "attribution": "Republished courtesy of the National Institute of Standards and Technology.",
+  "license_url": "https://www.nist.gov/open/copyright-fair-use-and-licensing-statements-srd-data-software-and-technical-series-publications",
+  "cases": [
+    {"page": 1, "source_pdf_page": 17, "printed_page": "11", "table": "1", "expected": "fallback", "reason": "Merged or irregular cells", "tokens": ["2.943", ".0673", "43.74", "2.811", "3.075"]},
+    {"page": 2, "source_pdf_page": 18, "printed_page": "12", "table": "2", "expected": "fallback", "reason": "unmarked footnotes", "tokens": ["Table 2."]},
+    {"page": 3, "source_pdf_page": 19, "printed_page": "13", "table": "3", "expected": "fallback", "reason": "Merged or irregular cells", "tokens": ["410.9", "956.9", "0.668", "-1466", "2287"]}
+  ]
+}

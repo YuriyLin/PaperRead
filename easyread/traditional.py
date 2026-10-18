@@ -29,8 +29,14 @@ def normalize(data: dict) -> None:
                     prefix = original.encode("utf-16-le")[:pair[1] * 2].decode("utf-16-le")
                     pair[1] = len(convert(prefix).encode("utf-16-le")) // 2
             if value.get("type") == "table":
-                for field in ("head", "rows"):
+                # Legacy matrices have no reliable language label. Neither
+                # migration nor normalization may reinterpret or rewrite them.
+                for field in ("head_zh", "rows_zh"):
+                    if field not in value:
+                        continue
                     value[field] = [[convert(cell) for cell in row] for row in value.get(field, [])]
+                if "footnotes_zh" in value:
+                    value["footnotes_zh"] = [convert(note) for note in value["footnotes_zh"]]
         elif isinstance(value, list):
             for child in value: walk(child)
     walk(data)

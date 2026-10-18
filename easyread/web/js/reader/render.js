@@ -4,12 +4,44 @@
   "use strict";
   const S = PR.state;
 
+  PR.isTableCellKey = (key) => /#cell:(head|rows|note):\d+(?::\d+)?$/.test(String(key || ""));
+  PR.tableCellKey = (b, section, row, col) => b.id + "#cell:" + section + ":" + row + (col == null ? "" : ":" + col);
+  PR.tableSource = (b) => PR.hashText(JSON.stringify([b.caption_en || "", b.head_en || [], b.rows_en || [], b.footnotes_en || []]));
+  PR.tableCell = function (key) {
+    const [id, field] = String(key || "").split("#"), b = PR.blockById[id];
+    const m = /^(head|rows|note):(0|[1-9]\d*)(?::(0|[1-9]\d*))?$/.exec((field || "").replace(/^cell:/, ""));
+    if (!PR.isTableCellKey(key) || !b || b.type !== "table" || !m) return null;
+    const versions = tableVersions(b);
+    if (!versions.en) return null;
+    const section = m[1], row = +m[2], col = m[3] == null ? null : +m[3];
+    if ((section === "note") !== (col == null)) return null;
+    const en = section === "note" ? (b.footnotes_en || [])[row] : b[section + "_en"]?.[row]?.[col];
+    const zh = section === "note" ? (b.footnotes_zh || [])[row] : b[section + "_zh"]?.[row]?.[col];
+    return typeof en === "string" ? { key, block: b, section, row, col, en, zh: versions.zh && typeof zh === "string" ? zh : "", source: PR.tableSource(b) } : null;
+  };
+  PR.openTableCell = function (key, source) {
+    const cell = PR.tableCell(key);
+    if (!cell) {
+      const b = PR.blockById[String(key).split("#")[0]];
+      if (b && b.type === "table" && b.page) PR.openPage(b.page, b.id, false);
+      return;
+    }
+    const b = cell.block, slot = key.split("#cell:")[1];
+    const valid = (loc) => loc && Number.isInteger(loc.page) && loc.page === b.page && Array.isArray(loc.box) && loc.box.length === 4 &&
+      loc.box.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1) && loc.box[0] < loc.box[2] && loc.box[1] < loc.box[3];
+    let location = null;
+    if ((!source || source === cell.source) && b.table_geometry_source === cell.source && valid(b.table_cell_boxes?.[slot])) location = b.table_cell_boxes[slot];
+    if (!location && (!source || source === cell.source) && b.table_geometry_source === cell.source && valid({ page: b.page, box: b.table_source_box })) location = { page: b.page, box: b.table_source_box };
+    PR.openPage(b.page, b.id, location || false);
+  };
+
   /* ---------- 译文取值：key 形如 "s1-p1"、"tab1#caption"、"s1-recs#2" ---------- */
   PR.blockById = {};
   function fields(key) {  // [译文, 原文]
     const [id, field] = key.split("#");
     const b = PR.blockById[id];
     if (!b) return ["", ""];
+    if (PR.isTableCellKey(key)) { const cell = PR.tableCell(key); return cell ? [cell.zh, cell.en] : ["", ""]; }
     if (field === "caption") return [b.caption_zh || "", b.caption_en || ""];
     if (field === "image") return [b.image_zh || "", b.image_en || ""];
     if (field != null && /^\d+$/.test(field)) { const it = (Array.isArray(b.items) ? b.items : [])[+field] || {}; return [it.zh || "", it.en || ""]; }
@@ -18,10 +50,12 @@
   PR.agentText = function (key) { const [zh, en] = fields(key); return zh || en; };
   /* 这处还没有译文、正文排的是英文原文（只读原文） */
   PR.isEnKey = function (key) { const [zh, en] = fields(key); return !zh && !!en && !PR.editOf(key); };
-  PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
+  PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh ||
+    (b.type === "table" && (tableVersions(b).zh || readingData(b))) || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
-  PR.textFor = function (key) { const e = PR.editOf(key); return e ? e.zh : PR.agentText(key); };
-  PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && e.base && e.base !== PR.hashText(PR.agentText(key))); };
+  const sourceChanged = (key, e) => PR.isTableCellKey(key) && e.table_source !== PR.tableCell(key)?.source;
+  PR.textFor = function (key) { const e = PR.editOf(key); return e && !sourceChanged(key, e) ? e.zh : PR.agentText(key); };
+  PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && (sourceChanged(key, e) || e.base && e.base !== PR.hashText(PR.agentText(key)))); };
   PR.blockKeys = function (b) {
     if (b.type === "list") return (Array.isArray(b.items) ? b.items : []).map((_, i) => b.id + "#" + i);
     if (b.type === "table") return [b.id + "#caption"];
@@ -68,6 +102,105 @@
   }
   function linkify(t) { return PR.esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 
+  // Only explicit, rectangular bilingual data is rendered. Legacy head/rows
+  // remain untouched: their language cannot be recovered from field names.
+  function tableVersions(b) {
+    const fallback = { en: null, zh: null };
+    if (b.table_schema !== 1 || ("table_status" in b && (typeof b.table_status !== "string" || b.table_status && b.table_status !== "ready")) ||
+        ["table_spans", "table_segments"].some((key) => key in b && (!Array.isArray(b[key]) || b[key].length))) return fallback;
+    function sideData(side) {
+      const head = b["head_" + side], rows = b["rows_" + side], notes = "footnotes_" + side in b ? b["footnotes_" + side] : [];
+      if (!Array.isArray(head) || !Array.isArray(rows) || !rows.length || !Array.isArray(notes) || notes.some((n) => typeof n !== "string")) return null;
+      const width = Array.isArray(rows[0]) ? rows[0].length : 0;
+      if (!width || [...head, ...rows].some((row) => !Array.isArray(row) || row.length !== width || row.some((cell) => typeof cell !== "string"))) return null;
+      return { head, rows, notes, width };
+    }
+    const en = sideData("en");
+    if (!en) return fallback;
+    let zh = sideData("zh");
+    if (zh && (zh.width !== en.width || zh.head.length !== en.head.length || zh.rows.length !== en.rows.length || zh.notes.length !== en.notes.length)) zh = null;
+    // A translated caption supplied by the reader still takes precedence.
+    if (zh && b.caption_en && !b.caption_zh && !PR.editOf(b.id + "#caption")) zh = null;
+    return { en, zh };
+  }
+
+  function tablePlaceholder(b, reason) {
+    return '<div class="figure-media"><button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
+      '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>' +
+      (reason ? '<p class="table-status">' + PR.esc(reason) + '</p>' : "") + '</div>';
+  }
+
+  // Input comes exclusively from the D2.5 reader projection (live or embedded).
+  // These guards prevent broken rendering; PDF verification stays on the backend.
+  function readingData(b) {
+    const r = b.table_reading, values = b.table_reading_zh;
+    const segments = r?.source?.segments;
+    if (b.table_status !== "fallback" || r?.version !== 1 || !Array.isArray(segments) || !segments.length ||
+        !Array.isArray(values) || values.length !== segments.length ||
+        values.some((v, i) => !v || typeof v.id !== "string" || v.id !== segments[i]?.id || typeof v.zh !== "string" || !v.zh.trim())) return null;
+    return values;
+  }
+
+  function readingTable(b) {
+    const preview = typeof b.table_reading_preview === "string" && /^data:image\/webp;base64,[A-Za-z0-9+/]+=*$/.test(b.table_reading_preview) ?
+      '<button class="table-source-preview" data-t="page" aria-label="' + PR.esc(PR.t("開啟原始 PDF")) + '"><img src="' + PR.esc(b.table_reading_preview) + '" alt="' + PR.esc(PR.t("原始 PDF 表格")) + '"></button>' : tablePlaceholder(b, "");
+    const pair = '<div class="table-pair table-reading-pair">' +
+      '<div class="table-version" data-table-side="en" lang="en">' + preview + '</div>' +
+      '<div class="table-version" data-table-side="zh" lang="zh-Hant">' +
+      '<p class="table-status">' + PR.esc(PR.t("閱讀輔助翻譯，非逐格驗證表格")) + '</p>' +
+      '<div class="table-reading-text" data-reading-block="' + PR.esc(b.id) + '"></div>' +
+      '<button class="btn sm line table-pdf-check" data-t="page">' + PR.esc(PR.t("開啟原始 PDF")) + '</button></div></div>';
+    return b.caption_pos === "above" ? captionHtml(b) + pair : pair + captionHtml(b);
+  }
+
+  function mountReadingText(scope) {
+    PR.$$(".table-reading-text", scope).forEach((node) => {
+      const b = PR.blockById[node.dataset.readingBlock], values = b && readingData(b);
+      node.replaceChildren();
+      if (!values) return;
+      values.forEach((value) => {
+        const p = document.createElement("p");
+        // Never pass model text to Markdown, innerHTML, or annotation keys.
+        p.textContent = value.zh;
+        node.appendChild(p);
+      });
+    });
+  }
+
+  function tableCaption(b, side) {
+    const key = b.id + "#caption", primaryEn = PR.isEnKey(key);
+    if (side === "zh" && primaryEn) return "";
+    const text = side === "en" ? b.caption_en || "" : PR.textFor(key);
+    if (!text) return "";
+    const primary = side === "zh" || primaryEn;
+    return '<div class="caption"><div class="' + (side === "zh" ? "zh" : primaryEn ? "zh en-main" : "en") + '"' +
+      (side === "en" ? ' lang="en"' : "") + (primary ? ' data-key="' + PR.esc(key) + '"' : "") +
+      ' data-table-caption="true">' + PR.md(text) + (primary ? staleTag(key) : "") + '</div></div>';
+  }
+
+  function tableVersion(b, side, data) {
+    let content;
+    if (!data) content = tablePlaceholder(b, PR.t("表格譯文尚未完整提供，請查看原始 PDF。"));
+    else {
+      const sourceOnly = side === "en" && !tableVersions(b).zh, sourceToken = PR.tableSource(b);
+      const cellHtml = (text, section, row, col) => {
+        const key = PR.tableCellKey(b, section, row, col);
+        return '<span class="table-cell-text ' + (side === "zh" ? "zh" : sourceOnly ? "zh en-main" : "en") + '" data-key="' + PR.esc(key) +
+          '" data-cell-id="' + PR.esc(key) + '" data-table-source="' + PR.esc(sourceToken) + '">' + PR.md(side === "zh" ? PR.textFor(key) : text) + (side === "zh" ? staleTag(key) : "") + '</span>';
+      };
+      const rowHtml = (row, tag, index) => '<tr>' + row.map((cell, i) => {
+        const align = ({ l: "left", c: "center", r: "right" })[String(b.align || "")[i]] || "left";
+        return '<' + tag + (tag === "th" ? ' scope="col"' : "") + ' style="text-align:' + align + '">' + cellHtml(cell, tag === "th" ? "head" : "rows", index, i) + '</' + tag + '>';
+      }).join("") + '</tr>';
+      content = '<div class="tbl-wrap" tabindex="0" role="region" aria-label="' + PR.esc(PR.t("表格 {num}，原文第 {page} 頁", { num: b.num || "", page: b.page })) + '"><table class="tbl">' + (data.head.length ? '<thead>' + data.head.map((row, i) => rowHtml(row, "th", i)).join("") + '</thead>' : "") +
+        '<tbody>' + data.rows.map((row, i) => rowHtml(row, "td", i)).join("") + '</tbody></table></div>' +
+        (data.notes.length ? '<div class="table-footnotes">' + data.notes.map((note, i) => '<p>' + cellHtml(note, "note", i) + '</p>').join("") + '</div>' : "");
+    }
+    const caption = tableCaption(b, side);
+    return '<div class="table-version" data-table-side="' + side + '"' + (side === "en" ? ' lang="en"' : "") + '>' +
+      (b.caption_pos === "above" ? caption + content : content + caption) + '</div>';
+  }
+
   const R = {
     heading(b) {
       const tag = (b.level || 1) === 1 ? "h2" : "h3";
@@ -84,10 +217,15 @@
     },
     math: (b) => '<div class="math-row"><div class="math-body" tabindex="0" role="button" aria-label="' + PR.t("公式，點擊可選擇螢光筆或底線") + '">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
-      const placeholder = '<button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
-        '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
-      const table = '<div class="figure-media">' + placeholder + '</div>';
-      return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
+      const versions = tableVersions(b);
+      if (!versions.en) {
+        if (readingData(b)) return readingTable(b);
+        const reason = typeof b.table_issue === "string" && b.table_issue ||
+          (b.table_schema != null ? PR.t("表格結構尚無法可靠呈現，請查看原始 PDF。") : "");
+        const table = tablePlaceholder(b, reason);
+        return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
+      }
+      return '<div class="table-pair">' + tableVersion(b, "zh", versions.zh) + tableVersion(b, "en", versions.en) + '</div>';
     },
     figure(b) {
       const placeholder = '<button class="fig-placeholder" data-t="page" aria-label="' + PR.t("圖表保留於原文") + '">' +
@@ -141,10 +279,12 @@
     const by = [m.authors, m.affiliation].filter(Boolean).map(PR.esc).join("　·　");
     const pages = (m.pages || []).length, done = (tr.done_pages || []).length, en = (tr.en_pages || []).length;
     const toZh = en && PR.canAsk() && !jobRunning() && (S.job || {}).state !== "confirm" ? '<button class="btn sm line" data-t="translate-en">' + PR.t("翻译成{lang}", { lang: PR.targetName((S.paper.meta || {}).target || PR.target) }) + "</button>" : "";
+    const tablesOnly = PR.canAsk() && !jobRunning() && (S.job || {}).state !== "confirm" && pages
+      ? '<button class="btn sm line" data-t="translate-tables">' + PR.t("只補譯表格") + '</button>' : '';
     const scope = (en ? "<b>" + PR.t("英文原文") + "</b>　" + (done - en ? PR.t("其中 {n} 页已译，", { n: done - en }) : "") + PR.t("{n} 页没有翻译", { n: en }) + toZh
       : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
-      "";
+      tablesOnly;
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
       "<h1>" + PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）")) + "</h1>" +
       (m.title_zh && m.title_en ? '<p class="title-en" lang="en">' + PR.esc(m.title_en) + "</p>" : "") +
@@ -213,6 +353,7 @@
       }
     }
     PR.$("#paper").innerHTML = html + pendingHtml(lastPage);
+    mountReadingText(PR.$("#paper"));
     // 一段译文都没有（只读原文）：顶栏的“译文 / 对照”没意义，藏起来
     document.body.classList.toggle("en-only", (S.paper.blocks || []).length > 0 && !(S.paper.blocks || []).some((b) => b && PR.hasZh(b)));
     // 译文语言决定正文字体（base.css 按 data-target 换字体）；1.3 以前译的论文没记语言，都是中文
@@ -237,6 +378,7 @@
     const nn = fresh.firstChild;
     ["show-en", "notes-open", "current"].forEach((c) => node.classList.contains(c) && nn.classList.add(c));
     node.replaceWith(nn);
+    mountReadingText(nn);
     PR.emit("block-rendered", id);
   };
 

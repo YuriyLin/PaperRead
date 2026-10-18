@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import langs, links, sentences
+from . import langs, links, sentences, tables
 from .store import Workspace
 
 RULES = """翻译要求：
@@ -217,6 +217,8 @@ def _block_text(b: dict) -> str:
     """块的正文：有译文用译文，只读原文、还没译的块用英文。"""
     if b.get("type") == "list":
         return "\n".join(f"- {it.get('zh') or it.get('en', '')}" for it in b.get("items", []))
+    if b.get("type") == "table" and tables.is_bilingual(b):
+        return tables.context(b)
     if b.get("type") in ("table", "figure"):
         return "\n".join(filter(None, [b.get("caption_zh") or b.get("caption_en", ""), b.get("image_zh") or b.get("image_en", "")]))
     if b.get("type") == "math":
@@ -235,6 +237,11 @@ def answer(ws: Workspace, note: dict) -> str:
         section = f"{h.get('num', '')} {h.get('zh') or h.get('en', '')}" if h else ""
     ctx = "\n\n".join(f"[{b['id']}] {_block_text(b)}" for b in near)
     focus = blocks[idx] if idx is not None else {}
+    by_id = {b.get("id"): b for b in blocks}
+    for part in note.get("parts") or [note]:
+        table = by_id.get(part.get("anchor")) or {}
+        if table.get("type") == "table" and "#cell:" in str(part.get("key", "")):
+            ctx += "\n\n" + tables.context(table, part["key"], part.get("table_source", ""), include_table=False)
     return (f"你正在和讀者一起閱讀論文《{paper.get('meta', {}).get('title_zh') or paper.get('meta', {}).get('title_en')}》。"
             f"讀者讀到「{section}」時在 [{note.get('anchor')}] 這段提出一個問題。\n\n"
             f"上下文（譯文；尚未翻譯的段落是英文原文）：\n{ctx}\n\n這段英文原文：{focus.get('en', '')}\n\n"

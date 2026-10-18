@@ -22,11 +22,33 @@ _LAYOUT_LOCK = threading.RLock()
 
 
 @contextmanager
-def open_pdf(pdf: Path):
+def open_pdf(pdf: Path | bytes):
     """所有 PDFium 调用与资源释放共用一把锁，包括操作不同文档的线程。"""
     import pypdfium2 as pdfium
-    with _PDFIUM_LOCK, closing(pdfium.PdfDocument(str(pdf))) as doc:
+    with _PDFIUM_LOCK, closing(pdfium.PdfDocument(pdf if isinstance(pdf, bytes) else str(pdf))) as doc:
         yield doc
+
+
+def reading_preview(data: bytes, page: int, box: list[float]) -> str:
+    """Render verified visible-page coordinates from an immutable PDF snapshot."""
+    import base64
+    import io
+    import math
+    from .table_reading import _box
+    if not _box(box) or type(page) is not int or page < 1:
+        raise ValueError("Invalid reading preview region")
+    with open_pdf(data) as doc:
+        if page > len(doc):
+            raise ValueError("Invalid reading preview page")
+        with closing(doc[page - 1]) as pdf_page, closing(pdf_page.render(scale=3.0)) as bitmap:
+            with bitmap.to_pil() as raw, raw.convert("RGB") as img:
+                w, h = img.size
+                # Outward rounding retains border strokes at the verified edges.
+                bounds = (math.floor(box[0]*w), math.floor(box[1]*h),
+                          math.ceil(box[2]*w), math.ceil(box[3]*h))
+                with img.crop(bounds) as part, io.BytesIO() as out:
+                    part.save(out, "WEBP", lossless=True)
+                    return "data:image/webp;base64," + base64.b64encode(out.getvalue()).decode("ascii")
 
 
 def render_pages(pdf: Path, out_dir: Path, scale: float = 2.4, quality: int = 84) -> list[dict]:
