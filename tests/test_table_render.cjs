@@ -5,7 +5,18 @@ const vm = require("node:vm");
 const { test } = require("node:test");
 
 function render(blocks, options = {}) {
-  const paperEl = { innerHTML: "" };
+  let markup = "", readingNodes = [];
+  const paperEl = {
+    get innerHTML() { return markup; },
+    set innerHTML(value) {
+      markup = value;
+      readingNodes = [...value.matchAll(/class="table-reading-text" data-reading-block="([^"]+)"/g)].map((m) => ({
+        dataset: { readingBlock: m[1] }, children: [],
+        replaceChildren() { this.children = []; },
+        appendChild(child) { this.children.push(child); },
+      }));
+    },
+  };
   const bodyClass = new Set();
   const PR = {
     t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
@@ -19,7 +30,7 @@ function render(blocks, options = {}) {
       job: options.job || {},
     },
     $: (sel) => sel === "#paper" ? paperEl : null,
-    $$: () => [],
+    $$: (sel, scope) => sel === ".table-reading-text" ? scope?.readingNodes || readingNodes : [],
     esc: (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
     md: (s) => PR.esc(s),
     plain: (s) => String(s == null ? "" : s),
@@ -47,8 +58,11 @@ function render(blocks, options = {}) {
     document: {
       documentElement: { dataset: {} },
       body: { classList: { toggle: (key, on) => on ? bodyClass.add(key) : bodyClass.delete(key) } },
-      getElementById: () => null,
-      createElement: () => ({ innerHTML: "", firstChild: null, classList: { contains: () => false, add() {} }, querySelector: () => null }),
+      getElementById: (id) => options.nodes?.[id] || null,
+      createElement: (tag) => tag === "div" && options.createDiv ? options.createDiv() : tag === "p" ? {
+        textContent: "",
+        set innerHTML(value) { throw new Error("Model text must use textContent"); },
+      } : ({ innerHTML: "", firstChild: null, classList: { contains: () => false, add() {} }, querySelector: () => null }),
     },
     console,
     katex: require("../easyread/web/vendor/katex/katex.min.js"), URL,
@@ -56,7 +70,7 @@ function render(blocks, options = {}) {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), context);
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/render.js"), "utf8"), context);
   PR.renderPaper();
-  return options.inspect ? { html: paperEl.innerHTML, PR, bodyClass } : paperEl.innerHTML;
+  return options.inspect ? { html: paperEl.innerHTML, PR, bodyClass, readingNodes: () => readingNodes, currentHtml: () => markup } : paperEl.innerHTML;
 }
 
 function bilingual(overrides = {}) {
@@ -73,6 +87,88 @@ function bilingual(overrides = {}) {
     ...overrides,
   };
 }
+
+function reading(overrides = {}) {
+  return {
+    id: "read1", type: "table", page: 1, table_status: "fallback", caption_pos: "above",
+    caption_en: "Table 1: Statistics", caption_zh: "Statistics translation",
+    table_reading: { version: 1, source: { segments: [{ id: "s-one" }, { id: "s-two" }] } },
+    table_reading_zh: [{ id: "s-one", zh: "FIRST" }, { id: "s-two", zh: "SECOND" }],
+    ...overrides,
+  };
+}
+
+test("reading fallback uses whole language sides and safe ordered text nodes without cells", () => {
+  const b = reading(), before = JSON.stringify(b), r = render([b], { inspect: true });
+  assert.match(r.html, /table-pair table-reading-pair/);
+  assert.match(r.html, /data-table-side="en"/);
+  assert.match(r.html, /data-table-side="zh"/);
+  assert.equal((r.html.match(/class="fig-placeholder table-placeholder"/g) || []).length, 2);
+  assert.match(r.html, /閱讀輔助翻譯，非逐格驗證表格/);
+  assert.deepEqual(r.readingNodes()[0].children.map((p) => p.textContent), ["FIRST", "SECOND"]);
+  assert.doesNotMatch(r.html, /FIRST|SECOND|data-cell-id|#cell:|<table/);
+  assert.equal(r.PR.tableCell("read1#cell:rows:0:0"), null);
+  assert.equal(r.PR.hasZh(b), true);
+  assert.equal(JSON.stringify(b), before);
+});
+
+test("reading model HTML remains literal text and never enters markup", () => {
+  const attack = '<img src=x onerror="alert(1)"><script>alert(1)</script>';
+  const b = reading(); b.table_reading_zh[0].zh = attack;
+  const r = render([b], { inspect: true });
+  assert.equal(r.readingNodes()[0].children[0].textContent, attack);
+  assert.doesNotMatch(r.html, /onerror|<script>|alert\(1\)/);
+});
+
+test("missing, malformed and backend-revoked reading results retain PDF fallback", () => {
+  for (const change of [{ table_reading: undefined }, { table_reading_zh: undefined },
+    { table_reading_zh: [] }, { table_reading_zh: [{ id: "wrong", zh: "BAD" }] },
+    { table_reading_zh: [{ id: "s-one", zh: "" }, { id: "s-two", zh: "SECOND" }] }]) {
+    const r = render([reading(change)], { inspect: true });
+    assert.doesNotMatch(r.html, /table-reading-pair|<table/);
+    assert.equal(r.readingNodes().length, 0);
+    assert.match(r.html, /table-placeholder/);
+  }
+});
+
+test("paper reload removes revoked reading nodes rather than reusing old Chinese", () => {
+  const b = reading(), r = render([b], { inspect: true });
+  assert.equal(r.readingNodes().length, 1);
+  delete b.table_reading; delete b.table_reading_zh;
+  r.PR.renderPaper();
+  assert.equal(r.readingNodes().length, 0);
+  assert.doesNotMatch(r.currentHtml(), /table-reading-pair|FIRST|SECOND/);
+});
+
+test("ready structured tables keep cell UI even if optional reading data exists", () => {
+  const r = render([bilingual({ ...reading(), id: "tab1", table_status: "ready" })], { inspect: true });
+  assert.match(r.html, /<table class="tbl"/);
+  assert.match(r.html, /data-cell-id/);
+  assert.doesNotMatch(r.html, /table-reading-pair/);
+  assert.equal(r.readingNodes().length, 0);
+});
+
+test("single block redraw mounts text nodes and drops revoked content", () => {
+  const nodes = {};
+  const blockNode = (markup = "") => ({
+    classList: { contains: () => false, add() {} }, querySelector: () => null,
+    readingNodes: markup.includes('class="table-reading-text"') ? [{
+      dataset: { readingBlock: "read1" }, children: [],
+      replaceChildren() { this.children = []; }, appendChild(p) { this.children.push(p); },
+    }] : [],
+    replaceWith(fresh) { nodes['b-read1'] = fresh; },
+  });
+  nodes['b-read1'] = blockNode();
+  const b = reading(), r = render([b], { inspect: true, nodes,
+    createDiv: () => ({ set innerHTML(html) { this.firstChild = blockNode(html); } }),
+  });
+  b.table_reading_zh[0].zh = "UPDATED";
+  r.PR.renderBlock("read1");
+  assert.equal(nodes['b-read1'].readingNodes[0].children[0].textContent, "UPDATED");
+  delete b.table_reading; delete b.table_reading_zh;
+  r.PR.renderBlock("read1");
+  assert.equal(nodes['b-read1'].readingNodes.length, 0);
+});
 
 test("tables keep their caption and become clickable original-page placeholders", () => {
   const html = render([

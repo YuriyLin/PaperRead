@@ -51,7 +51,7 @@
   /* 这处还没有译文、正文排的是英文原文（只读原文） */
   PR.isEnKey = function (key) { const [zh, en] = fields(key); return !zh && !!en && !PR.editOf(key); };
   PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh ||
-    (b.type === "table" && tableVersions(b).zh) || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
+    (b.type === "table" && (tableVersions(b).zh || readingData(b))) || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
   const sourceChanged = (key, e) => PR.isTableCellKey(key) && e.table_source !== PR.tableCell(key)?.source;
   PR.textFor = function (key) { const e = PR.editOf(key); return e && !sourceChanged(key, e) ? e.zh : PR.agentText(key); };
@@ -130,6 +130,41 @@
       (reason ? '<p class="table-status">' + PR.esc(reason) + '</p>' : "") + '</div>';
   }
 
+  // Input comes exclusively from the D2.5 reader projection (live or embedded).
+  // These guards prevent broken rendering; PDF verification stays on the backend.
+  function readingData(b) {
+    const r = b.table_reading, values = b.table_reading_zh;
+    const segments = r?.source?.segments;
+    if (b.table_status !== "fallback" || r?.version !== 1 || !Array.isArray(segments) || !segments.length ||
+        !Array.isArray(values) || values.length !== segments.length ||
+        values.some((v, i) => !v || typeof v.id !== "string" || v.id !== segments[i]?.id || typeof v.zh !== "string" || !v.zh.trim())) return null;
+    return values;
+  }
+
+  function readingTable(b) {
+    const pair = '<div class="table-pair table-reading-pair">' +
+      '<div class="table-version" data-table-side="en" lang="en">' + tablePlaceholder(b, "") + '</div>' +
+      '<div class="table-version" data-table-side="zh" lang="zh-Hant">' +
+      '<p class="table-status">' + PR.esc(PR.t("閱讀輔助翻譯，非逐格驗證表格")) + '</p>' +
+      '<div class="table-reading-text" data-reading-block="' + PR.esc(b.id) + '"></div>' +
+      tablePlaceholder(b, "") + '</div></div>';
+    return b.caption_pos === "above" ? captionHtml(b) + pair : pair + captionHtml(b);
+  }
+
+  function mountReadingText(scope) {
+    PR.$$(".table-reading-text", scope).forEach((node) => {
+      const b = PR.blockById[node.dataset.readingBlock], values = b && readingData(b);
+      node.replaceChildren();
+      if (!values) return;
+      values.forEach((value) => {
+        const p = document.createElement("p");
+        // Never pass model text to Markdown, innerHTML, or annotation keys.
+        p.textContent = value.zh;
+        node.appendChild(p);
+      });
+    });
+  }
+
   function tableCaption(b, side) {
     const key = b.id + "#caption", primaryEn = PR.isEnKey(key);
     if (side === "zh" && primaryEn) return "";
@@ -182,6 +217,7 @@
     table(b) {
       const versions = tableVersions(b);
       if (!versions.en) {
+        if (readingData(b)) return readingTable(b);
         const reason = typeof b.table_issue === "string" && b.table_issue ||
           (b.table_schema != null ? PR.t("表格結構尚無法可靠呈現，請查看原始 PDF。") : "");
         const table = tablePlaceholder(b, reason);
@@ -315,6 +351,7 @@
       }
     }
     PR.$("#paper").innerHTML = html + pendingHtml(lastPage);
+    mountReadingText(PR.$("#paper"));
     // 一段译文都没有（只读原文）：顶栏的“译文 / 对照”没意义，藏起来
     document.body.classList.toggle("en-only", (S.paper.blocks || []).length > 0 && !(S.paper.blocks || []).some((b) => b && PR.hasZh(b)));
     // 译文语言决定正文字体（base.css 按 data-target 换字体）；1.3 以前译的论文没记语言，都是中文
@@ -339,6 +376,7 @@
     const nn = fresh.firstChild;
     ["show-en", "notes-open", "current"].forEach((c) => node.classList.contains(c) && nn.classList.add(c));
     node.replaceWith(nn);
+    mountReadingText(nn);
     PR.emit("block-rendered", id);
   };
 

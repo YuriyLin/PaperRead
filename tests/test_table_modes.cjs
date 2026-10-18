@@ -28,7 +28,7 @@ function node(classes = "", dataset = {}) {
   };
 }
 
-function reader() {
+function reader(reading = false) {
   const pair = node("table-pair"), zh = node("table-version", { tableSide: "zh" }), en = node("table-version", { tableSide: "en" });
   const originalCaption = node("en", { tableCaption: "true" }), translatedCaption = node("zh", { tableCaption: "true", key: "tab1#caption" });
   originalCaption.pair = translatedCaption.pair = pair;
@@ -37,6 +37,11 @@ function reader() {
   pair.append(zh); pair.append(en);
   en.content = { head: "Variable", rows: "Treatment 0.123*** (0.045)", notes: "Standard errors" };
   zh.content = { head: "變數", rows: "處理 0.123*** (0.045)", notes: "標準誤" };
+  if (reading) {
+    pair.classList.add("table-reading-pair");
+    en.content = { pdfEntry: true };
+    zh.content = { paragraphs: ["FIRST", "SECOND"], pdfEntry: true };
+  }
   pair.querySelector = (s) => ({ '[data-table-side="en"]': en, '[data-table-side="zh"]': zh, '.zh[data-key]': translatedCaption, '.en[data-table-caption]': originalCaption })[s] || null;
   const menu = node(), body = node(); body.append = () => {};
   let calls = 0;
@@ -69,6 +74,22 @@ test("the existing reading controls show complete tables in all four modes", () 
   }
   assert.equal(r.en, source); assert.equal(r.zh, translation);
   assert.equal(r.en.content, contents[0]); assert.equal(r.zh.content, contents[1]);
+  assert.equal(JSON.stringify(r.PR.state), before);
+  assert.equal(r.calls(), 0);
+});
+
+test("reading fallback uses all four existing modes without translating or changing source order", () => {
+  const r = reader(true), content = r.zh.content, before = JSON.stringify(r.PR.state);
+  for (let i = 0; i < 3; i++) {
+    r.PR.setView("original"); assert.deepEqual(r.visible(), ["en"]);
+    r.PR.setView("translation"); assert.deepEqual(r.visible(), ["zh"]);
+    r.PR.setBiOrder("original"); assert.deepEqual(r.visible(), ["en", "zh"]);
+    r.PR.setBiOrder("translation"); assert.deepEqual(r.visible(), ["zh", "en"]);
+  }
+  assert.equal(r.zh.content, content);
+  assert.deepEqual(content.paragraphs, ["FIRST", "SECOND"]);
+  assert.equal(r.en.content.pdfEntry, true);
+  assert.equal(content.pdfEntry, true);
   assert.equal(JSON.stringify(r.PR.state), before);
   assert.equal(r.calls(), 0);
 });
