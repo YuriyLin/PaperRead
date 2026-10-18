@@ -446,13 +446,16 @@ class TableJobTest(unittest.TestCase):
         cells = json.loads(self.model.call_args.args[1].split('\n')[-1])['cells']
         self.assertEqual(set(cells), {'rows:0:0'})
 
-    def test_unsupported_tables_keep_pdf_and_do_not_call_model(self):
+    def test_structural_fallback_keeps_pdf_and_uses_reading_only(self):
+        from tests.test_table_reading_translation import response
+        self.model.side_effect = response
         make_table_pdf(self.ws.root / 'source.pdf', merged=True)
         result = self.run_job()
         self.assertEqual(result['fallback'], 1)
         self.assertEqual(self.table()['table_status'], 'fallback')
         self.assertEqual(self.table()['box'], self.legacy['box'])
-        self.model.assert_not_called()
+        self.assertEqual(result['reading_translated'], 1)
+        self.model.assert_called_once()
 
     def test_unsafe_spans_and_segments_cannot_be_flattened(self):
         for field in ('table_spans', 'table_segments'):
@@ -473,6 +476,8 @@ class TableJobTest(unittest.TestCase):
         self.model.assert_not_called()
 
     def test_missing_unsupported_table_gets_a_pdf_placeholder(self):
+        from tests.test_table_reading_translation import response
+        self.model.side_effect = response
         self.ws.update('paper', lambda p: p.update(blocks=[self.body]))
         make_table_pdf(self.ws.root / 'source.pdf', merged=True)
         result = self.run_job()
@@ -481,7 +486,8 @@ class TableJobTest(unittest.TestCase):
         self.assertEqual(block['table_status'], 'fallback')
         self.assertEqual(block['page'], 1)
         self.assertNotIn('rows_en', block)
-        self.model.assert_not_called()
+        self.assertEqual(result['reading_translated'], 1)
+        self.model.assert_called_once()
 
     def test_missing_mask_duplicate_mask_and_echo_are_rejected(self):
         for change in ('drop', 'duplicate', 'echo'):
