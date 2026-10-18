@@ -9,6 +9,8 @@ function reader(block, edits = {}) {
   const node = { classList: { contains: () => false }, querySelector: () => null, replaceWith() {} };
   const PR = {
     state: { reader: { edits }, paper: { blocks: [block] } },
+    // common/util.js supplies this in the reader; figures have no reading-table text nodes.
+    $$: () => [],
     on() {}, emit() {}, esc: String, md: String, t: s => s, imageUrl: s => '/p/test/' + s, hashText: s => s,
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../easyread/web/js/reader/render.js'), 'utf8'), {
