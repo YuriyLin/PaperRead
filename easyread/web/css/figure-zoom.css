@@ -1,0 +1,11 @@
+.figure-viewer { width: min(1200px, 94vw); height: 88vh; max-width: 94vw; max-height: 90vh; padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-lg); }
+.figure-viewer::backdrop { background: rgb(0 0 0 / .65); }
+.figure-viewer[open] { display: flex; flex-direction: column; }
+.figure-viewer-tools { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--rule); font: 13px var(--ui); }
+.figure-viewer-scale { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+.figure-viewer-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; cursor: grab; touch-action: none; }
+.figure-viewer-scroll.panning { cursor: grabbing; }
+.figure-viewer-canvas { display: grid; place-items: center; width: max-content; height: max-content; min-width: 100%; min-height: 100%; }
+.figure-viewer img { display: block; max-width: none; flex: none; background: #fff; filter: none; mix-blend-mode: normal; user-select: none; }
+#paper .figure-media img, .media-preview .media-image img { cursor: zoom-in; }
+#paper .figure-media img:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

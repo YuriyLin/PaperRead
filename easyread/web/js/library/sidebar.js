@@ -72,8 +72,10 @@
   const shortTitle = (i) => PR.titles(i).short;
   function paperRow(i, pinnedRow) {
     const title = PR.titles(i).main;
-    return '<a class="srow paper" href="/read/' + i.id + '" data-paper="' + i.id + '"' + (pinnedRow ? " data-pinrow" : "") + ' title="' + PR.esc(title) + (i.last_opened ? PR.t("（{time}打开）", { time: PR.esc(PR.relTime(i.last_opened)) }) : "") + '">' +
-      (pinnedRow ? PR.icon("pin", "sm") : "") + '<span class="t">' + PR.esc(shortTitle(i)) + "</span>" + (i.progress > 0.02 ? "<em>" + Math.round(i.progress * 100) + "%</em>" : "") + more + "</a>";
+    const short = shortTitle(i);
+    const tip = PR.titleText ? PR.titleText(title) : title;
+    return '<a class="srow paper" href="/read/' + i.id + '" data-paper="' + i.id + '"' + (pinnedRow ? " data-pinrow" : "") + ' title="' + PR.esc(tip) + (i.last_opened ? PR.t("（{time}打开）", { time: PR.esc(PR.relTime(i.last_opened)) }) : "") + '">' +
+      (pinnedRow ? PR.icon("pin", "sm") : "") + '<span class="t">' + (PR.titleHtml ? PR.titleHtml(short) : PR.esc(short)) + "</span>" + (i.progress > 0.02 ? "<em>" + Math.round(i.progress * 100) + "%</em>" : "") + more + "</a>";
   }
 
   PR.renderSide = function () {

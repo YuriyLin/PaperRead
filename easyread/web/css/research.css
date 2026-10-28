@@ -37,10 +37,10 @@ body.rp-open #researchpanel { transform: none; }
 .rp-tree > li::before { display:none; }
 .rp-node { display:inline-block; max-width:290px; padding:6px 9px; border:1px solid var(--rule); border-radius:8px; background:var(--surface); color:var(--ink-2); font:11.5px/1.5 var(--ui); white-space:normal; }
 .rp-node.root { border-color:var(--accent); color:var(--ink); font-weight:650; background:var(--accent-soft); }
-.rp-map-loading,.rp-map-error { display:flex; align-items:center; gap:8px; min-height:55px; color:var(--ink-3); font:11.5px/1.6 var(--ui); }
+.rp-map-loading,.rp-map-error { display:flex; height:100%; width:100%; box-sizing:border-box; align-items:center; justify-content:center; gap:8px; min-height:55px; color:var(--ink-3); font:11.5px/1.6 var(--ui); }
 .rp-map-error { color:var(--danger); justify-content:space-between; }
 .rp-map-meta { display:block; margin:8px 4px 0; color:var(--ink-3); font:10.5px/1.5 var(--ui); }
-.rp-map-empty { display:flex; min-height:132px; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:12px; color:var(--ink-3); text-align:center; }
+.rp-map-empty { display:flex; height:100%; width:100%; box-sizing:border-box; min-height:132px; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:16px; color:var(--ink-3); text-align:center; }
 .rp-map-empty svg { width:150px; height:auto; color:var(--rule-2); }
 .rp-map-empty p { margin:2px 0 0; color:var(--ink-2); font:500 12px/1.5 var(--ui); }
 .rp-map-empty span { font:11px/1.5 var(--ui); }

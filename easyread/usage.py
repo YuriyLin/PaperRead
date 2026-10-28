@@ -5,6 +5,7 @@ input 是全部输入 token（含命中缓存的部分），cached 是其中命�
 """
 from __future__ import annotations
 
+import math
 import threading
 import time
 
@@ -20,7 +21,7 @@ class Meter:
         self.data: dict = {"engine": engine, "calls": 0, "input": 0, "cached": 0, "output": 0}
 
     def add(self, input: int = 0, cached: int = 0, output: int = 0, cost_usd: float | None = None, limits: dict | None = None,
-            context_window: int | None = None):
+            context_window: int | None = None, actual_model: str | None = None):
         with self._lock:
             d = self.data
             d["calls"] += 1
@@ -31,6 +32,8 @@ class Meter:
             d["input"] += int(input or 0)
             d["cached"] += int(cached or 0)
             d["output"] += int(output or 0)
+            if actual_model:
+                d["actual_model"] = str(actual_model)
             if cost_usd is not None:
                 d["cost_usd"] = round(d.get("cost_usd", 0) + float(cost_usd), 4)
             if limits:
@@ -112,7 +115,12 @@ def from_openai(res: dict) -> dict:
     if "prompt_tokens" in u:  # Chat Completions
         details = u.get("prompt_tokens_details") or {}
         cached = details.get("cached_tokens") or u.get("prompt_cache_hit_tokens") or 0
-        return {"input": int(u.get("prompt_tokens") or 0), "cached": int(cached), "output": int(u.get("completion_tokens") or 0)}
-    details = u.get("input_tokens_details") or {}
-    return {"input": int(u.get("input_tokens") or 0), "cached": int(details.get("cached_tokens") or 0),
-            "output": int(u.get("output_tokens") or 0)}
+        rec = {"input": int(u.get("prompt_tokens") or 0), "cached": int(cached), "output": int(u.get("completion_tokens") or 0)}
+    else:
+        details = u.get("input_tokens_details") or {}
+        rec = {"input": int(u.get("input_tokens") or 0), "cached": int(details.get("cached_tokens") or 0),
+               "output": int(u.get("output_tokens") or 0)}
+    cost = u.get("cost_usd", (res or {}).get("cost_usd"))
+    if type(cost) in (int, float) and math.isfinite(cost) and cost >= 0:
+        rec["cost_usd"] = cost
+    return rec

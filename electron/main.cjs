@@ -9,6 +9,7 @@ const http = require("http");
 const startup = require("./startup-feedback.cjs");
 const { registerUpdates } = require("./desktop-updates.cjs");
 const deepLink = require("./deep-link.cjs");
+const desktopTabs = require("./desktop-tabs.cjs");
 
 // 新版使用 PaperRead 資料夾；第一次升級時把舊版 EasyRead 的桌面偏好
 // 搬到新位置，避免改名後像是全新安裝。搬移失敗時保留舊資料，不覆蓋任何內容。
@@ -30,6 +31,7 @@ let windowOpening = false;
 let backendUrl;
 let quitting = false;
 let pendingOpen = deepLink.fromArgv(process.argv);
+const detachedWindows = new Set();
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -159,8 +161,11 @@ async function stopBackendGracefully() {
 
 /* 退出前先让页面把没落盘的东西写回去再停后端；页面没应就照常退出 */
 function savePageState() {
-  const wc = mainWindow && mainWindow.webContents;
-  if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed()) || typeof wc.send !== "function") return Promise.resolve();
+  const windows = [mainWindow, ...detachedWindows].filter(w => w && !w.isDestroyed() && w.webContents && !w.webContents.isDestroyed());
+  if (!windows.length) return Promise.resolve();
+  return Promise.all(windows.map(win => {
+    const wc = win.webContents;
+    if (!wc || (typeof wc.isDestroyed === "function" && wc.isDestroyed()) || typeof wc.send !== "function") return Promise.resolve();
   return new Promise(resolve => {
     let timer;
     function done() {
@@ -173,7 +178,8 @@ function savePageState() {
     function saved(event) {
       if (event && event.sender === wc && event.senderFrame === wc.mainFrame) done();
     }
-    timer = setTimeout(done, 1200);
+    const tabbed = (wc.getURL?.() || "").includes("/web/tabs.html");
+    timer = setTimeout(done, tabbed ? 8000 : 1200);
     if (ipcMain && typeof ipcMain.on === "function") {
       ipcMain.on("easyread:page-saved", saved);
     }
@@ -182,11 +188,14 @@ function savePageState() {
     } catch {
       done();
     }
-  });
+    });
+  }));
 }
 
 function trustedWindow(event) {
-  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame ||
+  const isMain = mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
+  const isDetached = [...detachedWindows].some(win => win && !win.isDestroyed() && event.sender === win.webContents && event.senderFrame === win.webContents.mainFrame);
+  if ((!isMain && !isDetached) ||
       !backendUrl || new URL(event.senderFrame.url).origin !== backendUrl) {
     throw new Error("Untrusted IPC sender");
   }
@@ -215,6 +224,88 @@ ipcMain.handle("easyread:relaunch", async event => {
   await stopBackendGracefully();
   app.relaunch();
   app.exit(0);
+});
+ipcMain.handle("easyread:detach-window", async (event, token, bounds = {}) => {
+  trustedWindow(event);
+  if (!backendUrl) throw new Error("Backend not ready");
+  const { screen } = require("electron");
+  const senderWin = BrowserWindow.fromWebContents(event.sender);
+  const display = (senderWin && !senderWin.isDestroyed())
+    ? screen.getDisplayMatching(senderWin.getBounds())
+    : (screen.getDisplayNearestPoint({ x: bounds.x || 0, y: bounds.y || 0 }) || screen.getPrimaryDisplay());
+  const workArea = display.workArea;
+  const halfW = Math.floor(workArea.width / 2);
+  const leftBounds = {
+    x: workArea.x,
+    y: workArea.y,
+    width: halfW,
+    height: workArea.height,
+  };
+  const rightBounds = {
+    x: workArea.x + halfW,
+    y: workArea.y,
+    width: workArea.width - halfW,
+    height: workArea.height,
+  };
+
+  // Snap the source window to the left half of the display for side-by-side dual view
+  try {
+    if (senderWin && !senderWin.isDestroyed()) {
+      if (senderWin.isFullScreen()) senderWin.setFullScreen(false);
+      const [curMinW, curMinH] = senderWin.getMinimumSize();
+      if (curMinW > halfW) {
+        senderWin.setMinimumSize(Math.min(500, halfW), Math.min(curMinH, 400));
+      }
+      if (senderWin.isMaximized()) {
+        senderWin.unmaximize();
+      }
+      const applyBounds = () => {
+        if (!senderWin.isDestroyed()) {
+          senderWin.setBounds(leftBounds);
+        }
+      };
+      applyBounds();
+      setTimeout(applyBounds, 60);
+      setTimeout(applyBounds, 180);
+    }
+  } catch (_) {}
+
+  const win = new BrowserWindow({
+    width: rightBounds.width,
+    height: rightBounds.height,
+    x: rightBounds.x,
+    y: rightBounds.y,
+    minWidth: Math.min(500, halfW),
+    minHeight: 400,
+    icon: path.join(__dirname, "assets", "paperread.ico"),
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "preload.cjs"),
+    },
+  });
+  win.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (/^https?:/i.test(target)) shell.openExternal(target);
+    if (/^obsidian:/i.test(target)) shell.openExternal(target);
+    return { action: "deny" };
+  });
+  desktopTabs.bindShortcuts(win);
+  detachedWindows.add(win);
+  win.on("closed", () => {
+    detachedWindows.delete(win);
+  });
+  await win.loadURL(desktopTabs.detachedShellUrl(backendUrl, token));
+  return true;
+});
+ipcMain.handle("easyread:close-current-window", async (event) => {
+  trustedWindow(event);
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) {
+      win.close();
+    }
+  } catch (_) {}
+  return true;
 });
 
 function stopBackend() {
@@ -249,7 +340,9 @@ function openLink(target) {
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
-  mainWindow.loadURL(new URL(target, backendUrl).href);
+  desktopTabs.openPaper(mainWindow, target).then(opened => {
+    if (!opened && mainWindow) return mainWindow.loadURL(desktopTabs.shellUrl(backendUrl, target));
+  }).catch(error => dialog.showErrorBox("PaperRead", error.message));
 }
 
 async function createWindow() {
@@ -286,6 +379,7 @@ async function createWindow() {
     if (items.length) Menu.buildFromTemplate(items).popup({ window: mainWindow });
   });
   windowState.track(mainWindow);
+  desktopTabs.bindShortcuts(mainWindow);
   const openingWindow = mainWindow;
   mainWindow.once("ready-to-show", () => {
     if (mainWindow !== openingWindow) return;
@@ -307,7 +401,7 @@ async function createWindow() {
     startup.mark(app, "startup-window-visible");
     const url = await startBackend();
     if (mainWindow !== openingWindow || quitting) return;
-    const first = pendingOpen ? new URL(pendingOpen, url).href : url;
+    const first = desktopTabs.shellUrl(url, pendingOpen);
     pendingOpen = undefined;
     await openingWindow.loadURL(first);
     startup.mark(app, "library-loaded");
@@ -348,7 +442,7 @@ if (!app.requestSingleInstanceLock()) {
       recover: async () => {
         if (backend) return;  // 後端沒停（正在翻譯、拒絕關閉）：頁面別重新整理，彈窗留著顯示原因
         const url = await startBackend();
-        if (mainWindow) await mainWindow.loadURL(url);
+        if (mainWindow) await mainWindow.loadURL(desktopTabs.shellUrl(url));
       },
     });
     return createWindow();

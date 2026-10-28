@@ -47,7 +47,9 @@ def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, can
     try:
         return _run(cfg, prompt, cwd, images, cancel, meter, json_mode)
     except EngineError as e:
-        raise EngineError(netcheck.explain(cfg, str(e))) from None
+        err = EngineError(netcheck.explain(cfg, str(e)))
+        err.code = getattr(e, "code", "")
+        raise err from None
 
 
 def _run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None, cancel: threading.Event | None, meter,

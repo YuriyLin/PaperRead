@@ -80,8 +80,6 @@ def choice() -> str:
         return forced
     from . import prefs
     value = (prefs.load().get("ui") or {}).get("lang")
-    if value == "zh":  # Existing versions called their Chinese UI simply "zh".
-        return "zh-TW"
     return value if value in CHOICES else "zh-TW"
 
 
@@ -201,7 +199,7 @@ def inject(page: str, language: str | None = None) -> str:
         page = _translate_html(page, converter)
         # PR.t is used for interface strings rendered after page load. Convert the
         # same source catalogue once here so JavaScript does not need another library.
-        values = set(en_dict())
+        values = set(en_dict()) | set(_tw_overrides())
         payload = {value: _tw_text(value) for value in values}
         tw_json = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c")
         page = page.replace("</title>", f'</title>\n<script id="pr-zh-tw" type="application/json">{tw_json}</script>', 1)

@@ -85,6 +85,9 @@
     st.cfg = r.config;
     if (st.chat) st.chat = await PR.api("/api/chat/models", { method: "POST", body: { models: st.chat.models, default: st.chat.default, keys: st.chatKeys || {} } });
     PR.applyUi(st.ui, true);
+    if (window.parent && window.parent !== window && window.parent.easyreadTabs?.setAutoHide) {
+      window.parent.easyreadTabs.setAutoHide(!!st.ui.features.autohide_tabs);
+    }
     PR.ls.set("easyread-auto-translate", !!st.cfg.auto_translate);
     const prefs = PR.ls.get("easyread-prefs", {});
     if (prefs.theme !== st.theme) { prefs.theme = st.theme; PR.ls.set("easyread-prefs", prefs); PR.savePrefs("reader", { theme: st.theme }); if (PR.prefs) PR.prefs.theme = st.theme; }
@@ -93,13 +96,17 @@
       PR.ls.set("easyread-prefs", Object.assign(PR.ls.get("easyread-prefs", {}), st.type));
       if (PR.resetAllType) PR.resetAllType(st.type); else PR.savePrefs("reader", st.type);
     }
+    const reloadTarget = () => {
+      const w = (window.parent && window.parent !== window && window.parent.easyreadTabs) ? window.parent : window;
+      w.location.reload();
+    };
     if (st.target && st.target !== PR.target) {  // 译文语言存在 config.json，按钮文字跟着变，所以也刷新一下
       await PR.api("/api/config", { method: "POST", body: { target: st.target } });
-      if (!st.lang || st.lang === PR.langChoice) return location.reload();
+      if (!st.lang || st.lang === PR.langChoice) return reloadTarget();
     }
     if (st.lang && st.lang !== PR.langChoice) {  // 换界面语言：存好后刷新，页面由后端按新语言重新生成
       await PR.api("/api/prefs", { method: "POST", body: { ui: { lang: st.lang } } });
-      return location.reload();
+      return reloadTarget();
     }
     dlg().classList.remove("open");
     PR.toast(PR.t("设置已保存"));

@@ -220,6 +220,8 @@
 .side .srow { box-sizing: border-box; position: relative; display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 8px 0 10px; border-radius: 8px; color: var(--ink-2); font-size: 13.5px; text-align: left; text-decoration: none; cursor: pointer; user-select: none; }
 .side .srow svg.i { color: var(--ink-3); flex: none; }
 .side .srow .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side .srow .t .katex { font-size: 1em; line-height: inherit; }
+.side .srow .t .katex .katex-html { display: inline-block; white-space: nowrap; }
 .side .srow .n, .side .srow em { font-size: 12px; font-style: normal; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .side .srow .more { display: none; width: 22px; height: 22px; border-radius: 6px; place-items: center; color: var(--ink-3); flex: none; margin-right: -4px; }
 .side .srow:hover { background: var(--accent-soft); color: var(--ink); }

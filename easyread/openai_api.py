@@ -11,6 +11,7 @@ import base64
 import json
 import math
 import mimetypes
+import re
 import threading
 import time
 import urllib.error
@@ -80,6 +81,9 @@ def _body(o: dict, prompt: str, images: list[Path], stream: bool, temperature: f
             body["reasoning_effort"] = effort
     if o.get("service_tier"):
         body["service_tier"] = o["service_tier"]
+    if o.get("max_output_tokens"):
+        limit_key = "max_output_tokens" if kind(o) == "responses" else "max_completion_tokens" if re.match(r"^(?:gpt-[5-9]|o[1-9])", str(o.get("model", ""))) else "max_tokens"
+        body[limit_key] = int(o["max_output_tokens"])
     if temperature is not None and not o.get("reasoning_effort"):
         body["temperature"] = temperature
     if stream:
@@ -115,24 +119,25 @@ def _http_error(e: urllib.error.HTTPError) -> EngineError:
 def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None, json_mode: bool = False) -> str:
     body = _body(o, prompt, images, False, None if kind(o) == "responses" else 0.2, json_mode)
     res = None
-    for attempt in range(4):  # 限流、服务端错误、网络抖动：等一会儿再试
+    attempts = max(1, min(4, int(o.get("request_attempts", 4))))
+    for attempt in range(attempts):  # 限流、服务端错误、网络抖动：等一会儿再试
         if cancel is not None and cancel.is_set():
             raise Cancelled()
         try:
             res = _fetch(o, body, cancel)
             break
         except urllib.error.HTTPError as e:
-            if e.code in (429, 500, 502, 503, 504) and attempt < 3:
+            if e.code in (429, 500, 502, 503, 504) and attempt < attempts - 1:
                 _sleep(_retry_after(e.headers.get("Retry-After"), 5 * 2 ** attempt), cancel)
                 continue
             raise _http_error(e)
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
-            if attempt < 2:
+            if attempt < min(2, attempts - 1):
                 _sleep(5, cancel)
                 continue
             raise EngineError(tr("连不上接口：{err}", err=e))
     if meter is not None and isinstance(res, dict):
-        meter.add(**usage.from_openai(res))
+        meter.add(**usage.from_openai(res), actual_model=res.get("model"))
     return _responses_text(res) if kind(o) == "responses" else _chat_text(res)
 
 
@@ -181,7 +186,9 @@ def _responses_text(res) -> str:
 
 
 def _truncated() -> EngineError:
-    return EngineError(tr("模型输出被截断了（超过它的输出长度上限）。在设置里把“每次交给模型的页数”调成 1 页再试。"))
+    err = EngineError(tr("模型输出被截断了（超过它的输出长度上限）。在设置里把“每次交给模型的页数”调成 1 页再试。"))
+    err.code = "OUTPUT_TRUNCATED"
+    return err
 
 
 def _check_finish(reason) -> None:

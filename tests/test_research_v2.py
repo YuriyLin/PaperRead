@@ -94,6 +94,129 @@ class ResearchV2Test(unittest.TestCase):
             research_v2.post(self.app, "/statuses", {"statuses": values[:-1], "moves": {"custom-review": "missing"}})
         self.assertEqual(ws.values["item"]["status"], "unread")
 
+    def test_keywords_scan_filter_exclude_and_search_modes_are_library_scoped(self):
+        first, second = FakeWorkspace("keyword-one"), FakeWorkspace("keyword-two")
+        first.values["paper"] = {"meta": {"title_en": "One"}, "blocks": [{"id": "b1", "page": 1, "en": "Vision language learning is useful."}]}
+        second.values["paper"] = {"meta": {"title_en": "Two"}, "blocks": [{"id": "b2", "page": 2, "en": "VISION LANGUAGE tasks use another corpus."}]}
+        self.lib.workspaces = {first.id: first, second.id: second}
+
+        created = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "視覺語言", "match_text": "vision language", "paper_id": first.id, "anchor": "b1", "quote": "Vision language"})
+        keyword = created["keyword"]
+        self.assertEqual(created["scanned"], 2)
+        matches = research_v2.get(self.app, research_v2.PREFIX + "/keywords/matches?ids=" + keyword["id"])["matches"]
+        self.assertEqual({row["paper_id"] for row in matches}, {first.id, second.id})
+        self.assertTrue(all(all(link["keyword_id"] == keyword["id"] for link in row["links"]) for row in matches))
+        self.assertEqual(matches[0]["links"][0]["anchor"], "b1")
+
+        # Add second keyword: "learning"
+        k2 = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "學習", "match_text": "learning"})["keyword"]
+        # AND mode: only first has both
+        and_matches = research_v2.get(self.app, research_v2.PREFIX + f"/keywords/matches?ids={keyword['id']},{k2['id']}&mode=and")["matches"]
+        self.assertEqual([row["paper_id"] for row in and_matches], [first.id])
+        # OR mode: both first and second match
+        or_matches = research_v2.get(self.app, research_v2.PREFIX + f"/keywords/matches?ids={keyword['id']},{k2['id']}&mode=or")["matches"]
+        self.assertEqual({row["paper_id"] for row in or_matches}, {first.id, second.id})
+
+        research_v2.post(self.app, "/keywords/exclude", {"keyword_id": keyword["id"], "paper_id": second.id})
+        self.assertEqual([row["paper_id"] for row in research_v2.get(self.app, research_v2.PREFIX + "/keywords/matches?ids=" + keyword["id"])["matches"]], [first.id])
+
+        research_v2.post(self.app, "/keywords/archive", {"keyword_id": keyword["id"]})
+        self.assertFalse(any(k["id"] == keyword["id"] for k in research_v2.get(self.app, research_v2.PREFIX + "/keywords")["keywords"]))
+
+    def test_keyword_exclusion_survives_rescan_and_stale_hits_are_replaced(self):
+        ws = FakeWorkspace("kw-a")
+        ws.values["paper"] = {"meta": {"title_en": "A"}, "blocks": [{"id": "b1", "page": 1, "en": "Self-\n supervised   learning works."}]}
+        empty = FakeWorkspace("kw-empty")
+        trashed = FakeWorkspace("kw-trash")
+        trashed.values["item"]["archived"] = True
+        trashed.values["paper"] = {"meta": {}, "blocks": [{"id": "t1", "en": "self-supervised"}]}
+        self.lib.workspaces = {ws.id: ws, empty.id: empty, trashed.id: trashed}
+        made = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "自監督學習", "match_text": "self- supervised learning"})
+        kid = made["keyword"]["id"]
+        self.assertEqual(made["no_text"], [empty.id])
+        ids = lambda: [r["paper_id"] for r in research_v2.get(self.app, research_v2.PREFIX + "/keywords/matches?ids=" + kid)["matches"]]
+        self.assertEqual(ids(), [ws.id])
+        research_v2.post(self.app, "/keywords/exclude", {"keyword_id": kid, "paper_id": ws.id})
+        ws.values["paper"]["blocks"].append({"id": "b2", "page": 2, "en": "More SELF- SUPERVISED learning."})
+        research_v2.post(self.app, "/keywords/update", {"scan_now": True, "keyword_id": kid, "name": "自監督學習", "match_text": "self- supervised learning"})
+        research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "自監督學習", "match_text": "self- supervised learning"})
+        self.assertEqual(ids(), [])
+        research_v2.post(self.app, "/keywords/exclude", {"keyword_id": kid, "paper_id": ws.id, "excluded": False})
+        self.assertEqual(ids(), [ws.id])
+        ws.values["paper"]["blocks"] = [{"id": "b9", "en": "No topic here."}]
+        research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "自監督學習", "match_text": "self- supervised learning"})
+        self.assertEqual(ids(), [])
+
+    def test_keyword_rename_and_conflict_do_not_duplicate_or_overwrite(self):
+        ws = FakeWorkspace("kw-b")
+        ws.values["paper"] = {"meta": {}, "blocks": [{"id": "b1", "en": "alpha beta and Alphabet"}]}
+        self.lib.workspaces = {ws.id: ws}
+        first = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "Alpha", "match_text": "alpha"})["keyword"]
+        again = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": " ＡＬＰＨＡ ", "match_text": "ALPHA"})["keyword"]
+        self.assertEqual(first["id"], again["id"])
+        with self.assertRaises(ValueError):
+            research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "alpha", "match_text": "beta"})
+        self.assertEqual(planning_store.keyword_list(self.root)[0]["match_text"], "alpha")
+        renamed = research_v2.post(self.app, "/keywords/update", {"scan_now": True, "keyword_id": first["id"], "name": "阿爾法", "match_text": "beta"})
+        self.assertEqual(renamed["scanned"], 1)
+        self.assertEqual(len(planning_store.keyword_list(self.root)), 1)
+        self.assertEqual(planning_store.keyword_list(self.root)[0]["papers"], 1)
+
+    def _wait_task(self, endpoint_task, limit=5.0):
+        import time
+        deadline = time.time() + limit
+        task = endpoint_task
+        while task["state"] in ("queued", "running", "cancelling") and time.time() < deadline:
+            time.sleep(0.02)
+            task = research_v2.get(self.app, research_v2.PREFIX + "/keywords/scan/tasks/" + task["id"])["task"]
+        return task
+
+    def test_keyword_unlink_scan_task_and_no_text_report(self):
+        ws, empty = FakeWorkspace("kw-u"), FakeWorkspace("kw-u2")
+        ws.values["paper"] = {"meta": {"title_en": "U"}, "blocks": [{"id": "b1", "en": "graph neural network"}]}
+        self.lib.workspaces = {ws.id: ws, empty.id: empty}
+        made = research_v2.post(self.app, "/keywords", {"name": "GNN", "match_text": "graph neural network", "paper_id": ws.id, "anchor": "b1", "quote": "graph"})
+        self.assertTrue(made["scan_needed"])
+        kid = made["keyword"]["id"]
+        task = self._wait_task(research_v2.post(self.app, "/keywords/scan/tasks", {})["task"])
+        self.assertEqual(task["state"], "completed")
+        self.assertEqual(task["result"]["matched"], 1)
+        listed = research_v2.get(self.app, research_v2.PREFIX + "/keywords")
+        self.assertEqual([x["id"] for x in listed["no_text"]], [empty.id])
+        out = research_v2.post(self.app, "/keywords/unlink", {"keyword_id": kid, "paper_id": ws.id})
+        self.assertEqual(out, {"removed": 1, "auto_remaining": 1})
+        self.assertEqual(len(planning_store.keyword_list(self.root)), 1)
+        self.assertEqual(planning_store.keyword_list(self.root)[0]["papers"], 1)
+        again = self._wait_task(research_v2.post(self.app, "/keywords/scan/tasks", {"keyword_id": kid})["task"])
+        self.assertEqual(again["state"], "completed")
+        with self.assertRaises(ValueError):
+            research_v2.post(self.app, "/keywords/scan/tasks", {"keyword_id": "missing"})
+
+    def test_keyword_archive_restore_and_delete(self):
+        ws = FakeWorkspace("kw-s")
+        ws.values["paper"] = {"meta": {"title_en": "S"}, "blocks": [{"id": "b1", "en": "Contrastive learning is used here."}]}
+        self.lib.workspaces = {ws.id: ws}
+        kid = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "CL", "match_text": "contrastive learning"})["keyword"]["id"]
+        kid2 = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "CL2", "match_text": "contrastive"})["keyword"]["id"]
+
+        # Batch archive
+        research_v2.post(self.app, "/keywords/archive", {"keyword_ids": [kid, kid2], "archived": True})
+        self.assertEqual(len(research_v2.get(self.app, research_v2.PREFIX + "/keywords?archived=1")["keywords"]), 2)
+
+        # Batch restore
+        research_v2.post(self.app, "/keywords/archive", {"keyword_ids": [kid, kid2], "archived": False})
+        self.assertEqual(len(research_v2.get(self.app, research_v2.PREFIX + "/keywords")["keywords"]), 2)
+
+        # Single delete
+        del_res = research_v2.post(self.app, "/keywords/delete", {"keyword_id": kid})
+        self.assertEqual(del_res["deleted"], 1)
+        self.assertEqual(len(research_v2.get(self.app, research_v2.PREFIX + "/keywords")["keywords"]), 1)
+
+        # Batch delete
+        del_res2 = research_v2.post(self.app, "/keywords/delete", {"keyword_ids": [kid2]})
+        self.assertEqual(del_res2["deleted"], 1)
+        self.assertEqual(len(research_v2.get(self.app, research_v2.PREFIX + "/keywords")["keywords"]), 0)
+
     def test_plan_validation_and_item_update_keep_status_independent(self):
         ws = FakeWorkspace("library-paper", "unread")
         self.lib.workspaces[ws.id] = ws
@@ -299,6 +422,52 @@ class ResearchV2Test(unittest.TestCase):
         self.assertNotIn("祝您研讀順利", result["mermaid"])
         self.assertIn("root((Deep Learning Paper))", result["mermaid"])
         self.assertIn("$O(N^2)$", result["mermaid"])
+
+
+    def test_mindmap_target_language_adaptation(self):
+        from easyread import chat_models, engines
+        cfg = {"engine": "openai", "openai": {}, "chat": {"models": []}}
+        model = {"name": "test-model", "id": "test-model"}
+
+        # 1. Test Korean target (meta.target == "ko")
+        ws_ko = FakeWorkspace("paper-ko")
+        ws_ko.values["paper"] = {
+            "meta": {"title_en": "Transformer Research", "title_zh": "트랜스포머 연구", "target": "ko"},
+            "blocks": [{"id": "b1", "type": "paragraph", "page": 1, "en": "Self-attention mechanism.", "zh": "셀프 어텐션 메커니즘."}]
+        }
+        self.lib.workspaces[ws_ko.id] = ws_ko
+
+        captured_prompts = []
+        def fake_run(cfg_arg, prompt, *args, **kwargs):
+            captured_prompts.append(prompt)
+            return "mindmap\n  root((트랜스포머 연구))\n    연구 배경 및 문제\n      셀프 어텐션"
+
+        with mock.patch.object(research_v2.config, "load", return_value=cfg), \
+             mock.patch.object(chat_models, "engine_cfg", return_value=(cfg, model)), \
+             mock.patch.object(engines, "for_translation", side_effect=lambda value: value), \
+             mock.patch.object(engines, "run", side_effect=fake_run):
+            res_ko = research_v2.post(self.app, "/paper/paper-ko/mindmap", {})
+            self.assertEqual(res_ko["target"], "ko")
+            self.assertIn("韓語（한국어，Korean）", captured_prompts[-1])
+            self.assertIn("연구 배경 및 문제", captured_prompts[-1])
+            self.assertIn("핵심 구조 및 이론", captured_prompts[-1])
+
+        # 2. Test Japanese target (meta.target == "ja")
+        ws_ja = FakeWorkspace("paper-ja")
+        ws_ja.values["paper"] = {
+            "meta": {"title_en": "Attention Paper", "target": "ja"},
+            "blocks": [{"id": "b1", "type": "paragraph", "page": 1, "en": "Attention is all you need."}]
+        }
+        self.lib.workspaces[ws_ja.id] = ws_ja
+
+        with mock.patch.object(research_v2.config, "load", return_value=cfg), \
+             mock.patch.object(chat_models, "engine_cfg", return_value=(cfg, model)), \
+             mock.patch.object(engines, "for_translation", side_effect=lambda value: value), \
+             mock.patch.object(engines, "run", side_effect=fake_run):
+            res_ja = research_v2.post(self.app, "/paper/paper-ja/mindmap", {})
+            self.assertEqual(res_ja["target"], "ja")
+            self.assertIn("日語（日本語，Japanese）", captured_prompts[-1])
+            self.assertIn("研究背景と課題", captured_prompts[-1])
 
     def test_publication_venue_is_not_replaced_by_the_public_pdf_repository(self):
         work = research_v2._work({"id": "https://openalex.org/W1", "title": "Paper",

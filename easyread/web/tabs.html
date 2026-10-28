@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PaperRead</title>
+  <link rel="stylesheet" href="/web/css/base.css">
+  <link rel="stylesheet" href="/web/css/tabs.css">
+</head>
+<body>
+  <div id="tabsHoverTrigger" class="tabs-hover-trigger"></div>
+  <header class="tabs-bar">
+    <nav id="tabs" role="tablist" aria-label="打开的论文">
+      <button id="newTab" title="选择另一篇论文" aria-label="选择另一篇论文">+</button>
+    </nav>
+    <div class="tabs-scroll-controls">
+      <button id="tabScrollLeft" class="tab-scroll-btn" title="向左滚动标签" aria-label="向左滚动标签" hidden>‹</button>
+      <button id="tabScrollRight" class="tab-scroll-btn" title="向右滚动标签" aria-label="向右滚动标签" hidden>›</button>
+    </div>
+    <div id="tabsOverlay" class="tabs-overlay"></div>
+  </header>
+  <main id="panes"></main>
+  <div id="message" role="status" hidden></div>
+  <div id="tabContextMenu" class="tab-menu" hidden></div>
+  <div id="groupEditorPopover" class="group-popover" hidden></div>
+  <script src="/web/js/common/i18n.js"></script>
+  <script src="/web/js/tabs.js"></script>
+</body>
+</html>

@@ -103,6 +103,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "max-age=86400" if cache else "no-store")
+        if getattr(self, "close_connection", False):
+            self.send_header("Connection", "close")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -253,6 +255,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, research)
         if path in ("/", "/index.html"):
             return self._page(WEB / "library.html")
+        if path == "/web/tabs.html":
+            return self._page(WEB / "tabs.html")
         if path == "/research":
             return self._page(WEB / "research.html")
         if path.startswith("/read/"):
@@ -346,6 +350,11 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
             ws = lib.ws(pid)
+            if ws and re.fullmatch(r"extract/page-[0-9]{3,6}\.chars\.json", rel):
+                if parse_qs(url.query).get("selection") == ["2"]:
+                    from .selectable_text import page_file
+                    return self._file(page_file(ws.root, ws.source_pdf, int(rel[13:-11])))
+                return self._file(_safe(ws.root, rel), cache=True)
             if ws and app.location.status == "idle" and rel.startswith("pages/") and "w=" in url.query:  # 原页面板用的小一号图，第一次请求时生成
                 try:
                     w = int(parse_qs(url.query)["w"][0])
@@ -364,8 +373,14 @@ class Handler(BaseHTTPRequestHandler):
     # ---------- POST ----------
     def do_POST(self):
         if not self._host_ok():
+            self.close_connection = True
             return
         if self.headers.get("X-Token") != self.app.token:  # 挡住别的网页跨站写
+            self.close_connection = True
+            try:
+                self._body()
+            except Exception:
+                pass
             return self._json(403, {"error": "bad token"})
         try:
             with self.app.location.request("POST", self.path):
@@ -484,6 +499,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"threads": chat_store.threads(ws)})
             if action == "chat":
                 return self._chat(ws, body)
+            if action == "chat-export":
+                from .chat_markdown import export
+                return self._json(200, export(ws, body))
             if action == "notehelp":
                 return notehelp.handle(self, ws, body)
             if action == "discussion_del":

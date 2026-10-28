@@ -53,14 +53,17 @@ def _safe_title(value: str, fallback: str) -> str:
     return title
 
 
-def _safe_subfolder(value: str) -> str:
-    """Allow one generated folder name without accepting path traversal."""
+def _safe_subfolder(value: str) -> Path | None:
+    """Allow safe multi-level subfolder path without accepting path traversal."""
     raw = str(value or "").strip()
     if not raw:
-        return ""
-    if raw in {".", ".."} or "/" in raw or "\\" in raw:
-        raise ValueError("匯出資料夾名稱不受支援。")  # i18n-ok: export validation message is fixed Traditional Chinese.
-    return _safe_title(raw, "Research")
+        return None
+    parts = [p.strip() for p in re.split(r"[/\\]+", raw) if p.strip()]
+    for p in parts:
+        if p in {".", ".."} or not p:
+            raise ValueError("匯出資料夾名稱不受支援。")  # i18n-ok: export validation message is fixed Traditional Chinese.
+    safe_parts = [_safe_title(p, "Folder") for p in parts]
+    return Path(*safe_parts) if safe_parts else None
 
 
 def _relative(root: Path, path: Path) -> str:
@@ -264,23 +267,34 @@ def export_to_vault(documents: list[dict]) -> dict:
         atomic_replace(destination, item["content"].encode("utf-8"))
         (updated if item["current"] else written).append(item["path"])
         doc = item["doc"]
-        img_data = None
-        img_name = None
-        if isinstance(doc.get("attachment"), dict) and doc["attachment"].get("content_base64"):
-            img_name = _safe_title(Path(str(doc["attachment"].get("filename", ""))).stem, "mindmap") + ".png"
-            try:
-                img_data = base64.b64decode(doc["attachment"]["content_base64"])
-            except Exception:
-                img_data = None
-        elif doc.get("image_base64"):
+        raw_attachments = doc.get("attachments")
+        if isinstance(raw_attachments, list):
+            attachments = [att for att in raw_attachments if isinstance(att, dict)]
+        elif isinstance(doc.get("attachment"), dict):
+            attachments = [doc["attachment"]]
+        else:
+            attachments = []
+        for att in attachments:
+            if att.get("content_base64"):
+                raw_att_name = str(att.get("filename") or "image.png").replace("\\", "/")
+                att_parts = [p.strip() for p in raw_att_name.split("/") if p.strip()]
+                if any(p in {".", ".."} for p in att_parts):
+                    continue
+                safe_att_path = Path(*[_safe_title(p, "attachment") for p in att_parts])
+                att_dest = destination.parent / safe_att_path
+                att_dest.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    att_data = base64.b64decode(att["content_base64"])
+                    atomic_replace(att_dest, att_data)
+                except Exception:
+                    pass
+        if doc.get("image_base64") and not attachments:
             img_name = destination.with_suffix(".png").name
             try:
                 img_data = base64.b64decode(doc["image_base64"])
+                atomic_replace(destination.parent / img_name, img_data)
             except Exception:
-                img_data = None
-        if img_data and img_name:
-            img_dest = destination.parent / img_name
-            atomic_replace(img_dest, img_data)
+                pass
     index_data = _index_payload(index, rendered)
     index_path = _index_path(root)
     index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -304,22 +318,33 @@ def export_zip(documents: list[dict]) -> dict:
                 continue
             archive.writestr(item["path"], item["content"])
             doc = item["doc"]
-            img_data = None
-            img_name = None
-            if isinstance(doc.get("attachment"), dict) and doc["attachment"].get("content_base64"):
-                img_name = _safe_title(Path(str(doc["attachment"].get("filename", ""))).stem, "mindmap") + ".png"
-                try:
-                    img_data = base64.b64decode(doc["attachment"]["content_base64"])
-                except Exception:
-                    img_data = None
-            elif doc.get("image_base64"):
+            raw_attachments = doc.get("attachments")
+            if isinstance(raw_attachments, list):
+                attachments = [att for att in raw_attachments if isinstance(att, dict)]
+            elif isinstance(doc.get("attachment"), dict):
+                attachments = [doc["attachment"]]
+            else:
+                attachments = []
+            for att in attachments:
+                if att.get("content_base64"):
+                    raw_att_name = str(att.get("filename") or "image.png").replace("\\", "/")
+                    att_parts = [p.strip() for p in raw_att_name.split("/") if p.strip()]
+                    if any(p in {".", ".."} for p in att_parts):
+                        continue
+                    safe_att_path = "/".join(_safe_title(p, "attachment") for p in att_parts)
+                    zip_att_path = str(Path(item["path"]).parent / safe_att_path).replace("\\", "/")
+                    try:
+                        att_data = base64.b64decode(att["content_base64"])
+                        archive.writestr(zip_att_path, att_data)
+                    except Exception:
+                        pass
+            if doc.get("image_base64") and not attachments:
                 img_name = Path(item["path"]).with_suffix(".png").name
                 try:
                     img_data = base64.b64decode(doc["image_base64"])
+                    zip_img_path = str(Path(item["path"]).parent / img_name).replace("\\", "/")
+                    archive.writestr(zip_img_path, img_data)
                 except Exception:
-                    img_data = None
-            if img_data and img_name:
-                zip_img_path = str(Path(item["path"]).parent / img_name).replace("\\", "/")
-                archive.writestr(zip_img_path, img_data)
+                    pass
         archive.writestr("Research/" + INDEX_NAME, json.dumps(index_data, ensure_ascii=False, indent=2) + "\n")
     return {"filename": "PaperRead-Research.zip", "content_base64": base64.b64encode(stream.getvalue()).decode("ascii"), "conflicts": [item["id"] for item in rendered if item["content"] is None]}

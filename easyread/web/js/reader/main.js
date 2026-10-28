@@ -123,7 +123,7 @@
     else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
     const m = S.paper.meta || {};
-    document.title = (m.short_zh || m.title_zh || m.title_en || PR.t("论文")) + " · PaperRead";
+    document.title = (PR.titleText ? PR.titleText(m.short_zh || m.title_zh || m.title_en || PR.t("论文")) : (m.short_zh || m.title_zh || m.title_en || PR.t("论文"))) + " · PaperRead";
     PR.$(".bar-title").innerHTML = PR.titleHtml(m.short_zh || m.title_zh || m.title_en || "");
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));

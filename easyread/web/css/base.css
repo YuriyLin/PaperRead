@@ -97,7 +97,8 @@ svg.i.sm { width: 15px; height: 15px; }
 }
 .topbar .grow { flex: 1; min-width: 0; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font: 650 17px/1 var(--ui); letter-spacing: -.01em; text-decoration: none; color: var(--ink); white-space: nowrap; }
-.brand .mark { width: 26px; height: 26px; flex: none; display: block; }
+.brand .mark { width: 26px; height: 26px; max-width: 26px; max-height: 26px; flex: none; display: block; }
+img.mark { max-width: 26px; max-height: 26px; }
 .brand b { font-weight: 700; color: var(--accent); }
 .brand-back { gap: 3px; padding: 0 8px 0 4px; color: var(--ink-3); }
 .brand-back .mark { width: 24px; height: 24px; }

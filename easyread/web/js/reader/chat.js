@@ -132,6 +132,8 @@
       (STYLES.indexOf(m.answer_style) > 0 ? '<span class="cm-style">' + styleLabel(m.answer_style) + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
+        '<button data-c="export-md" title="' + PR.t("下載 Markdown 文件") + '">' + PR.icon("download", "sm") + PR.t("下載") + '</button>' +
+        '<button data-c="export-obsidian" title="' + PR.t("匯出至 Obsidian Vault") + '">' + PR.icon("book", "sm") + PR.t("匯出 Obsidian") + '</button>' +
         (m.usage && m.usage.calls ? '<span class="cm-usage" title="' + PR.t("输入 {input}（缓存命中 {cached}），输出 {output}", { input: PR.fmtTokens(m.usage.input), cached: PR.fmtTokens(m.usage.cached), output: PR.fmtTokens(m.usage.output) }) + '">' + PR.fmtTokens(m.usage.input + m.usage.output) + " token</span>" : "") + "</div>" : "") + "</div>";
   }
   function emptyHtml() {
@@ -318,6 +320,8 @@
     }
     const card = b.closest(".cm.ai");
     const m = card && thread() && thread().messages.find((x) => x.id === card.dataset.id);
+    if (c === "export-md" && m) return PR.exportChatMarkdown(st.cur, m.id, b);
+    if (c === "export-obsidian" && m) return PR.exportChatObsidian(st.cur, m.id, b);
     if (c === "copy" && m) navigator.clipboard.writeText(m.content).then(() => PR.toast(PR.t("已复制")));
     if (c === "pin" && m) {
       try {

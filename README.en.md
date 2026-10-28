@@ -33,6 +33,7 @@ PaperRead brings literature management, close reading, and research planning int
 | **Candidates** | Keep a separate list of papers worth reviewing. Adding a candidate does not silently replace the search results or force a download. |
 | **Organized Summaries** | Generate and review a paper summary when you choose, render it as Markdown, and export it for later use. Summaries can be removed to the recycle bin. |
 | **Reading Path** | Start from a topic or a selected paper and organize recommended papers by purpose, such as foundations, method understanding, representative work, extensions, and frontier research. The result has map/list views, citation relations, reordering, and background notifications. |
+| **Cross-paper Keywords** | Collect selected text or glossary terms as separate keywords, match the configured original-language term across the current library, filter papers with AND/OR logic, and jump directly to matching excerpts in the reader. |
 | **Quick Peek** | Open a right-side drawer from a board card to inspect overview, summary, recent notes, highlights, and recent questions without leaving the board. Status, category, and star can be edited in place. |
 | **Obsidian knowledge base** | Export summaries, paper analysis, annotations, mind maps, and comparisons directly into a Vault with stable IDs, evidence, and WikiLinks. |
 | **Literature management** | Organize papers with nested categories; import folders or a Zotero library; link local PDFs without copying them. |
@@ -59,6 +60,12 @@ The interface is localized for Taiwan Traditional Chinese usage. English technic
 When adding a paper to the Reading Board, categories are shown as selectable cards rather than a keyboard-dependent multi-select list. You can assign multiple research directions at once, or add the paper without a category and organize it later.
 
 Clicking the empty area of a board card opens **Quick Peek** on the right. It shows bibliographic details, summary, category, reading status, star, progress, source information, recent notes, highlights, and recent questions. Clicking a record returns to its reader anchor; the drawer footer provides previous, next, and continue reading actions.
+
+## Cross-paper keyword search and excerpt navigation
+
+The reader collects a keyword from selected text or checked glossary entries. A keyword has a display name and an original-text match term, so it remains separate from translation glossary replacements. PaperRead scans parsed original text only within the active library and records source locations; an automatic match only means the configured text occurs, not that the paper supports a research claim.
+
+Use the **Keywords** tab in Research Explorer (`/research?mode=keywords`) to combine selected terms with AND/OR filtering, view matching papers with highlighted excerpt cards, and click **Open Paper and Locate Paragraph ↗** to jump directly to the paragraph in the reader. You can also exclude unwanted automatic matches persistently, manage keyword archives, and quickly add new keywords.
 
 ## Reading and evidence
 

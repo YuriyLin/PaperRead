@@ -24,6 +24,10 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
       this.webContents.setWindowOpenHandler = () => {};
       this.webContents.mainFrame = { url: "http://127.0.0.1:9876/" };
       this.webContents.isDestroyed = () => false;
+      this.webContents.executeJavaScript = async (code) => {
+        const match = String(code).match(/window\.location\.href = ("[^"]+")/);
+        if (match) this.url = JSON.parse(match[1]);
+      };
       this.webContents.send = channel => { queueMicrotask(() => ipcMain.emit("easyread:page-saved", { sender: this.webContents, senderFrame: this.webContents.mainFrame })); };
       windows.push(this);
     }
@@ -32,6 +36,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     show() { this.shown = true; }
     focus() { this.focused = true; }
     isMinimized() { return false; }
+    isDestroyed() { return Boolean(this.closed); }
     close() { this.closed = true; this.emit("closed"); }
   }
   const Menu = {
@@ -63,6 +68,7 @@ async function desktop(platform = "darwin", lock = true, ready = true, argv = []
     } }
     : name === "./startup-feedback.cjs" ? { ...require("../electron/startup-feedback.cjs"), mark(_app, stage) { stages.push(stage); }, loginShellPath: async () => "/usr/bin:/bin" }
     : name === "./desktop-updates.cjs" ? { registerUpdates() {} }
+    : name === "./desktop-tabs.cjs" ? require("../electron/desktop-tabs.cjs")
     : name === "./deep-link.cjs" ? require("../electron/deep-link.cjs")
     : name === "electron-updater" ? { autoUpdater: {} }
     : name === "./window-state.cjs" ? { options: () => ({ opts: { width: 1440, height: 960 }, maximized: false }), track() {} }
@@ -121,7 +127,7 @@ test("the startup window is visible while the backend is still starting", async 
   assert.ok(d.stages.indexOf("startup-window-visible") < d.stages.indexOf("backend-spawn"));
   d.launches[0].child.stdout.emit("data", "PaperRead 已啟動：http://127.0.0.1:9876\n");
   await d.settled();
-  assert.equal(d.windows[0].url, "http://127.0.0.1:9876");
+  assert.equal(d.windows[0].url, "http://127.0.0.1:9876/web/tabs.html");
   assert.ok(d.stages.includes("library-loaded"));
   d.app.quit(); await d.settled();
 });
@@ -159,7 +165,7 @@ test("paper links open the paper once the backend is ready", async () => {
   const d = await desktop("win32", true, true, [`easyread://open?sha256=${SHA}&block=p3-2`]);
   await d.settled();
   assert.equal(d.app.protocol, "paperread");
-  assert.equal(d.windows[0].url, `http://127.0.0.1:9876/open?sha256=${SHA}&block=p3-2`);
+  assert.equal(d.windows[0].url, `http://127.0.0.1:9876/web/tabs.html?open=%2Fopen%3Fsha256%3D${SHA}%26block%3Dp3-2`);
   d.app.quit();
 });
 
@@ -167,8 +173,9 @@ test("a link from a second instance reuses the open window", async () => {
   const d = await desktop("win32");
   await d.settled();
   d.app.emit("second-instance", {}, ["EasyRead.exe", "easyread://open?id=abc123def456"]);
+  await d.settled();
   assert.equal(d.windows.length, 1);
-  assert.equal(d.windows[0].url, "http://127.0.0.1:9876/open?id=abc123def456");
+  assert.equal(d.windows[0].url, "http://127.0.0.1:9876/web/tabs.html?open=%2Fopen%3Fid%3Dabc123def456");
   assert.equal(d.windows[0].focused, true);
   d.app.quit();
 });
@@ -177,8 +184,9 @@ test("macOS open-url links are handled and unknown links ignored", async () => {
   const d = await desktop();
   await d.settled();
   d.app.emit("open-url", { preventDefault() {} }, "easyread://other?id=abc123def456");
-  assert.equal(d.windows[0].url, "http://127.0.0.1:9876");
+  assert.equal(d.windows[0].url, "http://127.0.0.1:9876/web/tabs.html");
   d.app.emit("open-url", { preventDefault() {} }, `easyread://open?sha256=${SHA}&block=<x>`);
-  assert.equal(d.windows[0].url, `http://127.0.0.1:9876/open?sha256=${SHA}`);
+  await d.settled();
+  assert.equal(d.windows[0].url, `http://127.0.0.1:9876/web/tabs.html?open=%2Fopen%3Fsha256%3D${SHA}`);
   d.app.quit();
 });

@@ -15,7 +15,7 @@
     const rows = items.map((t) => {
       const summary = t.type === "summary", title = summary ? (t.paper?.title || PR.t("未命名论文")) : PR.titles(t).main;
       const sub = summary ? [t.paper?.authors, t.paper?.year, t.paper?.venue, PR.t("已整理摘要")].filter(Boolean).join(" · ") : PR.titles(t).sub;
-      return '<div class="trash-row"><div class="trash-t"><b>' + PR.esc(title) + "</b>" +
+      return '<div class="trash-row"><div class="trash-t"><b>' + (PR.titleHtml ? PR.titleHtml(title) : PR.esc(title)) + "</b>" +
         "<small>" + PR.esc([sub, PR.t("删除于 {t}", { t: PR.shortTime(t.deleted) })].filter(Boolean).join(" · ")) + "</small></div>" +
         '<button class="btn sm" data-tr="restore" data-type="' + (summary ? "summary" : "paper") + '" data-name="' + PR.esc(t.name) + '">' + PR.t("恢复") + "</button>" +
         '<button class="btn sm danger" data-tr="purge" data-type="' + (summary ? "summary" : "paper") + '" data-name="' + PR.esc(t.name) + '">' + PR.t("彻底删除") + "</button></div>";

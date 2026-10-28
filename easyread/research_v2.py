@@ -71,6 +71,286 @@ def _current_reading_path_task(root: Path) -> dict | None:
 
 MINDMAP_TASK_CACHE_PREFIX = "mindmap:task:"
 
+MINDMAP_LANGUAGE_GUIDES = {
+    "ko": {
+        "name": "韓語（한국어，Korean）",
+        "branches": [
+            "`연구 배경 및 문제`：연구 동기, 해결하려는 핵심 문제 또는 기존 기술의 한계.",
+            "`핵심 구조 및 이론`：전체 시스템/모델 아키텍처, 이론적 기초, 핵심 컴포넌트 및 모듈.",
+            "`방법론 및 핵심 메커니즘`：알고리즘 프로세스, 주요 설계, 손실 함수 또는 수학적 표현.",
+            "`실험 설계 및 벤치마크`：벤치마크 테스트, 평가 데이터셋, 비교 베이스라인, 평가 지표.",
+            "`주요 발견 및 성과`：주요 실험 결론, SOTA 비교 성과, 어블레이션(Ablation) 분석 인사이트.",
+            "`연구 기여 및 혁신`：핵심 학술적 기여, 방법론적 혁신 또는 실용적 가치.",
+            "`한계점 및 향후 연구`：방법의 한계, 미해결 과제 또는 향후 연구 방향.",
+        ],
+        "lang_rule": (
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用韓語（한국어）生成。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs, Zero-shot 等），避免生硬直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+    "ja": {
+        "name": "日語（日本語，Japanese）",
+        "branches": [
+            "`研究背景と課題`：研究の動機、解決を目指す中心課題や既存技術のボトルネック。",
+            "`コアアーキテクチャと理論`：システム・モデル全体の構造、理論的基礎、主要コンポーネント。",
+            "`手法と主要メカニズム`：アルゴリズムのフロー、主要な設計、損失関数や数式表現。",
+            "`実験設計とベンチマーク`：ベンチマーク、評価データセット、ベースライン、評価指標。",
+            "`主要な発見と成果`：主要な実験結果、SOTA との比較、アブレーション (Ablation) 解析の洞察。",
+            "`研究の貢献と新規性`：主要な學術的貢献、手法の新規性や実用的な価値。",
+            "`限界と今後の課題`：手法の適用範囲・制限、未解決の課題や将来の研究方向。",
+        ],
+        "lang_rule": (
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用日語（日本語）生成。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+    "zh": {
+        "name": "中文（簡體中文）",
+        "branches": [
+            "`研究背景与问题`：研究动机、欲解决的核心问题或现有技术瓶颈。",
+            "`核心架构与理论`：整体系统或模型架构、理论基础、核心组件模块。",
+            "`方法与关键机制`：算法流程、关键设计、损失函数或数学表达。",
+            "`实验设计与基准`：基准测试 (Benchmarks)、评估数据集、对照基准 (Baselines)、评估指标。",
+            "`核心发现与成果`：主要实验结论、SOTA 对比成果、消融实验 (Ablation) 洞察。",
+            "`研究贡献与创新`：核心学术突破、方法创新或实务价值。",
+            "`局限性与未来方向`：方法边界、未解决问题或改进方向。",
+        ],
+        "lang_rule": (
+            "1. 全文一律使用簡體中文生成，包含根節點、一級分支名稱與所有子節點。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+    "en": {
+        "name": "English",
+        "branches": [
+            "`Research Background & Problem`：Motivation, core problem addressed, or limitations of existing methods.",
+            "`Core Architecture & Theory`：Overall system/model architecture, theoretical foundation, key components.",
+            "`Methodology & Mechanisms`：Algorithm workflow, key design choices, loss functions or mathematical formulations.",
+            "`Experimental Design & Benchmarks`：Benchmark tasks, datasets, baseline comparisons, evaluation metrics.",
+            "`Key Findings & Results`：Main empirical conclusions, SOTA comparisons, ablation study insights.",
+            "`Contributions & Innovations`：Key academic breakthroughs, methodological innovations, or practical value.",
+            "`Limitations & Future Work`：Scope boundaries, unaddressed challenges, or potential extensions.",
+        ],
+        "lang_rule": (
+            "1. Generate all nodes (root node, top-level branch names, and all child nodes) entirely in English.\n"
+            "2. Retain standard academic acronyms and terminology (e.g., Transformer, Self-Attention, BLEU, Zero-shot, SOTA, FLOPs).\n"
+            "3. Strictly base content on provided text; do not hallucinate datasets or experimental numbers."
+        ),
+    },
+    "es": {
+        "name": "西班牙語（Español）",
+        "branches": [
+            "`Contexto y Problema`：Motivación de la investigación, problema central abordado o limitaciones previas.",
+            "`Arquitectura y Teoría Central`：Estructura del sistema/modelo, fundamentos teóricos y componentes clave.",
+            "`Metodología y Mecanismos Clave`：Flujo algorítmico, diseño metodológico, funciones de pérdida o formulaciones.",
+            "`Diseño Experimental y Benchmarks`：Pruebas de referencia, conjuntos de datos, líneas base y métricas.",
+            "`Hallazgos y Resultados Principales`：Conclusiones empíricas, comparaciones SOTA y análisis de ablación.",
+            "`Contribuciones e Innovaciones`：Aportes académicos clave, innovaciones prácticas o metodológicas.",
+            "`Limitaciones y Trabajo Futuro`：Límites del método, desafíos abiertos o direcciones futuras.",
+        ],
+        "lang_rule": (
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用西班牙語（Español）生成。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+    "fr": {
+        "name": "法語（Français）",
+        "branches": [
+            "`Contexte et Problématique`：Motivation de recherche, problème central abordé ou verrous scientifiques.",
+            "`Architecture et Théorie Fondamentale`：Structure globale du modèle/système, fondements théoriques et modules clés.",
+            "`Méthodologie et Mécanismes Clés`：Déroulement algorithmique, choix de conception, fonctions de perte.",
+            "`Protocole Expérimental et Benchmarks`：Jeux de données, bancs d'essai, modèles de référence et métriques.",
+            "`Résultats et Découvertes Clés`：Conclusions empiriques, comparaison à l'état de l'art (SOTA), études d'ablation.",
+            "`Contributions et Innovations`：Apports scientifiques majeurs, innovations méthodologiques ou pratiques.",
+            "`Limites et Perspectives Futures`：Limites de l'approche, questions ouvertes et axes futurs.",
+        ],
+        "lang_rule": (
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用法語（Français）生成。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免生硬直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+    "de": {
+        "name": "德語（Deutsch）",
+        "branches": [
+            "`Forschungshintergrund & Problemstellung`：Forschungsmotivation, adressiertes Kernproblem oder bisherige Grenzen.",
+            "`Kernarchitektur & Theoretische Grundlagen`：Gesamtsystem/Modellarchitektur, theoretische Basis, Hauptkomponenten.",
+            "`Methodik & Schlüsselmechanismen`：Algorithmischer Ablauf, zentrale Designentscheidungen, Verlustfunktionen.",
+            "`Experimentelles Design & Benchmarks`：Evaluations-Datensätze, Baselines, Benchmarks und Metriken.",
+            "`Wichtigste Erkenntnisse & Ergebnisse`：Empirische Hauptergebnisse, SOTA-Vergleiche, Ablationsstudien.",
+            "`Wissenschaftliche Beiträge & Innovationen`：Zentrale wissenschaftliche Durchbrüche und methodische Innovationen.",
+            "`Grenzen & Zukünftige Forschungsrichtungen`：Einschränkungen der Methode, offene Fragen und zukünftige Arbeiten.",
+        ],
+        "lang_rule": (
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用德語（Deutsch）生成。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+    "zh-TW": {
+        "name": "繁體中文（臺灣學術用語）",
+        "branches": [
+            "`研究背景與問題`：研究動機、欲解決的核心問題或既有技術瓶頸。",
+            "`核心架構與理論`：整體系統或模型架構、理論基礎、核心組件模組。",
+            "`方法與關鍵機制`：演算法流程、關鍵設計、損失函數或數學表達。",
+            "`實驗設計與基準`：基準測試 (Benchmarks)、評估資料集、對照基準 (Baselines)、評估指標。",
+            "`核心發現與成果`：主要實驗結論、SOTA 對比成果、消融實驗 (Ablation) 洞察。",
+            "`研究貢獻與創新`：核心學術突破、方法創新或實務價值。",
+            "`局限性與未來方向`：方法邊界、未解決問題或改進方向（若原文未提及可精簡或略過）。",
+        ],
+        "lang_rule": (
+            "1. 全文一律使用繁體中文（臺灣學術慣用語，如資料集、演算法、最佳化、消融實驗），包含根節點、一級分支名稱與所有子節點。\n"
+            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+        ),
+    },
+}
+
+
+def _mindmap_language_guide(meta: dict | None) -> tuple[str, dict]:
+    from . import langs
+    target_lang = langs.of_paper(meta or {})
+    guide = MINDMAP_LANGUAGE_GUIDES.get(target_lang) or MINDMAP_LANGUAGE_GUIDES.get("zh-TW")
+    return target_lang, guide
+
+
+def _keyword_text(value: str) -> str:
+    import unicodedata
+    return " ".join(unicodedata.normalize("NFKC", str(value or "")).split())
+
+
+def _keyword_hits(needle: str, raw: str) -> tuple[int, str]:
+    """Count case-insensitive matches in one block and return a snippet around the first one."""
+    text = _keyword_text(raw)
+    if not text or not needle:
+        return 0, ""
+    body = re.escape(needle)
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _-]*", needle):
+        body = r"(?<![A-Za-z0-9])" + body + r"(?![A-Za-z0-9])"
+    found = list(re.finditer(body, text, re.IGNORECASE))
+    if not found:
+        return 0, ""
+    first = found[0]
+    return len(found), text[max(0, first.start() - 80):first.end() + 80]
+
+
+def _keyword_excluded_paper(item: dict) -> bool:
+    return bool(item.get("archived") or item.get("trashed") or item.get("deleted"))
+
+
+def _keyword_scan(app, keyword: dict, *, only_paper: str = "", cancel=None) -> dict:
+    """Index already extracted paper text only; scanned images remain deliberately out of scope.
+
+    Each paper is committed atomically, so a failure never clears earlier results.
+    Returns {"matched": papers_with_hits, "no_text": [paper ids without extracted text], "scanned": papers_checked}.
+    """
+    root = _root(app)
+    needle = _keyword_text(keyword.get("match_text"))
+    report = {"matched": 0, "no_text": [], "scanned": 0}
+    if not needle:
+        return report
+    for ws in app.lib.all():
+        if cancel and (cancel.is_set() if hasattr(cancel, "is_set") else cancel()):
+            break
+        if only_paper and ws.id != only_paper:
+            continue
+        item, paper = ws.load("item") or {}, ws.load("paper") or {}
+        if _keyword_excluded_paper(item):
+            continue
+        blocks = [b for b in (paper.get("blocks") or []) if isinstance(b, dict)]
+        texts = [(b, str(b.get("en") or b.get("text") or "")) for b in blocks]
+        if not any(raw.strip() for _, raw in texts):
+            report["no_text"].append(ws.id)
+            planning_store.keyword_replace_auto(root, keyword["id"], ws.id, [], "")
+            continue
+        joined = "\n".join(raw for _, raw in texts)
+        content = sha256((needle.casefold() + "\n" + joined).encode("utf-8")).hexdigest()
+        report["scanned"] += 1
+        if planning_store.keyword_scan_state(root, keyword["id"], ws.id) == content:
+            report["matched"] += 1
+            continue
+        hits = []
+        for block, raw in texts:
+            count, snippet = _keyword_hits(needle, raw)
+            if count:
+                hits.append({"anchor": str(block.get("id") or ""), "page": block.get("page"), "quote": snippet, "occurrences": count})
+        planning_store.keyword_replace_auto(root, keyword["id"], ws.id, hits, content)
+        report["matched"] += 1 if hits else 0
+    return report
+
+
+_MAP_MAX_NODES, _MAP_MAX_EDGES, _MAP_MAX_BYTES, _MAP_MAX_TEXT = 500, 1000, 400_000, 600
+
+
+def _keyword_map_validate(app, data: dict) -> dict:
+    """Reject oversized or foreign data before a topic map is stored."""
+    if not isinstance(data, dict):
+        raise ValueError(tr("主題圖資料格式不正確"))
+    if len(json.dumps(data, ensure_ascii=False)) > _MAP_MAX_BYTES:
+        raise ValueError(tr("主題圖資料過大"))
+    nodes, edges = data.get("nodes"), data.get("edges", [])
+    if not isinstance(nodes, list) or not isinstance(edges, list) or len(nodes) > _MAP_MAX_NODES or len(edges) > _MAP_MAX_EDGES:
+        raise ValueError(tr("主題圖節點或連線數量超過上限"))
+    known = {row["id"] for row in planning_store.keyword_list(_root(app), True)}
+    ids = set()
+    for node in nodes:
+        identity = node.get("id") if isinstance(node, dict) else None
+        if not isinstance(identity, str) or not identity or len(identity) > 64 or identity in ids:
+            raise ValueError(tr("主題圖節點 ID 不正確或重複"))
+        ids.add(identity)
+    for node in nodes:
+        if len(str(node.get("label") or "")) > _MAP_MAX_TEXT:
+            raise ValueError(tr("主題圖文字過長"))
+        if node.get("parent") and node["parent"] not in ids:
+            raise ValueError(tr("主題圖含不存在的上層節點"))
+        source = node.get("source") if isinstance(node.get("source"), dict) else {}
+        if source.get("paper_id") and not app.lib.ws(str(source["paper_id"])):
+            raise ValueError(tr("主題圖包含不屬於目前文獻庫的論文"))
+        if source.get("keyword_id") and source["keyword_id"] not in known:
+            raise ValueError(tr("主題圖包含不屬於目前文獻庫的關鍵字"))
+    edge_ids = set()
+    for edge in edges:
+        if not isinstance(edge, dict) or edge.get("from") not in ids or edge.get("to") not in ids:
+            raise ValueError(tr("主題圖連線指向不存在節點"))
+        if len(str(edge.get("label") or "")) > 80 or str(edge.get("id") or "") in edge_ids:
+            raise ValueError(tr("主題圖連線標籤過長或 ID 重複"))
+        edge_ids.add(str(edge.get("id") or ""))
+    return data
+
+
+def _keyword_map_data(app, keyword_ids: list[str], paper_ids: list[str], name: str) -> dict:
+    keywords = {row["id"]: row for row in planning_store.keyword_list(_root(app), True)}
+    selected = [keywords[key] for key in keyword_ids if key in keywords]
+    nodes, edges, seq = [], [], 0
+    def node(label, kind, parent="", source=None):
+        nonlocal seq
+        seq += 1
+        identity = "kwm-" + str(seq)
+        nodes.append({"id": identity, "label": label, "kind": kind, "parent": parent, "source": source or {}})
+        if parent:
+            edges.append({"id": "edge-" + identity, "from": parent, "to": identity, "label": ""})
+        return identity
+    root = node(name, "root")
+    for keyword in selected:
+        branch = node(keyword["name"], "keyword", root, {"keyword_id": keyword["id"]})
+        for paper_id in paper_ids:
+            links = planning_store.keyword_links_for_paper(_root(app), paper_id, [keyword["id"]])
+            if not links:
+                continue
+            ws = app.lib.ws(paper_id)
+            if not ws:
+                continue
+            meta = (ws.load("paper") or {}).get("meta") or {}
+            paper_node = node(str(meta.get("title_zh") or meta.get("title_en") or paper_id)[:140], "paper", branch, {"paper_id": paper_id})
+            for link in links[:3]:
+                node((link.get("quote") or tr("原文命中"))[:180], "excerpt", paper_node, {"paper_id": paper_id, "anchor": link.get("anchor"), "page": link.get("page")})
+    return {"nodes": nodes, "edges": edges, "selected_keywords": keyword_ids, "selected_papers": paper_ids}
+
+
 
 def _persist_mindmap_task(root: Path, pid: str, request: dict, task: dict) -> None:
     cache_key = MINDMAP_TASK_CACHE_PREFIX + pid
@@ -866,6 +1146,42 @@ def get(app, path_query: str):
         return {**state, "items": items, "candidates": planning_store.candidates(_root(app)),
                 "summaries": planning_store.summaries_list(_root(app)), "categories": tags,
                 "provider": "OpenAlex", "api_key_required": False}
+    if endpoint == "keywords":
+        root = _root(app)
+        paper_id = q.get("paper_id", "")
+        no_text = []
+        for ws in app.lib.all():
+            item, paper = ws.load("item") or {}, ws.load("paper") or {}
+            if _keyword_excluded_paper(item):
+                continue
+            blocks = [b for b in (paper.get("blocks") or []) if isinstance(b, dict)]
+            texts = [str(b.get("en") or b.get("text") or "") for b in blocks]
+            if not any(raw.strip() for raw in texts):
+                meta = (paper or {}).get("meta") or {}
+                no_text.append({"id": ws.id, "title": meta.get("title_zh") or meta.get("title_en") or ws.id})
+        return {
+            "keywords": planning_store.keyword_list(root, q.get("archived") == "1"),
+            "links": planning_store.keyword_links_for_paper(root, paper_id) if paper_id and app.lib.ws(paper_id) else [],
+            "no_text": no_text,
+        }
+    if endpoint == "keywords/matches":
+        ids = [x for x in q.get("ids", "").split(",") if x]
+        matches = planning_store.keyword_matches(_root(app), ids, q.get("mode", "all"), q.get("manual") == "1")
+        for row in matches:
+            ws = app.lib.ws(row["paper_id"])
+            paper = ws.load("paper") if ws else {}
+            meta = (paper or {}).get("meta") or {}
+            row["title"] = meta.get("title_zh") or meta.get("title_en") or row["paper_id"]
+            row["links"] = planning_store.keyword_links_for_paper(_root(app), row["paper_id"], ids)
+        return {"matches": matches}
+    if endpoint == "keyword-maps":
+        return {"maps": planning_store.keyword_maps(_root(app), q.get("id", ""))}
+    if endpoint.startswith("keywords/scan/tasks/"):
+        from .research import tasks
+        identity = endpoint.rsplit("/", 1)[-1]
+        scope = tasks.scope_id(_root(app))
+        task = tasks.get(identity, scope=scope)
+        return {"task": task}
     if endpoint == "reading-path/latest":
         snapshot = planning_store.latest_reading_path(_root(app))
         return {"path": snapshot, "found": bool(snapshot)}
@@ -919,6 +1235,7 @@ def get(app, path_query: str):
             current = _current_mindmap_task(_root(app), pid)
             return {"task": current if current and current.get("id") == identity else None}
         if action == "mindmap":
+            target_lang, _ = _mindmap_language_guide(meta)
             evidence = []
             for block in paper.get("blocks") or []:
                 if not isinstance(block, dict):
@@ -928,9 +1245,12 @@ def get(app, path_query: str):
                 if text:
                     evidence.append({"id": str(block.get("id") or ""), "type": block.get("type"), "page": block.get("page"), "text": text[:1800]})
             source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
-            cache_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
+            cache_key = f"mindmap:{target_lang}:" + sha256(source_hash.encode()).hexdigest()
             cached, checked = planning_store.cache_get(_root(app), cache_key)
-            return {**(cached or {}), "cached": bool(cached), "checked_at": checked, "task": _current_mindmap_task(_root(app), pid)}
+            if not cached:
+                legacy_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
+                cached, checked = planning_store.cache_get(_root(app), legacy_key)
+            return {**(cached or {}), "cached": bool(cached), "checked_at": checked, "target": target_lang, "paper_id": pid, "task": _current_mindmap_task(_root(app), pid)}
         return {"id": pid, "item": item, "title": meta.get("title_zh") or meta.get("title_en") or "未命名論文",  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
                 "title_en": meta.get("title_en", ""), "doi": meta.get("doi", ""), "arxiv": meta.get("arxiv", ""),
                 "openalex_id": meta.get("openalex_id", ""), "statuses": planning_store.statuses(_root(app))}
@@ -1325,6 +1645,73 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
     endpoint = "/" + str(endpoint or "").strip("/")
     root = _root(app)
     body = body if isinstance(body, dict) else {}
+    if endpoint == "/keywords":
+        keyword = planning_store.keyword_upsert(root, body.get("name", ""), body.get("match_text", ""), replace_match=bool(body.get("replace_match")))
+        pid = str(body.get("paper_id") or "")
+        if pid and app.lib.ws(pid):
+            planning_store.keyword_link(root, keyword["id"], pid, source="manual", anchor=str(body.get("anchor") or ""), page=body.get("page"), quote=str(body.get("quote") or ""))
+        scan_now = bool(body.get("scan_now"))
+        report = _keyword_scan(app, keyword) if scan_now else {"matched": 0, "no_text": [], "scanned": 0}
+        res = {"keyword": keyword, "scanned": report.get("scanned", report.get("matched", 0)), "no_text": report.get("no_text", [])}
+        if not scan_now:
+            res["scan_needed"] = True
+        return res
+    if endpoint == "/keywords/update":
+        keyword, changed = planning_store.keyword_update(root, str(body.get("keyword_id") or ""), body.get("name", ""), body.get("match_text", ""))
+        scan_now = bool(body.get("scan_now"))
+        report = _keyword_scan(app, keyword) if (scan_now or changed) else {"matched": 0, "no_text": [], "scanned": 0}
+        return {"keyword": keyword, "scanned": report.get("scanned", report.get("matched", 0)), "no_text": report.get("no_text", [])}
+    if endpoint == "/keywords/exclude":
+        keyword_id, paper_id = str(body.get("keyword_id") or ""), str(body.get("paper_id") or "")
+        if not app.lib.ws(paper_id):
+            raise ValueError(tr("找不到這篇論文"))
+        if keyword_id not in {row["id"] for row in planning_store.keyword_list(root, True)}:
+            raise ValueError(tr("找不到關鍵字"))
+        planning_store.keyword_exclude(root, keyword_id, paper_id, bool(body.get("excluded", True)))
+        return {"ok": True}
+    if endpoint == "/keywords/archive":
+        target = body.get("keyword_ids") or body.get("keyword_id")
+        planning_store.keyword_archive(root, target, bool(body.get("archived", True)))
+        return {"ok": True}
+    if endpoint == "/keywords/delete":
+        target = body.get("keyword_ids") or body.get("keyword_id")
+        count = planning_store.keyword_delete(root, target)
+        return {"deleted": count}
+    if endpoint == "/keywords/unlink":
+        keyword_id, paper_id = str(body.get("keyword_id") or ""), str(body.get("paper_id") or "")
+        return planning_store.keyword_unlink(root, keyword_id, paper_id)
+    if endpoint == "/keywords/scan/tasks":
+        from .research import tasks
+        keyword_id = str(body.get("keyword_id") or "").strip()
+        all_kw = {row["id"]: row for row in planning_store.keyword_list(root, True)}
+        if keyword_id and keyword_id not in all_kw:
+            raise ValueError(tr("找不到關鍵字"))
+        def run(cancel, report):
+            kw_list = [all_kw[keyword_id]] if keyword_id else list(all_kw.values())
+            total_matched = 0
+            for kw in kw_list:
+                res = _keyword_scan(app, kw, cancel=cancel)
+                total_matched += res.get("matched", 0)
+            return {"matched": total_matched}
+        task = tasks.submit("keyword-scan", run, retry_failed=True, scope=tasks.scope_id(root))
+        return {"task": task}
+    if endpoint.startswith("/keywords/scan/tasks/") and endpoint.endswith("/cancel"):
+        from .research import tasks
+        identity = endpoint.split("/")[-2]
+        task = tasks.cancel(identity, scope=tasks.scope_id(root))
+        return {"task": task}
+    if endpoint == "/keyword-maps":
+        ids = [str(x) for x in body.get("keyword_ids", []) if str(x)]
+        papers = [str(x) for x in body.get("paper_ids", []) if app.lib.ws(str(x))]
+        known = {row["id"] for row in planning_store.keyword_list(root, True)}
+        if any(identity not in known for identity in ids):
+            raise ValueError(tr("主題圖包含不屬於目前文獻庫的關鍵字"))
+        data = body.get("data") if isinstance(body.get("data"), dict) else _keyword_map_data(app, ids, papers, str(body.get("name") or tr("跨論文主題圖")))
+        data = _keyword_map_validate(app, data)
+        return {"map": planning_store.keyword_map_save(root, str(body.get("name") or tr("跨論文主題圖")), data, str(body.get("id") or ""), int(body.get("revision") or 0))}
+    if endpoint == "/keyword-maps/delete":
+        planning_store.keyword_map_delete(root, str(body.get("id") or ""))
+        return {"ok": True}
     if endpoint == "/export/obsidian":
         return obsidian_export.export_to_vault(body.get("documents"))
     if endpoint == "/export/zip":
@@ -1491,6 +1878,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             raise ValueError("找不到這篇論文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         paper = ws.load("paper") or {}
         meta = paper.get("meta") or {}
+        target_lang, guide = _mindmap_language_guide(meta)
         title = str(meta.get("title_zh") or meta.get("title_en") or tr("未命名論文"))[:300]
         blocks = paper.get("blocks") or []
         evidence = []
@@ -1502,29 +1890,23 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             if text:
                 evidence.append({"id": str(block.get("id") or ""), "type": block.get("type"), "page": block.get("page"), "text": text[:1800]})
         if not evidence:
-            raise ValueError("這篇論文目前沒有可供整理的內文文字。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+            raise ValueError("這篇論文目前沒有可供分析的內文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
-        cache_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
-        # POST is the explicit "產生／更新" action.  It must always invoke
-        # the model; cache lookup belongs to the GET path above.  Relying on
-        # an optional body flag made older clients silently display the old
-        # mind map when they omitted ``force``.
+        cache_key = f"mindmap:{target_lang}:" + sha256(source_hash.encode()).hexdigest()
+        # POST is the explicit "產生/重新產生" action.  It must always invoke
+        # the model; cache lookup belongs to the GET path above.
         from . import chat_models, engines, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
         meter = usage.Meter(cfg.get("engine", ""))
         source_text = json.dumps(evidence, ensure_ascii=False)[:24000]
+        branch_lines = "\n".join(f"   - {b}" for b in guide["branches"])
         prompt = (
-            "你是一位資深的學術研究導師與知識結構化專家。請依據下方提供的論文標題與內文文字，產生結構嚴謹、脈絡清晰且層級分明的 Mermaid mindmap 程式碼。\n\n"  # i18n-ok: prompt
-            "【結構與分支架構指引】\n"  # i18n-ok: prompt
-            "1. 根節點：論文核心主題或簡化標題，語法如 `  root((論文標題))`。\n"  # i18n-ok: prompt
-            "2. 主要分支（一級分支，依學術邏輯組織 5 至 7 個核心維度）：\n"  # i18n-ok: prompt
-            "   - `研究背景與問題`：研究動機、欲解決的核心問題或現有技術瓶頸。\n"  # i18n-ok: prompt
-            "   - `核心架構與理論`：整體系統或模型架構、理論基礎、核心組件模組。\n"  # i18n-ok: prompt
-            "   - `方法與關鍵機制`：演算法流程、關鍵設計、損失函數或數學表達。\n"  # i18n-ok: prompt
-            "   - `實驗設計與基準`：基準測試 (Benchmarks)、評估資料集、對照基準 (Baselines)、評估指標。\n"  # i18n-ok: prompt
-            "   - `核心發現與成果`：主要實驗結論、SOTA 對比成果、消融實驗 (Ablation) 洞察。\n"  # i18n-ok: prompt
-            "   - `研究貢獻與創新`：核心學術突破、方法創新或實務價值。\n"  # i18n-ok: prompt
-            "   - `局限性與未來方向`：方法邊界、未解決問題或改進方向（若原文未提及可精簡或略過）。\n"  # i18n-ok: prompt
+            "你是一位資深的學術架構分析專家。請根據下方提供的論文文字，為其建構一份結構清晰、資訊密度高且具備強大可讀性的「Mermaid 心智圖 (mindmap)」。\n\n"  # i18n-ok: prompt
+            f"重要語言指引：此篇論文目標語言為【{guide['name']}】。心智圖的根節點、所有一級分類分支名稱、以及二級至末端節點文字，請一律使用【{guide['name']}】輸出。\n\n"  # i18n-ok: prompt
+            "【架構與層級規範】\n"  # i18n-ok: prompt
+            f"1. 根節點：論文核心主題或簡化標題（使用目標語言），語法如 `  root((論文標題))`。\n"  # i18n-ok: prompt
+            f"2. 主要分支（一級分支，請使用目標語言表達，依學術邏輯組織 5 至 7 個核心維度）：\n"  # i18n-ok: prompt
+            f"{branch_lines}\n"
             "3. 層級深度：建議展開至 3 至 4 層；主要分支下設 2 至 4 個子分支（二級節點），末端節點（三級/四級節點）列出具體變數、數據指標、方法細節。\n\n"  # i18n-ok: prompt
             "【節點內容與視覺渲染強化】\n"  # i18n-ok: prompt
             "1. 精煉原則：節點文字必須精簡有力（建議控制在 6 至 20 個字），使用名詞短語或精要摘要，嚴禁整段複製長句。\n"  # i18n-ok: prompt
@@ -1534,9 +1916,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             "   - 關鍵突破、重要量化成果或核心結論，適當使用粗體突顯（如 `提升 **+3.4%**`、`達到 **92.1%**`、`減少 **40%** 延遲`）。\n"  # i18n-ok: prompt
             "4. 自然融入：以上格式化元素請自然融入學術脈絡中，切勿在每個節點硬性堆砌特殊符號，保持整體視覺清爽乾淨。\n\n"  # i18n-ok: prompt
             "【語言與真實性規範】\n"  # i18n-ok: prompt
-            "1. 全文一律使用繁體中文（臺灣學術慣用語，如資料集、演算法、最佳化、消融實驗）。\n"  # i18n-ok: prompt
-            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"  # i18n-ok: prompt
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。\n\n"  # i18n-ok: prompt
+            f"{guide['lang_rule']}\n\n"  # i18n-ok: prompt
             "【Mermaid 語法與輸出格式嚴格要求】\n"  # i18n-ok: prompt
             "1. 第 1 行必須為 `mindmap`。\n"  # i18n-ok: prompt
             "2. 根節點緊接其後，縮排 2 個空格。\n"  # i18n-ok: prompt
@@ -1544,6 +1924,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             '4. 標點安全：若節點文字中包含圓括號 ()、方括號 [] 或冒號等符號，請以雙引號與方括號包裹（例如 `    ["Cross-Entropy (CE) 損失"]`），防止 Mermaid 語法樹解析中斷。\n'  # i18n-ok: prompt
             "5. 絕對限制：只輸出 Mermaid 程式碼本身！不要包含 Markdown 程式碼區塊標記（不要輸出 ```mermaid 或 ```），不要包含任何引言、前言、解釋或結尾問候語。\n\n"  # i18n-ok: prompt
             f"論文標題：{title}\n"  # i18n-ok: prompt
+            f"目標語言：{guide['name']}\n"  # i18n-ok: prompt
             f"來源文字：{source_text}"  # i18n-ok: prompt
         )
         if _cancel and _cancel.is_set():
@@ -1559,8 +1940,9 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         answer = re.sub(r"\s*```.*$", "", answer, flags=re.I | re.S).strip()
         if not answer.lower().startswith("mindmap") or len(answer) > 20000 or re.search(r"<\s*/?\s*(?:script|iframe|foreignObject)|javascript:", answer, re.I):
             raise ValueError("模型未回傳安全且可辨識的 Mermaid mindmap，請重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        result = {"mermaid": answer, "title": title, "source_sha256": source_hash, "model": model.get("name", model.get("id", "")), "usage": meter.snapshot(), "generated_at": _now().isoformat(), "cached": False, "paper_id": pid}
+        result = {"mermaid": answer, "title": title, "target": target_lang, "source_sha256": source_hash, "model": model.get("name", model.get("id", "")), "usage": meter.snapshot(), "generated_at": _now().isoformat(), "cached": False, "paper_id": pid}
         planning_store.cache_put(root, cache_key, result)
+        planning_store.cache_put(root, "mindmap:" + sha256(source_hash.encode()).hexdigest(), result)
         return result
     if endpoint == "/candidate":
         work = body.get("paper") or {}

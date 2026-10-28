@@ -81,7 +81,8 @@
       img.alt = "Page " + (i + 1); img.decoding = "async";
       hl.className = "pv-hl";
       node.replaceChildren(img, hl);
-      node.addEventListener("click", (e) => pickPage(e, i + 1));
+      PR.attachPdfText?.(node, img, i + 1);
+      node.addEventListener("click", (e) => { if (!PR.pdfTextSelectionIn?.(node)) pickPage(e, i + 1); });
       node.addEventListener("mousemove", (e) => {
         const r = node.getBoundingClientRect();
         node.classList.toggle("pickable", !!blockAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, i + 1));

@@ -14,6 +14,7 @@
     ["en", PR.t("展开英文原文"), true, PR.t("段落操作条里的“原文”")],
     ["pages", PR.t("原页面板"), true, PR.t("右上角“原页”，对照 PDF 原页")],
     ["retranslate", PR.t("让模型重译一段"), false, PR.t("会花 token，容易误点，默认关；开了之后在段落的“⋯”菜单里")],
+    ["autohide_tabs", PR.t("自动隐藏多标签页"), false, PR.t("移出标签列时自动收合，鼠标移至顶部边缘时滑出，提供更开阔的阅读视野")],
   ];
   /* [id, 名字, 默认键, 分组, 依赖的功能] */
   PR.KEY_ACTIONS = [
@@ -43,7 +44,7 @@
   PR.keysOn = ui.keys_on !== false;
   PR.keymap = avoidInkKeyConflicts(Object.assign({}, DEF_KEYS, PR.ls.get("easyread-keys", {})));
 
-  PR.feature = (id) => PR.features[id] !== false;
+  PR.feature = (id) => (PR.features[id] != null ? Boolean(PR.features[id]) : Boolean(DEF_FEATURES[id]));
   const show = (k) => (!k ? "" : k === " " ? PR.t("空格") : k.length === 1 ? k.toUpperCase() : k);
   PR.keyName = show;
   PR.keyOf = (id) => (PR.keysOn ? show(PR.keymap[id]) : "");

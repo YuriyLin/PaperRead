@@ -110,6 +110,80 @@ class ObsidianExportTest(unittest.TestCase):
             self.assertIn("Research/02-心智圖/test-paper-mind-map.png", archive.namelist())
             self.assertEqual(archive.read("Research/02-心智圖/test-paper-mind-map.png"), fake_png_bytes)
 
+    def test_export_annotations_nested_subfolders_and_attachments(self):
+        import base64
+        import io
+        import zipfile
+        fake_img = b"FAKE_IMAGE_DATA"
+        fake_b64 = base64.b64encode(fake_img).decode("ascii")
+        documents = [
+            {
+                "id": "paper:p1:chat:msg1",
+                "kind": "annotations",
+                "paper_id": "p1",
+                "title": "單則回答標題",
+                "filename": "SingleAnswer",
+                "subfolder": "SamplePaper/單則回答",
+                "body": "## AI 回答\n\n![附圖](assets/fig1.png)",
+                "attachments": [
+                    {"filename": "assets/fig1.png", "content_base64": fake_b64}
+                ],
+            },
+            {
+                "id": "paper:p1:notes",
+                "kind": "annotations",
+                "paper_id": "p1",
+                "title": "我的筆記",
+                "filename": "MyNotes",
+                "subfolder": "SamplePaper/我的筆記",
+                "body": "## 筆記內容",
+            },
+            {
+                "id": "paper:p1:highlights",
+                "kind": "annotations",
+                "paper_id": "p1",
+                "title": "我的劃線",
+                "filename": "MyHighlights",
+                "subfolder": "SamplePaper/我的劃線",
+                "body": "## 劃線內容",
+            },
+            {
+                "id": "paper:p1:chat_all",
+                "kind": "annotations",
+                "paper_id": "p1",
+                "title": "所有AI問答",
+                "filename": "AllAiQa",
+                "subfolder": "SamplePaper/所有AI問答",
+                "body": "## 所有問答",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with mock.patch.object(obsidian_export, "vault_path", lambda: root):
+                result = obsidian_export.export_to_vault(documents)
+                zip_res = obsidian_export.export_zip(documents)
+            self.assertEqual(len(result["written"]), 4)
+            ans_file = root / "Research" / "03-閱讀標註" / "SamplePaper" / "單則回答" / "SingleAnswer.md"
+            att_file = root / "Research" / "03-閱讀標註" / "SamplePaper" / "單則回答" / "assets" / "fig1.png"
+            notes_file = root / "Research" / "03-閱讀標註" / "SamplePaper" / "我的筆記" / "MyNotes.md"
+            hl_file = root / "Research" / "03-閱讀標註" / "SamplePaper" / "我的劃線" / "MyHighlights.md"
+            all_file = root / "Research" / "03-閱讀標註" / "SamplePaper" / "所有AI問答" / "AllAiQa.md"
+
+            self.assertTrue(ans_file.is_file())
+            self.assertTrue(att_file.is_file())
+            self.assertEqual(att_file.read_bytes(), fake_img)
+            self.assertTrue(notes_file.is_file())
+            self.assertTrue(hl_file.is_file())
+            self.assertTrue(all_file.is_file())
+
+            archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(zip_res["content_base64"])))
+            self.assertIn("Research/03-閱讀標註/SamplePaper/單則回答/SingleAnswer.md", archive.namelist())
+            self.assertIn("Research/03-閱讀標註/SamplePaper/單則回答/assets/fig1.png", archive.namelist())
+            self.assertEqual(archive.read("Research/03-閱讀標註/SamplePaper/單則回答/assets/fig1.png"), fake_img)
+            self.assertIn("Research/03-閱讀標註/SamplePaper/我的筆記/MyNotes.md", archive.namelist())
+            self.assertIn("Research/03-閱讀標註/SamplePaper/我的劃線/MyHighlights.md", archive.namelist())
+            self.assertIn("Research/03-閱讀標註/SamplePaper/所有AI問答/AllAiQa.md", archive.namelist())
+
 
 if __name__ == "__main__":
     unittest.main()

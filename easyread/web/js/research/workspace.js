@@ -11,7 +11,7 @@
     pathConfigOpen: false, pathRetryRequest: null, pathView: typeof window.matchMedia === "function" && window.matchMedia("(max-width: 700px)").matches ? "list" : "map", pathShowSequence: true, pathShowRelations: false,
     pathRelations: [], pathRelationError: "", pathRelationsLoading: false, pathSelectedKey: "", pathMapView: { scale: 1, panX: 0, panY: 0 }, pathSaveError: "", pathLatestLoaded: false, pathIncomingStart: null,
     compareDimensions: new Set(["研究問題", "核心方法", "資料集", "評估指標", "限制"]), // i18n-ok: 比較維度是送給後端的固定識別值。
-    compareCustomDimension: "", compareFocus: "", comparePickerOpen: false, comparePickerCategory: "", comparePickerExpanded: false, quickPeekTaskId: "", quickPeekRecords: {} };
+    compareCustomDimension: "", compareFocus: "", comparePickerOpen: false, comparePickerCategory: "", comparePickerExpanded: false, quickPeekTaskId: "", quickPeekRecords: {}, keywords: [], keywordSelected: new Set(), keywordMode: "all", keywordManual: false, keywordArchived: false, keywordQuery: "", keywordMatches: [] };
   const RESEARCH_API = "/api/research/v1";
   const esc = PR.esc;
   const titleHtml = (value, fallback = "") => PR.titleHtml ? PR.titleHtml(value || fallback) : esc(value || fallback);
@@ -157,7 +157,8 @@
       const lib = await PR.api("/api/library");
       PR.token = lib.token;
       const data = await PR.api(API);
-      Object.assign(S, { items: normalizeItems(data.items), saved: data.saved || [], candidates: data.candidates || [], summaries: data.summaries || [], statuses: (data.statuses || []).filter((x) => x.id !== "paused"), categories: data.categories || [] });
+      const keywordData = await PR.api(API + "/keywords");
+      Object.assign(S, { items: normalizeItems(data.items), saved: data.saved || [], candidates: data.candidates || [], summaries: data.summaries || [], statuses: (data.statuses || []).filter((x) => x.id !== "paused"), categories: data.categories || [], keywords: keywordData.keywords || [] });
       if (S.tab === "path") {
         await loadLatestPath();
         const retryId = new URLSearchParams(location.search).get("retry_task");
@@ -219,7 +220,7 @@
     $("[data-count='summaries']").textContent = S.summaries.length || "";
   }
   function renderActive() {
-    ({ explore: renderExplore, candidates: renderCandidates, summaries: renderSummaries, comparisons: renderComparisons, board: renderBoard, path: renderPath }[S.tab] || renderExplore)();
+    ({ explore: renderExplore, candidates: renderCandidates, summaries: renderSummaries, comparisons: renderComparisons, keywords: renderKeywords, board: renderBoard, path: renderPath }[S.tab] || renderExplore)();
     renderTitleNodes();
     $("[data-count='active']").textContent = allTasks().filter((i) => i.status !== "done").length || "";
     $("[data-count='candidates']").textContent = S.candidates.length || "";
@@ -233,7 +234,197 @@
     if (tab === "path" && !S.pathLatestLoaded) loadLatestPath().finally(renderActive);
     else renderActive();
     if (tab === "comparisons") refreshComparisons();
+    if (tab === "keywords") loadKeywords();
   }
+  const KW_BUSY = ["queued", "running", "cancelling"];
+  const kwSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const kwUid = (prefix) => prefix + "-" + (window.crypto && crypto.randomUUID ? crypto.randomUUID().slice(0, 12) : Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  async function loadKeywords(startScan = true) {
+    const [keywords] = await Promise.all([PR.api(API + "/keywords" + (S.keywordArchived ? "?archived=1" : ""))]);
+    S.keywords = keywords.keywords || []; S.keywordNoText = keywords.no_text || [];
+    const active = new Set(S.keywords.map((k) => k.id));
+    S.keywordSelected = new Set([...S.keywordSelected].filter((id) => active.has(id)));
+    if (!S.keywordArchived && S.keywordSelected.size) await loadKeywordMatches();
+    else S.keywordMatches = [];
+    renderKeywords();
+    if (startScan && !(S.keywordScan?.task && KW_BUSY.includes(S.keywordScan.task.state))) startKeywordScan();
+  }
+  async function loadKeywordMatches() {
+    const ids = [...S.keywordSelected];
+    if (!ids.length) { S.keywordMatches = []; return; }
+    const qs = new URLSearchParams({ ids: ids.join(","), mode: S.keywordMode, manual: S.keywordManual ? "1" : "0" });
+    S.keywordMatches = (await PR.api(API + "/keywords/matches?" + qs)).matches || [];
+  }
+  function keywordScanHtml() {
+    const scan = S.keywordScan || {}, task = scan.task;
+    const retry = ' <button class="btn sm line" data-action="keyword-scan">' + PR.t("重試") + "</button>";
+    if (scan.error) return esc(scan.error) + retry;
+    if (!task) return "";
+    if (KW_BUSY.includes(task.state)) return PR.t("原文比對中… {done}/{total}", { done: task.done || 0, total: task.total || 0 }) + ' <button class="btn sm line" data-action="keyword-scan-cancel">' + PR.t("取消") + "</button>";
+    if (task.state === "completed") return PR.t("原文比對完成");
+    return esc(task.state === "cancelled" ? PR.t("原文比對已取消") : (task.message || PR.t("原文比對失敗"))) + retry;
+  }
+  function updateKeywordScanStatus() { const el = $("[data-kw-scan-status]"); if (el) el.innerHTML = keywordScanHtml(); }
+  async function startKeywordScan(keywordId = "") {
+    try {
+      S.keywordScan = { task: (await PR.api(API + "/keywords/scan/tasks", { method: "POST", body: keywordId ? { keyword_id: keywordId } : {} })).task, error: "" };
+    } catch (error) { S.keywordScan = { task: null, error: error.message }; }
+    updateKeywordScanStatus();
+    pollKeywordScan();
+  }
+  async function pollKeywordScan() {
+    if (S.keywordPolling) return;
+    S.keywordPolling = true;
+    try {
+      while (S.keywordScan?.task && KW_BUSY.includes(S.keywordScan.task.state)) {
+        await kwSleep(900);
+        const res = await PR.api(API + "/keywords/scan/tasks/" + encodeURIComponent(S.keywordScan.task.id));
+        if (!res.task) { S.keywordScan = { task: null, error: "" }; break; }
+        S.keywordScan.task = res.task; updateKeywordScanStatus();
+      }
+    } catch (error) { S.keywordScan = { task: S.keywordScan?.task || null, error: error.message }; }
+    finally { S.keywordPolling = false; }
+    if (S.keywordScan?.task?.state === "completed") { try { await loadKeywords(false); } catch (error) { /* keep the previous list */ } }
+    updateKeywordScanStatus();
+  }
+  function applyKeywordSearch() {
+    const input = $("[data-keyword-search]"); if (!input) return;
+    const q = input.value.trim().toLowerCase();
+    $$(".rw-keyword-item").forEach((row) => { row.hidden = !!q && !String(row.dataset.kwText || "").includes(q); });
+  }
+  function highlightMatch(text, term) {
+    if (!text) return "";
+    if (!term || !term.trim()) return esc(text);
+    const escaped = term.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp("(" + escaped + ")", "gi");
+    const parts = text.split(regex);
+    return parts.map((p, idx) => idx % 2 === 1 ? '<mark class="rw-kw-mark">' + esc(p) + "</mark>" : esc(p)).join("");
+  }
+  function renderKeywords() {
+    const host = $("[data-view='keywords']"); if (!host) return;
+    const selected = S.keywordSelected;
+    const rows = S.keywords.map((k) => {
+      const archived = Number(k.archived) === 1;
+      const id = escAttr(k.id);
+      return '<div class="rw-keyword-item" data-kw-text="' + escAttr((k.name + " " + k.match_text).toLowerCase()) + '">' +
+        '<label class="rw-keyword-row">' +
+          '<input type="checkbox" data-keyword-id="' + id + '"' + (selected.has(k.id) ? " checked" : "") + ">" +
+          "<span><b>" + esc(k.name) + "</b><small>" + esc(k.match_text) + " · " + PR.t("{n} 篇論文", { n: k.papers || 0 }) + (archived ? " · " + PR.t("已封存") : "") + "</small></span>" +
+        "</label>" +
+        '<div class="rw-keyword-actions">' +
+          (archived
+            ? '<button class="btn sm line" data-action="keyword-restore" data-keyword-id="' + id + '">' + PR.t("恢復") + "</button>" +
+              '<button class="btn sm line danger" data-action="keyword-delete" data-keyword-id="' + id + '">' + PR.t("移除") + "</button>"
+            : '<button class="btn sm line" data-action="keyword-edit" data-keyword-id="' + id + '">' + PR.t("編輯") + "</button>" +
+              '<button class="btn sm line" data-action="keyword-archive" data-keyword-id="' + id + '">' + PR.t("封存") + "</button>" +
+              '<button class="btn sm line danger" data-action="keyword-delete" data-keyword-id="' + id + '">' + PR.t("移除") + "</button>") +
+        "</div>" +
+      "</div>";
+    }).join("") || '<p class="rw-empty">' + PR.t("尚未收集關鍵字。可在閱讀器反白文字或從術語表加入。") + "</p>";
+
+    const batchBar = selected.size > 0
+      ? '<div class="rw-kw-batch-bar">' +
+          '<span class="rw-kw-batch-count">' + PR.t("已選取 {n} 項", { n: selected.size }) + "</span>" +
+          '<div class="rw-kw-batch-btns">' +
+            (S.keywordArchived
+              ? '<button class="btn sm line" data-action="keyword-batch-restore">' + PR.t("批次恢復") + "</button>"
+              : '<button class="btn sm line" data-action="keyword-batch-archive">' + PR.t("批次封存") + "</button>") +
+            '<button class="btn sm line danger" data-action="keyword-batch-delete">' + PR.t("批次移除") + "</button>" +
+            '<button class="btn sm line" data-action="keyword-select-none">' + PR.t("取消全選") + "</button>" +
+          "</div>" +
+        "</div>"
+      : (S.keywords.length > 0
+          ? '<div class="rw-kw-batch-bar empty">' +
+              '<span class="rw-kw-batch-count">' + PR.t("共 {n} 個關鍵字", { n: S.keywords.length }) + "</span>" +
+              '<button class="btn sm line" data-action="keyword-select-all">' + PR.t("全選") + "</button>" +
+            "</div>"
+          : "");
+
+    const matches = S.keywordMatches.map((m) => {
+      const pid = escAttr(m.paper_id);
+      const links = m.links || [];
+      const kwCounts = {};
+      links.forEach((l) => { kwCounts[l.name] = (kwCounts[l.name] || 0) + (l.occurrences || 1); });
+      const pills = Object.entries(kwCounts).map(([kname, count]) =>
+        '<span class="rw-kw-pill"><b>' + esc(kname) + "</b><small>" + PR.t("{n} 處", { n: count }) + "</small></span>"
+      ).join("");
+
+      const excerpts = links.map((l) => {
+        const isAuto = l.source === "auto";
+        const anchor = l.anchor ? "b-" + escAttr(l.anchor) : "";
+        const pageInfo = l.page ? '<span class="rw-kw-page">' + PR.t("第 {page} 頁", { page: l.page }) + "</span>" : "";
+        return '<div class="rw-kw-excerpt-card">' +
+          '<div class="rw-kw-excerpt-meta">' +
+            '<span class="rw-kw-tag">' + esc(l.name) + "</span>" +
+            '<span class="rw-kw-source-type ' + escAttr(l.source) + '">' + (isAuto ? PR.t("自動比對") : PR.t("手動收錄")) + "</span>" +
+            pageInfo +
+          "</div>" +
+          '<blockquote class="rw-kw-quote">' +
+            highlightMatch(l.quote || PR.t("原文命中"), l.match_text) +
+          "</blockquote>" +
+          '<div class="rw-kw-excerpt-actions">' +
+            '<a class="btn sm accent" href="/read/' + pid + (anchor ? "#" + anchor : "") + '">' +
+              PR.t("開啟論文並定位到此段") + " ↗" +
+            "</a>" +
+          "</div>" +
+        "</div>";
+      }).join("");
+
+      return '<article class="rw-card rw-kw-paper-card">' +
+        '<div class="rw-kw-paper-head">' +
+          '<h3><a href="/read/' + pid + '">' + titleHtml(m.title) + "</a></h3>" +
+          '<div class="rw-kw-paper-stats">' +
+            '<span class="rw-kw-total-badge">' + PR.t("共 {n} 處命中", { n: m.occurrences || links.length }) + "</span>" +
+          "</div>" +
+        "</div>" +
+        (pills ? '<div class="rw-kw-pills">' + pills + "</div>" : "") +
+        '<div class="rw-kw-excerpts-list">' + excerpts + "</div>" +
+      "</article>";
+    }).join("");
+
+    host.innerHTML =
+      '<div class="rw-section-head">' +
+        "<div>" +
+          "<h2>" + PR.t("跨論文關鍵字搜尋") + "</h2>" +
+          '<p class="muted">' + PR.t("在全篇文獻庫中檢索關鍵字出現的段落，直接定位原文脈絡（僅限經 AI 翻譯整理內文後之論文方可比對檢索）。") + "</p>" +
+        "</div>" +
+      "</div>" +
+      '<div class="rw-kw-layout">' +
+        '<aside class="rw-kw-sidebar">' +
+          '<div class="rw-panel rw-kw-box">' +
+            '<div class="rw-kw-box-title">' + PR.t("關鍵字清單") + "</div>" +
+            '<div class="rw-kw-add-row">' +
+              '<input class="input" id="rw-kw-add-name" placeholder="' + escAttr(PR.t("關鍵字名稱")) + '" maxlength="120">' +
+              '<input class="input" id="rw-kw-add-match" placeholder="' + escAttr(PR.t("原文比對詞")) + '" maxlength="180">' +
+              '<button class="btn sm line" data-action="keyword-create">' + PR.t("新增") + "</button>" +
+            "</div>" +
+            '<div class="rw-toolbar" style="margin-top:10px">' +
+              '<button class="btn sm ' + (S.keywordMode === "all" ? "accent" : "line") + '" data-action="keyword-mode" data-kw-mode="all">' + PR.t("符合全部") + "</button>" +
+              '<button class="btn sm ' + (S.keywordMode === "any" ? "accent" : "line") + '" data-action="keyword-mode" data-kw-mode="any">' + PR.t("符合任一") + "</button>" +
+              '<label class="rw-check"><input type="checkbox" data-keyword-manual' + (S.keywordManual ? " checked" : "") + ">" + PR.t("僅使用者收錄") + "</label>" +
+              '<label class="rw-check"><input type="checkbox" data-keyword-archived' + (S.keywordArchived ? " checked" : "") + ">" + PR.t("顯示已封存") + "</label>" +
+            "</div>" +
+            '<div class="rw-toolbar" style="margin-top:8px">' +
+              '<input class="rw-search" type="search" data-keyword-search placeholder="' + escAttr(PR.t("搜尋關鍵字…")) + '" aria-label="' + escAttr(PR.t("搜尋關鍵字")) + '" value="' + escAttr(S.keywordQuery || "") + '">' +
+              '<span class="rw-source" data-kw-scan-status aria-live="polite">' + keywordScanHtml() + "</span>" +
+            "</div>" +
+            batchBar +
+            '<div class="rw-kw-list">' + rows + "</div>" +
+          "</div>" +
+        "</aside>" +
+        '<main class="rw-kw-main">' +
+          (S.keywordArchived
+            ? '<div class="rw-empty rw-kw-empty-prompt">' + PR.t("目前顯示已封存的關鍵字。可勾選項目進行「批次恢復」或「批次移除」。") + "</div>"
+            : (selected.size
+                ? (matches
+                    ? '<div class="rw-kw-results-banner">' + PR.t("共找到 {n} 篇論文符合搜尋條件", { n: S.keywordMatches.length }) + '</div><div class="rw-kw-results">' + matches + "</div>"
+                    : '<div class="rw-empty">' + PR.t("找不到符合目前條件的論文。可切換為「符合任一」或取消「僅使用者收錄」。") + "</div>")
+                : '<div class="rw-empty rw-kw-empty-prompt">' + PR.t("請在左側勾選關鍵字以搜尋文獻庫論文。") + "</div>")) +
+        "</main>" +
+      "</div>";
+    applyKeywordSearch();
+  }
+  document.addEventListener("input", (event) => { const field = event.target.closest && event.target.closest("[data-keyword-search]"); if (field) { S.keywordQuery = field.value; applyKeywordSearch(); } });
   function renderExplore() {
     const host = $("[data-view='explore']");
     const relationHero = renderRelationHero();
@@ -714,14 +905,14 @@
             mergeResults(result.results || [], provider.name);
             S.resultCount = S.results.length;
             S.checkedAt = result.checked_at || S.checkedAt;
-            if (result.warning) S.providerErrors.push(provider.name + "：" + result.warning); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+            if (result.warning) S.providerErrors.push(provider.name + "：" + result.warning); /* i18n-dom: shared DOM translator localizes rendered UI text. */ // i18n-ok: punctuation separator.
             renderExplore();
             return { ok: true, result };
           } catch (error) {
             if (requestId !== S.searchRequestId) return { ok: false };
             S.providerStatus[provider.name] = "failed";
             S.providerHasMore[provider.name] = false;
-            S.providerErrors.push(provider.name + "：" + error.message); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+            S.providerErrors.push(provider.name + "：" + error.message); /* i18n-dom: shared DOM translator localizes rendered UI text. */ // i18n-ok: punctuation separator.
             renderExplore();
             return { ok: false, error };
           }
@@ -882,6 +1073,7 @@
     const save = $("[data-modal-save]", modal);
     if (save) save.onclick = async () => { try { await onSave(modal); modal.hidden = true; } catch (e) { PR.toast(esc(e.message)); } };
     modal.onclick = (e) => { if (options.dismissOnBackdrop !== false && e.target === modal) modal.hidden = true; };
+    return modal;
   }
   function queueModal(work) {
     const cats = S.categories.map((c) => '<label class="rw-category-option"><input type="checkbox" name="q-category" value="' + escAttr(c) + '"><span>' + esc(c) + '</span></label>').join("");
@@ -1199,7 +1391,7 @@
     });
     if (e.target.id === "rw-quick-peek-scrim") { closeQuickPeek(); return; }
     const tab = e.target.closest("[data-tab]"); if (tab) return switchTab(tab.dataset.tab);
-    const mode = e.target.closest("[data-mode]"); if (mode) { rememberExploreInputs(); S.mode = mode.dataset.mode; S.error = ""; S.stale = false; S.warning = ""; S.results = []; S.authors = []; return renderExplore(); }
+    const mode = e.target.closest(".rw-mode [data-mode]"); if (mode) { rememberExploreInputs(); S.mode = mode.dataset.mode; S.error = ""; S.stale = false; S.warning = ""; S.results = []; S.authors = []; return renderExplore(); }
     const rewrite = e.target.closest("[data-rewrite-accept]"); if (rewrite) {
       const value = S.rewriteSuggestions?.[Number(rewrite.dataset.rewriteAccept)];
       if (typeof value === "string" && value.trim()) {
@@ -1215,6 +1407,61 @@
     const b = e.target.closest("[data-action]"); if (!b) return;
     try {
       switch (b.dataset.action) {
+        case "keyword-mode": S.keywordMode = b.dataset.kwMode || (b.dataset.mode === "any" ? "any" : "all"); await loadKeywordMatches(); return renderKeywords();
+        case "keyword-archive": await PR.api(API + "/keywords/archive", { method: "POST", body: { keyword_id: b.dataset.keywordId, archived: true } }); S.keywordSelected.delete(b.dataset.keywordId); return loadKeywords(false);
+        case "keyword-restore": await PR.api(API + "/keywords/archive", { method: "POST", body: { keyword_id: b.dataset.keywordId, archived: false } }); return loadKeywords(false);
+        case "keyword-delete": {
+          if (!window.confirm(PR.t("確定要永久移除此關鍵字嗎？相關的比對關聯也會一併清除。"))) return;
+          await PR.api(API + "/keywords/delete", { method: "POST", body: { keyword_id: b.dataset.keywordId } });
+          S.keywordSelected.delete(b.dataset.keywordId); return loadKeywords(false);
+        }
+        case "keyword-batch-archive": {
+          if (!S.keywordSelected.size) return;
+          await PR.api(API + "/keywords/archive", { method: "POST", body: { keyword_ids: [...S.keywordSelected], archived: true } });
+          S.keywordSelected.clear(); return loadKeywords(false);
+        }
+        case "keyword-batch-restore": {
+          if (!S.keywordSelected.size) return;
+          await PR.api(API + "/keywords/archive", { method: "POST", body: { keyword_ids: [...S.keywordSelected], archived: false } });
+          S.keywordSelected.clear(); return loadKeywords(false);
+        }
+        case "keyword-batch-delete": {
+          if (!S.keywordSelected.size) return;
+          if (!window.confirm(PR.t("確定要永久移除選取的 {n} 個關鍵字嗎？相關比對關聯也會一併清除。", { n: S.keywordSelected.size }))) return;
+          await PR.api(API + "/keywords/delete", { method: "POST", body: { keyword_ids: [...S.keywordSelected] } });
+          S.keywordSelected.clear(); return loadKeywords(false);
+        }
+        case "keyword-select-all": {
+          $$(".rw-keyword-item:not([hidden]) [data-keyword-id]").forEach((cb) => S.keywordSelected.add(cb.dataset.keywordId));
+          if (!S.keywordArchived) await loadKeywordMatches();
+          return renderKeywords();
+        }
+        case "keyword-select-none": {
+          S.keywordSelected.clear();
+          if (!S.keywordArchived) await loadKeywordMatches();
+          return renderKeywords();
+        }
+        case "keyword-edit": {
+          const current = S.keywords.find((k) => k.id === b.dataset.keywordId); if (!current) return;
+          const name = window.prompt(PR.t("關鍵字名稱"), current.name); if (!name || !name.trim()) return;
+          const match = window.prompt(PR.t("原文比對詞"), current.match_text); if (!match || !match.trim()) return;
+          const res = await PR.api(API + "/keywords/update", { method: "POST", body: { keyword_id: current.id, name: name.trim(), match_text: match.trim() } });
+          await loadKeywords(false); if (res.scan_needed) startKeywordScan(current.id); return;
+        }
+        case "keyword-create": {
+          const nameIn = $("#rw-kw-add-name");
+          const matchIn = $("#rw-kw-add-match");
+          const name = nameIn?.value.trim(), match = matchIn?.value.trim();
+          if (!name || !match) return PR.toast(PR.t("請填寫關鍵字名稱與原文比對詞"));
+          const res = await PR.api(API + "/keywords", { method: "POST", body: { name, match_text: match } });
+          nameIn.value = ""; matchIn.value = "";
+          S.keywordSelected.add(res.keyword.id);
+          await loadKeywords(false);
+          if (res.scan_needed) startKeywordScan(res.keyword.id);
+          return;
+        }
+        case "keyword-scan": return startKeywordScan();
+        case "keyword-scan-cancel": { const id = S.keywordScan?.task?.id; if (id) { const r = await PR.api(API + "/keywords/scan/tasks/" + encodeURIComponent(id) + "/cancel", { method: "POST", body: {} }); S.keywordScan.task = r.task; updateKeywordScanStatus(); } return; }
         case "quick-peek-close": closeQuickPeek(); return;
         case "quick-peek-previous": return quickPeekAdjacent(-1);
         case "quick-peek-next": return quickPeekAdjacent(1);
@@ -1473,6 +1720,12 @@
     const c = e.target;
     if (["rw-query", "rw-venue-query", "rw-year-from", "rw-year-to", "rw-sort"].includes(c.id)) rememberExploreInputs();
     if (c.id === "rw-oa") S.onlyOA = c.checked;
+    if (c.matches("[data-keyword-id]")) {
+      c.checked ? S.keywordSelected.add(c.dataset.keywordId) : S.keywordSelected.delete(c.dataset.keywordId);
+      await loadKeywordMatches(); return renderKeywords();
+    }
+    if (c.matches("[data-keyword-archived]")) { S.keywordArchived = c.checked; return loadKeywords(false); }
+    if (c.matches("[data-keyword-manual]")) { S.keywordManual = c.checked; await loadKeywordMatches(); return renderKeywords(); }
     if (c.matches("[data-select-work]")) { c.checked ? S.checked.add(c.dataset.selectWork) : S.checked.delete(c.dataset.selectWork); return; }
     if (c.matches("[data-compare-dimension]")) {
       c.checked ? S.compareDimensions.add(c.dataset.compareDimension) : S.compareDimensions.delete(c.dataset.compareDimension);
@@ -1556,6 +1809,7 @@
   if (searchParams.get("mode") === "path") S.tab = "path";
   if (searchParams.get("mode") === "candidates") S.tab = "candidates";
   if (searchParams.get("mode") === "comparisons") S.tab = "comparisons";
+  if (searchParams.get("mode") === "keywords") { S.tab = "keywords"; S.keywordSelected = new Set((searchParams.get("ids") || "").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 50)); }
   if (searchParams.get("mode") === "relation") {
     S.tab = "explore";
     const work = searchParams.get("work") || searchParams.get("id") || "";

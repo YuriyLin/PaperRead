@@ -84,7 +84,29 @@ def _connect(root: Path):
       CREATE TABLE IF NOT EXISTS reminder_claims (
         event_key TEXT PRIMARY KEY, claimed_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS keywords (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, match_text TEXT NOT NULL,
+        archived INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL, updated TEXT NOT NULL,
+        UNIQUE(name)
+      );
+      CREATE TABLE IF NOT EXISTS keyword_links (
+        id TEXT PRIMARY KEY, keyword_id TEXT NOT NULL, paper_id TEXT NOT NULL,
+        source TEXT NOT NULL, anchor TEXT NOT NULL DEFAULT '', page INTEGER,
+        quote TEXT NOT NULL DEFAULT '', occurrences INTEGER NOT NULL DEFAULT 0,
+        excluded INTEGER NOT NULL DEFAULT 0, source_hash TEXT NOT NULL DEFAULT '', created TEXT NOT NULL, updated TEXT NOT NULL,
+        UNIQUE(keyword_id, paper_id, source, anchor, quote)
+      );
+      CREATE TABLE IF NOT EXISTS keyword_scans (
+        keyword_id TEXT NOT NULL, paper_id TEXT NOT NULL, source_hash TEXT NOT NULL, updated TEXT NOT NULL,
+        PRIMARY KEY(keyword_id, paper_id)
+      );
+      CREATE TABLE IF NOT EXISTS keyword_exclusions (
+        keyword_id TEXT NOT NULL, paper_id TEXT NOT NULL, created TEXT NOT NULL,
+        PRIMARY KEY(keyword_id, paper_id)
+      );
     """)
+    if "locator" not in {r[1] for r in db.execute("PRAGMA table_info(keyword_links)")}:
+        db.execute("ALTER TABLE keyword_links ADD COLUMN locator TEXT NOT NULL DEFAULT ''")
     columns = {r[1] for r in db.execute("PRAGMA table_info(saved_papers)")}
     if "manual_order" not in columns:
         db.execute("ALTER TABLE saved_papers ADD COLUMN manual_order INTEGER NOT NULL DEFAULT 0")
@@ -126,6 +148,171 @@ def init(root: Path) -> dict:
                 "saved": [_saved(r) for r in db.execute("SELECT * FROM saved_papers ORDER BY updated DESC")],
                 "milestones": [_milestone(r) for r in db.execute("SELECT * FROM milestones ORDER BY start_date")],
                 "follows": [_follow(r) for r in db.execute("SELECT * FROM follows ORDER BY created DESC")]}
+
+
+def _keyword_key(value: str) -> str:
+    import unicodedata
+    return " ".join(unicodedata.normalize("NFKC", str(value or "")).casefold().split())
+
+
+# Auto matches hidden by an explicit per-paper exclusion survive any rescan.
+_VISIBLE_LINK = ("l.excluded=0 AND NOT (l.source='auto' AND EXISTS("
+                 "SELECT 1 FROM keyword_exclusions e WHERE e.keyword_id=l.keyword_id AND e.paper_id=l.paper_id))")
+
+
+def keyword_upsert(root: Path, name: str, match_text: str, *, replace_match: bool = False) -> dict:
+    """Create a keyword or return the existing one with the same normalized name.
+
+    A different match text for an existing name is a conflict unless replace_match is set.
+    """
+    name, match_text = str(name).strip()[:120], str(match_text).strip()[:180]
+    if not name or not match_text:
+        raise ValueError(tr("請填寫關鍵字名稱與原文比對詞"))
+    now = _now()
+    with _db(root) as db:
+        row = next((r for r in db.execute("SELECT * FROM keywords") if _keyword_key(r["name"]) == _keyword_key(name)), None)
+        if row:
+            if _keyword_key(row["match_text"]) != _keyword_key(match_text):
+                if not replace_match:
+                    raise ValueError(tr("已有同名關鍵字，但原文比對詞不同"))
+                db.execute("UPDATE keywords SET match_text=?, updated=? WHERE id=?", (match_text, now, row["id"]))
+            if row["archived"]:
+                db.execute("UPDATE keywords SET archived=0, updated=? WHERE id=?", (now, row["id"]))
+            kid = row["id"]
+        else:
+            kid = uuid4().hex
+            db.execute("INSERT INTO keywords(id,name,match_text,created,updated) VALUES(?,?,?,?,?)", (kid, name, match_text, now, now))
+        db.commit()
+        return dict(db.execute("SELECT * FROM keywords WHERE id=?", (kid,)).fetchone())
+
+
+def keyword_update(root: Path, keyword_id: str, name: str, match_text: str) -> tuple[dict, bool]:
+    """Rename a keyword and/or change its match text. Returns (keyword, match_text_changed)."""
+    name, match_text = str(name).strip()[:120], str(match_text).strip()[:180]
+    if not name or not match_text:
+        raise ValueError(tr("請填寫關鍵字名稱與原文比對詞"))
+    with _db(root) as db:
+        row = db.execute("SELECT * FROM keywords WHERE id=?", (keyword_id,)).fetchone()
+        if not row:
+            raise ValueError(tr("找不到關鍵字"))
+        if any(r["id"] != keyword_id and _keyword_key(r["name"]) == _keyword_key(name) for r in db.execute("SELECT id,name FROM keywords")):
+            raise ValueError(tr("已有同名關鍵字"))
+        changed = _keyword_key(row["match_text"]) != _keyword_key(match_text)
+        db.execute("UPDATE keywords SET name=?, match_text=?, updated=? WHERE id=?", (name, match_text, _now(), keyword_id))
+        db.commit()
+        return dict(db.execute("SELECT * FROM keywords WHERE id=?", (keyword_id,)).fetchone()), changed
+
+
+def keyword_list(root: Path, include_archived: bool = False) -> list[dict]:
+    with _db(root) as db:
+        rows = db.execute(f"SELECT k.*, COUNT(DISTINCT CASE WHEN {_VISIBLE_LINK} THEN l.paper_id END) papers FROM keywords k LEFT JOIN keyword_links l ON l.keyword_id=k.id WHERE (? OR k.archived=0) GROUP BY k.id ORDER BY k.updated DESC", (int(include_archived),)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def keyword_link(root: Path, keyword_id: str, paper_id: str, *, source: str, anchor: str = "", page=None, quote: str = "", occurrences: int = 0, source_hash: str = "", locator: dict | None = None) -> None:
+    now = _now()
+    locator = locator if isinstance(locator, dict) else {}
+    # Reader locating hints only (side + surrounding context); never a second copy of the paper text.
+    clean = {"side": locator.get("side") if locator.get("side") in ("en", "zh") else "",
+             "prefix": str(locator.get("prefix") or "")[:120], "suffix": str(locator.get("suffix") or "")[:120]}
+    locator_json = json.dumps(clean, ensure_ascii=False) if any(clean.values()) else ""
+    with _db(root) as db:
+        db.execute("INSERT INTO keyword_links(id,keyword_id,paper_id,source,anchor,page,quote,occurrences,source_hash,locator,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(keyword_id,paper_id,source,anchor,quote) DO UPDATE SET occurrences=excluded.occurrences, source_hash=excluded.source_hash, updated=excluded.updated", (uuid4().hex, keyword_id, paper_id, source, anchor[:200], page, quote[:600], max(0, int(occurrences)), source_hash[:80], locator_json, now, now))
+        db.commit()
+
+
+def keyword_scan_state(root: Path, keyword_id: str, paper_id: str) -> tuple[str, int]:
+    """(source hash of the last scan, number of stored auto matches) for one keyword/paper pair."""
+    with _db(root) as db:
+        row = db.execute("SELECT source_hash FROM keyword_scans WHERE keyword_id=? AND paper_id=?", (keyword_id, paper_id)).fetchone()
+        count = db.execute("SELECT COUNT(*) FROM keyword_links WHERE keyword_id=? AND paper_id=? AND source='auto'", (keyword_id, paper_id)).fetchone()[0]
+        return (row["source_hash"] if row else ""), int(count)
+
+
+def keyword_replace_auto(root: Path, keyword_id: str, paper_id: str, hits: list[dict], source_hash: str = "") -> None:
+    """Atomically replace one paper's auto matches for a keyword; other papers and manual links are untouched."""
+    now = _now()
+    with _db(root) as db:
+        db.execute("DELETE FROM keyword_links WHERE keyword_id=? AND paper_id=? AND source='auto'", (keyword_id, paper_id))
+        for hit in hits:
+            db.execute("INSERT OR REPLACE INTO keyword_links(id,keyword_id,paper_id,source,anchor,page,quote,occurrences,source_hash,created,updated) VALUES(?,?,?,'auto',?,?,?,?,?,?,?)",
+                       (uuid4().hex, keyword_id, paper_id, str(hit.get("anchor") or "")[:200], hit.get("page"), str(hit.get("quote") or "")[:600], max(0, int(hit.get("occurrences") or 0)), source_hash[:80], now, now))
+        db.execute("INSERT OR REPLACE INTO keyword_scans(keyword_id,paper_id,source_hash,updated) VALUES(?,?,?,?)", (keyword_id, paper_id, source_hash[:80], now))
+        db.commit()
+
+
+def keyword_unlink(root: Path, keyword_id: str, paper_id: str) -> dict:
+    """Remove only the user-collected links between one keyword and one paper.
+
+    The keyword, other papers' links and any automatic match stay; auto_remaining tells the UI
+    whether the paper still appears through an automatic match (use the exclusion for that).
+    """
+    with _db(root) as db:
+        removed = db.execute("DELETE FROM keyword_links WHERE keyword_id=? AND paper_id=? AND source='manual'", (keyword_id, paper_id)).rowcount
+        remaining = db.execute(f"SELECT COUNT(*) FROM keyword_links l WHERE l.keyword_id=? AND l.paper_id=? AND l.source='auto' AND {_VISIBLE_LINK}", (keyword_id, paper_id)).fetchone()[0]
+        db.commit()
+        return {"removed": int(removed), "auto_remaining": int(remaining)}
+
+
+def keyword_matches(root: Path, keyword_ids: list[str], mode: str = "all", manual_only: bool = False) -> list[dict]:
+    ids = [str(x) for x in keyword_ids if str(x)]
+    if not ids:
+        return []
+    marks = ",".join("?" for _ in ids)
+    with _db(root) as db:
+        source = "AND l.source='manual'" if manual_only else ""
+        required = 1 if mode in ("any", "or") else len(ids)
+        sql = f"SELECT l.paper_id, GROUP_CONCAT(DISTINCT l.keyword_id) keyword_ids, SUM(l.occurrences) occurrences FROM keyword_links l JOIN keywords k ON k.id=l.keyword_id AND k.archived=0 WHERE l.keyword_id IN ({marks}) AND {_VISIBLE_LINK} {source} GROUP BY l.paper_id HAVING COUNT(DISTINCT l.keyword_id)>=?"
+        return [dict(r) for r in db.execute(sql, (*ids, required)).fetchall()]
+
+
+def keyword_links_for_paper(root: Path, paper_id: str, keyword_ids: list[str] | None = None) -> list[dict]:
+    ids = [str(value) for value in (keyword_ids or []) if str(value)]
+    with _db(root) as db:
+        sql = f"SELECT l.*, k.name, k.match_text FROM keyword_links l JOIN keywords k ON k.id=l.keyword_id AND k.archived=0 WHERE l.paper_id=? AND {_VISIBLE_LINK}"
+        args = [paper_id]
+        if ids:
+            sql += " AND l.keyword_id IN (" + ",".join("?" for _ in ids) + ")"
+            args.extend(ids)
+        return [dict(r) for r in db.execute(sql + " ORDER BY k.name", args).fetchall()]
+
+
+def keyword_exclude(root: Path, keyword_id: str, paper_id: str, excluded: bool) -> None:
+    with _db(root) as db:
+        if excluded:
+            db.execute("INSERT OR IGNORE INTO keyword_exclusions(keyword_id,paper_id,created) VALUES(?,?,?)", (keyword_id, paper_id, _now()))
+        else:
+            db.execute("DELETE FROM keyword_exclusions WHERE keyword_id=? AND paper_id=?", (keyword_id, paper_id))
+        db.commit()
+
+
+def keyword_archive(root: Path, keyword_ids: str | list[str], archived: bool) -> int:
+    ids = [keyword_ids] if isinstance(keyword_ids, str) else list(keyword_ids or [])
+    ids = [str(x) for x in ids if str(x).strip()]
+    if not ids:
+        return 0
+    marks = ",".join("?" for _ in ids)
+    with _db(root) as db:
+        if len(ids) == 1 and not db.execute(f"SELECT 1 FROM keywords WHERE id IN ({marks})", ids).fetchone():
+            raise ValueError(tr("找不到關鍵字"))
+        cur = db.execute(f"UPDATE keywords SET archived=?, updated=? WHERE id IN ({marks})", (int(archived), _now(), *ids))
+        db.commit()
+        return cur.rowcount
+
+
+def keyword_delete(root: Path, keyword_ids: str | list[str]) -> int:
+    ids = [keyword_ids] if isinstance(keyword_ids, str) else list(keyword_ids or [])
+    ids = [str(x) for x in ids if str(x).strip()]
+    if not ids:
+        return 0
+    marks = ",".join("?" for _ in ids)
+    with _db(root) as db:
+        db.execute(f"DELETE FROM keyword_links WHERE keyword_id IN ({marks})", ids)
+        db.execute(f"DELETE FROM keyword_scans WHERE keyword_id IN ({marks})", ids)
+        db.execute(f"DELETE FROM keyword_exclusions WHERE keyword_id IN ({marks})", ids)
+        cur = db.execute(f"DELETE FROM keywords WHERE id IN ({marks})", ids)
+        db.commit()
+        return cur.rowcount
 
 
 def statuses(root: Path) -> list[dict]:

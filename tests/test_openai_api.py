@@ -106,6 +106,18 @@ class OpenAIApiTest(unittest.TestCase):
         other = openai_api._body({"preset": "openai", "model": "gpt"}, "q", [], False, 0.2, True)
         self.assertNotIn("response_format", other)
 
+    def test_max_output_tokens_maps_to_appropriate_key(self):
+        o1 = openai_api._body({"model": "o1-preview", "max_output_tokens": 4096}, "q", [], False, None)
+        self.assertEqual(o1.get("max_completion_tokens"), 4096)
+        gpt4 = openai_api._body({"model": "gpt-4", "max_output_tokens": 2048}, "q", [], False, 0.2)
+        self.assertEqual(gpt4.get("max_tokens"), 2048)
+        resp = openai_api._body({"model": "gpt-4o", "max_output_tokens": 1024, "api": "responses"}, "q", [], False, None)
+        self.assertEqual(resp.get("max_output_tokens"), 1024)
+
+    def test_truncated_error_preserves_code(self):
+        err = openai_api._truncated()
+        self.assertEqual(getattr(err, "code", ""), "OUTPUT_TRUNCATED")
+
 
 if __name__ == "__main__":
     unittest.main()

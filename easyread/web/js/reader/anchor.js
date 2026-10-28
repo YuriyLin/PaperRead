@@ -323,6 +323,84 @@
       '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
       (pendingSel.target === "formula" ? "" : '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
         (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
+        '<button data-s="keyword" title="' + PR.t("加入跨論文關鍵字") + '">' + PR.t("關鍵字") + "</button>" +
+        (pendingSel.side || pendingSel.parts ? "" : '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>") +
+        '<button data-s="copy" title="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + "</button>");
+    bar.classList.add("open");
+    const r = pendingSel.rect, w = bar.offsetWidth;
+    const x = Math.min(innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2));
+    const y = r.top - 48 < 58 ? r.bottom + 8 : r.top - 48;
+    bar.style.left = x + "px"; bar.style.top = y + "px";
+  }
+  function showSelbar() { openSelbar(readSelection()); }
+  document.addEventListener("mouseup", (e) => {
+    if (e.target.closest && e.target.closest("#selbar, #blockbar")) return;
+    const formula = e.target.closest && e.target.closest("#paper .math-body");
+    const selection = getSelection();
+    if (formula && (!selection || selection.isCollapsed)) return; // 一般點擊交給公式 click handler；拖選才走選取工具列。
+    setTimeout(showSelbar, 10);
+  });
+  document.addEventListener("keyup", (e) => { if (e.shiftKey && e.key.startsWith("Arrow")) showSelbar(); });
+  document.addEventListener("selectionchange", PR.debounce(() => { const s = getSelection(); if ((!s || s.isCollapsed) && (!pendingSel || pendingSel.target !== "formula")) selbar().classList.remove("open"); }, 120));
+
+  /* ---------- 跨論文關鍵字：收集與背景比對 ---------- */
+  const kwKey = (s) => String(s || "").normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+  PR.kwKey = kwKey;
+  PR.scanKeyword = async function (keywordId) {
+    const base = "/api/research/v2/keywords/scan/tasks";
+    let task = (await PR.api(base, { method: "POST", body: keywordId ? { keyword_id: keywordId } : {} })).task;
+    for (let i = 0; task && ["queued", "running", "cancelling"].includes(task.state) && i < 150; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      task = (await PR.api(base + "/" + encodeURIComponent(task.id))).task;
+    }
+    if (PR.refreshKeywords) PR.refreshKeywords();
+    return task;
+  };
+  PR.addKeyword = async function (entry) {
+    const base = "/api/research/v2/keywords";
+    const body = Object.assign({}, entry);
+    const existing = ((await PR.api(base)).keywords || []).find((k) => kwKey(k.name) === kwKey(body.name));
+    if (existing && kwKey(existing.match_text) !== kwKey(body.match_text)) {
+      if (window.confirm(PR.t("已有同名關鍵字，原文比對詞是「{old}」。按「確定」改用「{next}」；按「取消」沿用原本的比對詞。", { old: existing.match_text, next: body.match_text }))) body.replace_match = true;
+      else body.match_text = existing.match_text;
+    }
+    return PR.api(base, { method: "POST", body });
+  };
+
+  PR.selectionAction = function (kind, color) {
+    if (!pendingSel) return;
+    const { anchor, key, quote, prefix, suffix, side, parts, target } = pendingSel;
+    selbar().classList.remove("open");
+    getSelection().removeAllRanges();
+    pendingSel = null;
+    if (kind === "en") { PR.toggleEn(anchor, true); return; }
+    if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
+    if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
+    if (kind === "keyword") {
+      return (async () => {
+        let known = [];
+        try { known = (await PR.api("/api/research/v2/keywords")).keywords || []; } catch (e) { /* the prompts still work without suggestions */ }
+        const same = known.find((k) => kwKey(k.match_text) === kwKey(quote) || kwKey(k.name) === kwKey(quote));
+        const name = window.prompt(PR.t("關鍵字名稱"), same ? same.name : quote.slice(0, 120));
+        if (!name || !name.trim()) return;
+        const matchText = window.prompt(PR.t("原文比對詞"), same ? same.match_text : quote.slice(0, 180));
+        if (!matchText || !matchText.trim()) return;
+        const saved = await PR.addKeyword({ name: name.trim(), match_text: matchText.trim(), paper_id: PR.pid, anchor, quote, locator: { side: side === "en" ? "en" : "zh", prefix, suffix }, page: Number((document.getElementById("b-" + anchor)?.dataset?.page) || 0) || null });
+        PR.toast(PR.t("已加入關鍵字，正在比對其他論文原文…"));
+        const task = await PR.scanKeyword(saved.keyword.id);
+        if (task && task.state === "completed") PR.toast(PR.t("已加入關鍵字，{n} 篇論文的原文有命中", { n: task.result?.matched || 0 }));
+        else PR.toast(PR.t("原文比對尚未完成，可到研究探索的關鍵字頁重試"));
+      })().catch((error) => PR.toast(PR.t("加入關鍵字失敗：{message}", { message: error.message })));
+    }
+    const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
+    bar.innerHTML = '<span class="pens"><button data-pen="marker" class="' + (pen === "marker" ? "on" : "") + '" title="' + PR.t("荧光笔：用上次颜色划线") + '">' + PR.icon("marker", "sm") + "</button>" +
+      '<button data-pen="underline" class="' + (pen === "underline" ? "on" : "") + '" title="' + PR.t("下划线：用上次颜色划线") + '">' + PR.icon("underline", "sm") + "</button></span>" +
+      '<span class="dots pen-' + pen + '">' + PR.HL_COLORS.map(([c, name], i) =>
+      '<button data-s="highlight" data-color="' + c + '" class="dot-' + c + '" title="' + (pen === "underline" ? PR.t("{color}色下划线", { color: name }) : PR.t("{color}色荧光笔", { color: name })) + (PR.keysOn ? PR.t("（{k}）", { k: i + 1 }) : "") + '"></button>').join("") + "</span>" +
+      '<button data-s="note" title="' + PR.t("写笔记（N）") + '">' + PR.icon("note", "sm") + PR.t("笔记") + "</button>" +
+      (pendingSel.target === "formula" ? "" : '<button data-s="question" title="' + PR.t("提问（Q）") + '">' + PR.icon("question", "sm") + PR.t("提问") + "</button>" +
+        (PR.canChat && PR.canChat() && PR.feature("chat") ? '<button data-s="chat" title="' + PR.t("把这句引用到问 AI（可以引用多段）") + '">' + PR.icon("sparkle", "sm") + (PR.chatOpen && PR.chatOpen() ? PR.t("引用到对话") : PR.t("问 AI")) + "</button>" : "") +
+        '<button data-s="keyword" title="' + PR.t("加入跨論文關鍵字") + '">' + PR.t("關鍵字") + "</button>" +
         (pendingSel.side || pendingSel.parts ? "" : '<button data-s="en" title="' + PR.t("看这段英文") + '">' + PR.icon("en", "sm") + PR.t("原文") + "</button>") +
         '<button data-s="copy" title="' + PR.t("复制") + '">' + PR.icon("copy", "sm") + "</button>");
     bar.classList.add("open");
@@ -351,6 +429,15 @@
     if (kind === "en") { PR.toggleEn(anchor, true); return; }
     if (kind === "copy") { navigator.clipboard.writeText(quote).then(() => PR.toast(PR.t("已复制"))); return; }
     if (kind === "chat") { PR.chatAsk({ anchor, quote }); return; }
+    if (kind === "keyword") {
+      const name = window.prompt(PR.t("關鍵字名稱"), quote.slice(0, 120));
+      if (!name) return;
+      const matchText = window.prompt(PR.t("原文比對詞"), quote.slice(0, 180));
+      if (!matchText) return;
+      return PR.api("/api/research/v2/keywords", { method: "POST", body: { name, match_text: matchText, paper_id: PR.pid, anchor, quote, page: Number((document.getElementById("b-" + anchor)?.dataset?.page) || 0) || null } })
+        .then((result) => PR.toast(PR.t("已加入關鍵字，找到 {n} 處原文命中", { n: result.scanned || 0 })))
+        .catch((error) => PR.toast(PR.t("加入關鍵字失敗：{message}", { message: error.message })));
+    }
     const pen = PR.prefs.pen === "underline" ? "underline" : "marker";
     color = color || (PR.prefs.penColors || {})[pen] || "yellow";
     if (target === "formula") {

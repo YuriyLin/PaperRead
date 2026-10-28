@@ -23,12 +23,30 @@ window.PR = window.PR || {};
   PR.TARGETS = [["zh-TW", PR.t("繁體中文（臺灣）")], ["zh", PR.t("简体中文")], ["ja", PR.t("日语")], ["ko", PR.t("韩语")], ["es", PR.t("西班牙语")], ["fr", PR.t("法语")], ["de", PR.t("德语")]];
   PR.targetName = (code) => (PR.TARGETS.find(([k]) => k === code) || PR.TARGETS[0])[1];
 
+  function splitShort(text, isZh) {
+    if (!text) return "";
+    let inMath = false;
+    for (let i = 0; i < text.length - 1; i++) {
+      if (text[i] === "$" && (i === 0 || text[i - 1] !== "\\")) {
+        inMath = !inMath;
+      } else if (!inMath) {
+        if (isZh && (text[i] === "：" || (text[i] === ":" && /\s/.test(text[i + 1])))) {
+          return text.slice(0, i).trim();
+        }
+        if (!isZh && text[i] === ":" && /\s/.test(text[i + 1])) {
+          return text.slice(0, i).trim();
+        }
+      }
+    }
+    return isZh ? text.split(/[：:]/)[0].trim() : (text.split(/:\s/)[0] || "").trim();
+  }
+
   /* 论文标题哪个当主标题：译文语言和界面语言一样时用译文标题（中文界面看中文译文），
      否则用英文原标题，译文标题放第二行。short 是侧栏用的短标题 */
   PR.titles = function (i) {
     const tr = i.title_zh || "", en = i.title_en || "", lang = i.target || "zh";
-    if (tr && (PR.lang === lang || !en)) return { main: tr, sub: en, subLang: "en", short: i.short_zh || tr.split(/[：:]/)[0] };
-    return { main: en || PR.t("（未命名）"), sub: tr, subLang: lang, short: en.split(/:\s/)[0] || PR.t("（未命名）") };
+    if (tr && (PR.lang === lang || !en)) return { main: tr, sub: en, subLang: "en", short: i.short_zh || splitShort(tr, true) };
+    return { main: en || PR.t("（未命名）"), sub: tr, subLang: lang, short: splitShort(en, false) || PR.t("（未命名）") };
   };
 
   PR.esc = (s) => String(s == null ? "" : s)
@@ -173,7 +191,7 @@ window.PR = window.PR || {};
     question: "M7.5 7.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8M10 14.5v.01M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
   };
   PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
-  PR.logo = (cls) => '<img class="mark' + (cls ? " " + cls : "") + '" src="/web/paperread-mark.png" alt="">';
+  PR.logo = (cls) => '<img class="mark' + (cls ? " " + cls : "") + '" src="/web/paperread-mark.png" width="26" height="26" alt="">';
   PR.icon = (name, cls) => '<svg class="i' + (cls ? " " + cls : "") + '" viewBox="0 0 20 20" aria-hidden="true"><path d="' + (P[name] || "") + '"/></svg>';
   PR.icons = { menu: PR.icon("menu"), edit: PR.icon("edit", "sm"), note: PR.icon("note", "sm") };
 
@@ -210,7 +228,18 @@ window.PR = window.PR || {};
     try { r = await fetch(path, { method: opts.method || "GET", headers, body, cache: "no-store" }); }
     catch (error) { throw new Error(PR.errorText(error)); }
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
+    if (!r.ok) {
+      if (r.status === 403 && data.error === "bad token" && !opts._retry) {
+        try {
+          const lib = await (await fetch("/api/library", { cache: "no-store" })).json();
+          if (lib && lib.token) {
+            PR.token = lib.token;
+            return await PR.api(path, Object.assign({}, opts, { _retry: true }));
+          }
+        } catch (_) {}
+      }
+      throw new Error(data.error || PR.t("请求失败 {status}", { status: r.status }));
+    }
     return data;
   };
 

@@ -13,14 +13,14 @@
 </head>
 <body class="research-workspace">
 <header class="topbar">
-  <a class="brand" href="/"><img class="mark" src="/web/paperread-mark.png" alt=""><span>Paper<b>Read</b></span></a>
+  <a class="brand" href="/"><img class="mark" src="/web/paperread-mark.png" width="26" height="26" alt=""><span>Paper<b>Read</b></span></a>
   <span class="crumb">研究探索</span><span class="grow"></span>
   <button class="btn icon lang-btn" id="langBtn"></button><a class="btn line" href="/">返回文獻庫</a>
 </header>
 <main class="rw-shell">
   <section class="rw-heading"><div><p class="eyebrow">PERSONAL RESEARCH WORKSPACE</p><h1>研究探索</h1><p>探索研究方向、保存候選論文，逐步建立閱讀脈絡。</p></div></section>
   <nav class="rw-tabs" role="tablist">
-    <button class="on" data-tab="board">閱讀看板 <span data-count="active"></span></button><button data-tab="explore">研究探索</button><button data-tab="candidates">候選清單 <span data-count="candidates"></span></button><button data-tab="summaries">已整理摘要 <span data-count="summaries"></span></button><button data-tab="comparisons">論文比較</button><button data-tab="path">閱讀路徑</button>
+    <button class="on" data-tab="board">閱讀看板 <span data-count="active"></span></button><button data-tab="explore">研究探索</button><button data-tab="candidates">候選清單 <span data-count="candidates"></span></button><button data-tab="summaries">已整理摘要 <span data-count="summaries"></span></button><button data-tab="comparisons">論文比較</button><button data-tab="keywords">關鍵字</button><button data-tab="path">閱讀路徑</button>
   </nav>
   <section id="rw-alerts" aria-live="polite"></section>
   <section class="rw-view" data-view="explore" hidden></section>
@@ -28,6 +28,7 @@
   <section class="rw-view" data-view="candidates" hidden></section>
   <section class="rw-view" data-view="summaries" hidden></section>
   <section class="rw-view" data-view="comparisons" hidden></section>
+  <section class="rw-view" data-view="keywords" hidden></section>
   <section class="rw-view" data-view="path" hidden></section>
 </main>
 <div id="rw-modal" class="rw-modal" hidden></div>

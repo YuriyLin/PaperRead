@@ -77,6 +77,7 @@
     document.body.appendChild(anchor); anchor.click(); anchor.remove();
     return true;
   }
+  PR.saveBase64 = saveBase64;
 
   PR.openExport = function () {
     const c = counts();
@@ -125,14 +126,27 @@
 
   function documents(prepared) {
     const { pick, order, chat, mindmap } = prepared, m = S.paper.meta || {}, paperId = PR.pid;
-    const analysisId = "paper:" + paperId + ":analysis", mindmapId = "paper:" + paperId + ":mindmap", annotationsId = "paper:" + paperId + ":annotations";
+    const analysisId = "paper:" + paperId + ":analysis", mindmapId = "paper:" + paperId + ":mindmap";
+    const notesId = "paper:" + paperId + ":notes", highlightsId = "paper:" + paperId + ":highlights", chatAllId = "paper:" + paperId + ":chat_all";
     const bibliography = ["## 書目資料", "", m.title_en ? "- English title: " + m.title_en : "", m.authors ? "- " + PR.t("作者") + "：" + m.authors : "", m.date ? "- " + PR.t("年份") + "：" + m.date : "", m.doi ? "- DOI: " + m.doi : "", m.url ? "- URL: " + m.url : ""].filter(Boolean).join("\n"); // i18n-ok: exported Markdown content headings are data, not interface copy.
     const note = (S.reader.paper_note || {}).body;
     const analysis = [bibliography, pick.paper && note ? "## " + PR.t("論文筆記") + "\n\n" + note : "", prepared.warning].filter(Boolean).join("\n\n");
-    const annotations = PR.notesMarkdown({ paper: false, note: !!pick.note, highlight: !!pick.highlight, question: !!pick.question, ai: !!pick.ai, chat: !!pick.chat, quote: !!pick.quote }, chat, { order, chat, mindmap: "" });
     const result = [];
     const stem = filenameStem();
-    if (pick.paper) result.push({ id: analysisId, kind: "analysis", paper_id: paperId, title: title() + " - " + PR.t("論文分析"), filename: stem + "-analysis", body: analysis, links: [mindmapId, annotationsId] });
+    const paperFolder = shortFilename(m.title_zh || m.title_en || PR.t("論文"), "PaperRead");
+
+    if (pick.paper) {
+      result.push({
+        id: analysisId,
+        kind: "analysis",
+        paper_id: paperId,
+        title: title() + " - " + PR.t("論文分析"),
+        filename: stem + "-analysis",
+        body: analysis,
+        links: [mindmapId, notesId, highlightsId, chatAllId],
+      });
+    }
+
     if (pick.mindmap && mindmap) {
       const imgName = stem + "-mind-map.png";
       const doc = {
@@ -142,7 +156,7 @@
         title: title() + " - " + PR.t("心智圖"),
         filename: stem + "-mind-map",
         body: "## " + PR.t("論文心智圖") + "\n\n![[" + imgName + "]]",
-        links: [analysisId],
+        links: [analysisId, notesId],
       };
       if (prepared.mindmapPngBase64) {
         doc.image_base64 = prepared.mindmapPngBase64;
@@ -153,7 +167,80 @@
       }
       result.push(doc);
     }
-    if (annotations.trim() || prepared.warning) result.push({ id: annotationsId, kind: "annotations", paper_id: paperId, title: title() + " - " + PR.t("閱讀標註"), filename: stem + "-annotations", body: [annotations, prepared.warning].filter(Boolean).join("\n\n"), links: [analysisId, mindmapId] });
+
+    // 03-閱讀標註：依論文建立子資料夾，並區分出「我的筆記」、「我的劃線」、「所有AI問答」
+    if (pick.note || pick.question) {
+      const myNotes = PR.notesMarkdown({
+        paper: false,
+        note: !!pick.note,
+        question: !!pick.question,
+        highlight: false,
+        ai: false,
+        chat: false,
+        quote: !!pick.quote,
+      }, [], { order: ["note", "question"], chat: [], mindmap: "" });
+      if (myNotes.trim()) {
+        result.push({
+          id: notesId,
+          kind: "annotations",
+          paper_id: paperId,
+          title: title() + " - " + PR.t("我的筆記"),
+          filename: stem + "-notes",
+          subfolder: paperFolder + "/" + PR.t("我的筆記"),
+          body: myNotes.trim(),
+          links: [analysisId, mindmapId, highlightsId],
+        });
+      }
+    }
+
+    if (pick.highlight) {
+      const highlights = PR.notesMarkdown({
+        paper: false,
+        note: false,
+        question: false,
+        highlight: true,
+        ai: false,
+        chat: false,
+        quote: !!pick.quote,
+      }, [], { order: ["highlight"], chat: [], mindmap: "" });
+      if (highlights.trim()) {
+        result.push({
+          id: highlightsId,
+          kind: "annotations",
+          paper_id: paperId,
+          title: title() + " - " + PR.t("我的劃線"),
+          filename: stem + "-highlights",
+          subfolder: paperFolder + "/" + PR.t("我的劃線"),
+          body: highlights.trim(),
+          links: [analysisId, notesId],
+        });
+      }
+    }
+
+    if (pick.ai || pick.chat) {
+      const allAiQa = PR.notesMarkdown({
+        paper: false,
+        note: false,
+        question: false,
+        highlight: false,
+        ai: !!pick.ai,
+        chat: !!pick.chat,
+        quote: !!pick.quote,
+      }, chat, { order: ["ai", "chat"], chat, mindmap: "" });
+      if (allAiQa.trim()) {
+        result.push({
+          id: chatAllId,
+          kind: "annotations",
+          paper_id: paperId,
+          title: title() + " - " + PR.t("所有AI問答"),
+          filename: stem + "-all-ai-qa",
+          subfolder: paperFolder + "/" + PR.t("所有AI問答"),
+          body: allAiQa.trim(),
+          links: [analysisId, notesId],
+        });
+      }
+    }
+
     const available = new Set(result.map((item) => item.id));
     result.forEach((item) => { item.links = item.links.filter((target) => available.has(target)); });
     return result;
