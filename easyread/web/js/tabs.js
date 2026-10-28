@@ -934,7 +934,7 @@
       subWrap.className = "tab-menu-submenu-wrap";
       const subTitle = document.createElement("div");
       subTitle.className = "tab-menu-item";
-      subTitle.innerHTML = `<span>${t("加入分頁群組")}</span><span class="menu-arrow">▸</span>`;
+      subTitle.innerHTML = `<span>${t("加入分頁群組")}</span><span class="menu-arrow">▸</span>`; // i18n-ok: translated with t()
       const submenu = document.createElement("div");
       submenu.className = "tab-menu-submenu";
       addItem("new-group", "+ " + t("新建群組"), submenu);

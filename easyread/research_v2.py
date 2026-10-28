@@ -73,66 +73,66 @@ MINDMAP_TASK_CACHE_PREFIX = "mindmap:task:"
 
 MINDMAP_LANGUAGE_GUIDES = {
     "ko": {
-        "name": "韓語（한국어，Korean）",
+        "name": "韓語（한국어，Korean）",  # i18n-ok: model prompt content
         "branches": [
-            "`연구 배경 및 문제`：연구 동기, 해결하려는 핵심 문제 또는 기존 기술의 한계.",
-            "`핵심 구조 및 이론`：전체 시스템/모델 아키텍처, 이론적 기초, 핵심 컴포넌트 및 모듈.",
-            "`방법론 및 핵심 메커니즘`：알고리즘 프로세스, 주요 설계, 손실 함수 또는 수학적 표현.",
-            "`실험 설계 및 벤치마크`：벤치마크 테스트, 평가 데이터셋, 비교 베이스라인, 평가 지표.",
-            "`주요 발견 및 성과`：주요 실험 결론, SOTA 비교 성과, 어블레이션(Ablation) 분석 인사이트.",
-            "`연구 기여 및 혁신`：핵심 학술적 기여, 방법론적 혁신 또는 실용적 가치.",
-            "`한계점 및 향후 연구`：방법의 한계, 미해결 과제 또는 향후 연구 방향.",
+            "`연구 배경 및 문제`：연구 동기, 해결하려는 핵심 문제 또는 기존 기술의 한계.",  # i18n-ok: model prompt content
+            "`핵심 구조 및 이론`：전체 시스템/모델 아키텍처, 이론적 기초, 핵심 컴포넌트 및 모듈.",  # i18n-ok: model prompt content
+            "`방법론 및 핵심 메커니즘`：알고리즘 프로세스, 주요 설계, 손실 함수 또는 수학적 표현.",  # i18n-ok: model prompt content
+            "`실험 설계 및 벤치마크`：벤치마크 테스트, 평가 데이터셋, 비교 베이스라인, 평가 지표.",  # i18n-ok: model prompt content
+            "`주요 발견 및 성과`：주요 실험 결론, SOTA 비교 성과, 어블레이션(Ablation) 분석 인사이트.",  # i18n-ok: model prompt content
+            "`연구 기여 및 혁신`：핵심 학술적 기여, 방법론적 혁신 또는 실용적 가치.",  # i18n-ok: model prompt content
+            "`한계점 및 향후 연구`：방법의 한계, 미해결 과제 또는 향후 연구 방향.",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用韓語（한국어）生成。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs, Zero-shot 等），避免生硬直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用韓語（한국어）生成。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs, Zero-shot 等），避免生硬直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
     "ja": {
-        "name": "日語（日本語，Japanese）",
+        "name": "日語（日本語，Japanese）",  # i18n-ok: model prompt content
         "branches": [
-            "`研究背景と課題`：研究の動機、解決を目指す中心課題や既存技術のボトルネック。",
-            "`コアアーキテクチャと理論`：システム・モデル全体の構造、理論的基礎、主要コンポーネント。",
-            "`手法と主要メカニズム`：アルゴリズムのフロー、主要な設計、損失関数や数式表現。",
-            "`実験設計とベンチマーク`：ベンチマーク、評価データセット、ベースライン、評価指標。",
-            "`主要な発見と成果`：主要な実験結果、SOTA との比較、アブレーション (Ablation) 解析の洞察。",
-            "`研究の貢献と新規性`：主要な學術的貢献、手法の新規性や実用的な価値。",
-            "`限界と今後の課題`：手法の適用範囲・制限、未解決の課題や将来の研究方向。",
+            "`研究背景と課題`：研究の動機、解決を目指す中心課題や既存技術のボトルネック。",  # i18n-ok: model prompt content
+            "`コアアーキテクチャと理論`：システム・モデル全体の構造、理論的基礎、主要コンポーネント。",  # i18n-ok: model prompt content
+            "`手法と主要メカニズム`：アルゴリズムのフロー、主要な設計、損失関数や数式表現。",  # i18n-ok: model prompt content
+            "`実験設計とベンチマーク`：ベンチマーク、評価データセット、ベースライン、評価指標。",  # i18n-ok: model prompt content
+            "`主要な発見と成果`：主要な実験結果、SOTA との比較、アブレーション (Ablation) 解析の洞察。",  # i18n-ok: model prompt content
+            "`研究の貢献と新規性`：主要な學術的貢献、手法の新規性や実用的な価値。",  # i18n-ok: model prompt content
+            "`限界と今後の課題`：手法の適用範囲・制限、未解決の課題や将来の研究方向。",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用日語（日本語）生成。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用日語（日本語）生成。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
     "zh": {
-        "name": "中文（簡體中文）",
+        "name": "中文（簡體中文）",  # i18n-ok: model prompt content
         "branches": [
-            "`研究背景与问题`：研究动机、欲解决的核心问题或现有技术瓶颈。",
-            "`核心架构与理论`：整体系统或模型架构、理论基础、核心组件模块。",
-            "`方法与关键机制`：算法流程、关键设计、损失函数或数学表达。",
-            "`实验设计与基准`：基准测试 (Benchmarks)、评估数据集、对照基准 (Baselines)、评估指标。",
-            "`核心发现与成果`：主要实验结论、SOTA 对比成果、消融实验 (Ablation) 洞察。",
-            "`研究贡献与创新`：核心学术突破、方法创新或实务价值。",
-            "`局限性与未来方向`：方法边界、未解决问题或改进方向。",
+            "`研究背景与问题`：研究动机、欲解决的核心问题或现有技术瓶颈。",  # i18n-ok: model prompt content
+            "`核心架构与理论`：整体系统或模型架构、理论基础、核心组件模块。",  # i18n-ok: model prompt content
+            "`方法与关键机制`：算法流程、关键设计、损失函数或数学表达。",  # i18n-ok: model prompt content
+            "`实验设计与基准`：基准测试 (Benchmarks)、评估数据集、对照基准 (Baselines)、评估指标。",  # i18n-ok: model prompt content
+            "`核心发现与成果`：主要实验结论、SOTA 对比成果、消融实验 (Ablation) 洞察。",  # i18n-ok: model prompt content
+            "`研究贡献与创新`：核心学术突破、方法创新或实务价值。",  # i18n-ok: model prompt content
+            "`局限性与未来方向`：方法边界、未解决问题或改进方向。",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文一律使用簡體中文生成，包含根節點、一級分支名稱與所有子節點。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文一律使用簡體中文生成，包含根節點、一級分支名稱與所有子節點。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
     "en": {
         "name": "English",
         "branches": [
-            "`Research Background & Problem`：Motivation, core problem addressed, or limitations of existing methods.",
-            "`Core Architecture & Theory`：Overall system/model architecture, theoretical foundation, key components.",
-            "`Methodology & Mechanisms`：Algorithm workflow, key design choices, loss functions or mathematical formulations.",
-            "`Experimental Design & Benchmarks`：Benchmark tasks, datasets, baseline comparisons, evaluation metrics.",
-            "`Key Findings & Results`：Main empirical conclusions, SOTA comparisons, ablation study insights.",
-            "`Contributions & Innovations`：Key academic breakthroughs, methodological innovations, or practical value.",
-            "`Limitations & Future Work`：Scope boundaries, unaddressed challenges, or potential extensions.",
+            "`Research Background & Problem`：Motivation, core problem addressed, or limitations of existing methods.",  # i18n-ok: model prompt content
+            "`Core Architecture & Theory`：Overall system/model architecture, theoretical foundation, key components.",  # i18n-ok: model prompt content
+            "`Methodology & Mechanisms`：Algorithm workflow, key design choices, loss functions or mathematical formulations.",  # i18n-ok: model prompt content
+            "`Experimental Design & Benchmarks`：Benchmark tasks, datasets, baseline comparisons, evaluation metrics.",  # i18n-ok: model prompt content
+            "`Key Findings & Results`：Main empirical conclusions, SOTA comparisons, ablation study insights.",  # i18n-ok: model prompt content
+            "`Contributions & Innovations`：Key academic breakthroughs, methodological innovations, or practical value.",  # i18n-ok: model prompt content
+            "`Limitations & Future Work`：Scope boundaries, unaddressed challenges, or potential extensions.",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
             "1. Generate all nodes (root node, top-level branch names, and all child nodes) entirely in English.\n"
@@ -141,71 +141,71 @@ MINDMAP_LANGUAGE_GUIDES = {
         ),
     },
     "es": {
-        "name": "西班牙語（Español）",
+        "name": "西班牙語（Español）",  # i18n-ok: model prompt content
         "branches": [
-            "`Contexto y Problema`：Motivación de la investigación, problema central abordado o limitaciones previas.",
-            "`Arquitectura y Teoría Central`：Estructura del sistema/modelo, fundamentos teóricos y componentes clave.",
-            "`Metodología y Mecanismos Clave`：Flujo algorítmico, diseño metodológico, funciones de pérdida o formulaciones.",
-            "`Diseño Experimental y Benchmarks`：Pruebas de referencia, conjuntos de datos, líneas base y métricas.",
-            "`Hallazgos y Resultados Principales`：Conclusiones empíricas, comparaciones SOTA y análisis de ablación.",
-            "`Contribuciones e Innovaciones`：Aportes académicos clave, innovaciones prácticas o metodológicas.",
-            "`Limitaciones y Trabajo Futuro`：Límites del método, desafíos abiertos o direcciones futuras.",
+            "`Contexto y Problema`：Motivación de la investigación, problema central abordado o limitaciones previas.",  # i18n-ok: model prompt content
+            "`Arquitectura y Teoría Central`：Estructura del sistema/modelo, fundamentos teóricos y componentes clave.",  # i18n-ok: model prompt content
+            "`Metodología y Mecanismos Clave`：Flujo algorítmico, diseño metodológico, funciones de pérdida o formulaciones.",  # i18n-ok: model prompt content
+            "`Diseño Experimental y Benchmarks`：Pruebas de referencia, conjuntos de datos, líneas base y métricas.",  # i18n-ok: model prompt content
+            "`Hallazgos y Resultados Principales`：Conclusiones empíricas, comparaciones SOTA y análisis de ablación.",  # i18n-ok: model prompt content
+            "`Contribuciones e Innovaciones`：Aportes académicos clave, innovaciones prácticas o metodológicas.",  # i18n-ok: model prompt content
+            "`Limitaciones y Trabajo Futuro`：Límites del método, desafíos abiertos o direcciones futuras.",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用西班牙語（Español）生成。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用西班牙語（Español）生成。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
     "fr": {
-        "name": "法語（Français）",
+        "name": "法語（Français）",  # i18n-ok: model prompt content
         "branches": [
-            "`Contexte et Problématique`：Motivation de recherche, problème central abordé ou verrous scientifiques.",
-            "`Architecture et Théorie Fondamentale`：Structure globale du modèle/système, fondements théoriques et modules clés.",
-            "`Méthodologie et Mécanismes Clés`：Déroulement algorithmique, choix de conception, fonctions de perte.",
-            "`Protocole Expérimental et Benchmarks`：Jeux de données, bancs d'essai, modèles de référence et métriques.",
-            "`Résultats et Découvertes Clés`：Conclusions empiriques, comparaison à l'état de l'art (SOTA), études d'ablation.",
-            "`Contributions et Innovations`：Apports scientifiques majeurs, innovations méthodologiques ou pratiques.",
-            "`Limites et Perspectives Futures`：Limites de l'approche, questions ouvertes et axes futurs.",
+            "`Contexte et Problématique`：Motivation de recherche, problème central abordé ou verrous scientifiques.",  # i18n-ok: model prompt content
+            "`Architecture et Théorie Fondamentale`：Structure globale du modèle/système, fondements théoriques et modules clés.",  # i18n-ok: model prompt content
+            "`Méthodologie et Mécanismes Clés`：Déroulement algorithmique, choix de conception, fonctions de perte.",  # i18n-ok: model prompt content
+            "`Protocole Expérimental et Benchmarks`：Jeux de données, bancs d'essai, modèles de référence et métriques.",  # i18n-ok: model prompt content
+            "`Résultats et Découvertes Clés`：Conclusions empiriques, comparaison à l'état de l'art (SOTA), études d'ablation.",  # i18n-ok: model prompt content
+            "`Contributions et Innovations`：Apports scientifiques majeurs, innovations méthodologiques ou pratiques.",  # i18n-ok: model prompt content
+            "`Limites et Perspectives Futures`：Limites de l'approche, questions ouvertes et axes futurs.",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用法語（Français）生成。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免生硬直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用法語（Français）生成。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免生硬直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
     "de": {
-        "name": "德語（Deutsch）",
+        "name": "德語（Deutsch）",  # i18n-ok: model prompt content
         "branches": [
-            "`Forschungshintergrund & Problemstellung`：Forschungsmotivation, adressiertes Kernproblem oder bisherige Grenzen.",
-            "`Kernarchitektur & Theoretische Grundlagen`：Gesamtsystem/Modellarchitektur, theoretische Basis, Hauptkomponenten.",
-            "`Methodik & Schlüsselmechanismen`：Algorithmischer Ablauf, zentrale Designentscheidungen, Verlustfunktionen.",
-            "`Experimentelles Design & Benchmarks`：Evaluations-Datensätze, Baselines, Benchmarks und Metriken.",
-            "`Wichtigste Erkenntnisse & Ergebnisse`：Empirische Hauptergebnisse, SOTA-Vergleiche, Ablationsstudien.",
-            "`Wissenschaftliche Beiträge & Innovationen`：Zentrale wissenschaftliche Durchbrüche und methodische Innovationen.",
-            "`Grenzen & Zukünftige Forschungsrichtungen`：Einschränkungen der Methode, offene Fragen und zukünftige Arbeiten.",
+            "`Forschungshintergrund & Problemstellung`：Forschungsmotivation, adressiertes Kernproblem oder bisherige Grenzen.",  # i18n-ok: model prompt content
+            "`Kernarchitektur & Theoretische Grundlagen`：Gesamtsystem/Modellarchitektur, theoretische Basis, Hauptkomponenten.",  # i18n-ok: model prompt content
+            "`Methodik & Schlüsselmechanismen`：Algorithmischer Ablauf, zentrale Designentscheidungen, Verlustfunktionen.",  # i18n-ok: model prompt content
+            "`Experimentelles Design & Benchmarks`：Evaluations-Datensätze, Baselines, Benchmarks und Metriken.",  # i18n-ok: model prompt content
+            "`Wichtigste Erkenntnisse & Ergebnisse`：Empirische Hauptergebnisse, SOTA-Vergleiche, Ablationsstudien.",  # i18n-ok: model prompt content
+            "`Wissenschaftliche Beiträge & Innovationen`：Zentrale wissenschaftliche Durchbrüche und methodische Innovationen.",  # i18n-ok: model prompt content
+            "`Grenzen & Zukünftige Forschungsrichtungen`：Einschränkungen der Methode, offene Fragen und zukünftige Arbeiten.",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用德語（Deutsch）生成。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文節點（包含根節點、一級分支名稱與所有子節點）一律使用德語（Deutsch）生成。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer, Self-Attention, BLEU, SOTA, FLOPs 等），避免不自然的直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
     "zh-TW": {
-        "name": "繁體中文（臺灣學術用語）",
+        "name": "繁體中文（臺灣學術用語）",  # i18n-ok: model prompt content
         "branches": [
-            "`研究背景與問題`：研究動機、欲解決的核心問題或既有技術瓶頸。",
-            "`核心架構與理論`：整體系統或模型架構、理論基礎、核心組件模組。",
-            "`方法與關鍵機制`：演算法流程、關鍵設計、損失函數或數學表達。",
-            "`實驗設計與基準`：基準測試 (Benchmarks)、評估資料集、對照基準 (Baselines)、評估指標。",
-            "`核心發現與成果`：主要實驗結論、SOTA 對比成果、消融實驗 (Ablation) 洞察。",
-            "`研究貢獻與創新`：核心學術突破、方法創新或實務價值。",
-            "`局限性與未來方向`：方法邊界、未解決問題或改進方向（若原文未提及可精簡或略過）。",
+            "`研究背景與問題`：研究動機、欲解決的核心問題或既有技術瓶頸。",  # i18n-ok: model prompt content
+            "`核心架構與理論`：整體系統或模型架構、理論基礎、核心組件模組。",  # i18n-ok: model prompt content
+            "`方法與關鍵機制`：演算法流程、關鍵設計、損失函數或數學表達。",  # i18n-ok: model prompt content
+            "`實驗設計與基準`：基準測試 (Benchmarks)、評估資料集、對照基準 (Baselines)、評估指標。",  # i18n-ok: model prompt content
+            "`核心發現與成果`：主要實驗結論、SOTA 對比成果、消融實驗 (Ablation) 洞察。",  # i18n-ok: model prompt content
+            "`研究貢獻與創新`：核心學術突破、方法創新或實務價值。",  # i18n-ok: model prompt content
+            "`局限性與未來方向`：方法邊界、未解決問題或改進方向（若原文未提及可精簡或略過）。",  # i18n-ok: model prompt content
         ],
         "lang_rule": (
-            "1. 全文一律使用繁體中文（臺灣學術慣用語，如資料集、演算法、最佳化、消融實驗），包含根節點、一級分支名稱與所有子節點。\n"
-            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"
-            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"
+            "1. 全文一律使用繁體中文（臺灣學術慣用語，如資料集、演算法、最佳化、消融實驗），包含根節點、一級分支名稱與所有子節點。\n"  # i18n-ok: model prompt content
+            "2. 保留標準英文學術術語與縮寫（如 Transformer、Self-Attention、BLEU、Zero-shot、SOTA、FLOPs 等），不進行生硬直譯。\n"  # i18n-ok: model prompt content
+            "3. 嚴格基於所提供的文字整理，嚴禁虛構未出現的數據、資料集或實驗結果。"  # i18n-ok: model prompt content
         ),
     },
 }

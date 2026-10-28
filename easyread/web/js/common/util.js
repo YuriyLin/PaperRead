@@ -30,7 +30,7 @@ window.PR = window.PR || {};
       if (text[i] === "$" && (i === 0 || text[i - 1] !== "\\")) {
         inMath = !inMath;
       } else if (!inMath) {
-        if (isZh && (text[i] === "：" || (text[i] === ":" && /\s/.test(text[i + 1])))) {
+        if (isZh && (text[i] === "：" || (text[i] === ":" && /\s/.test(text[i + 1])))) { // i18n-ok: punctuation parsing
           return text.slice(0, i).trim();
         }
         if (!isZh && text[i] === ":" && /\s/.test(text[i + 1])) {
