@@ -220,6 +220,20 @@ def _locate(root: Path) -> dict:
                     a = text.find(h)
                 if a >= 0:
                     break
+            if a < 0 and block.get("type") in ("figure", "table") and block.get("num"):
+                prefixes = ("figure", "fig") if block.get("type") == "figure" else ("table", "tab")
+                n_str = _norm(str(block.get("num")))
+                for pfx in prefixes:
+                    tok = pfx + n_str
+                    pos = text.find(tok)
+                    while pos >= 0:
+                        nxt = idx[pos + len(tok) - 1] + 1
+                        if nxt < len(chars) and chars[nxt][0] in (":", "."):
+                            a = pos
+                            break
+                        pos = text.find(tok, pos + 1)
+                    if a >= 0:
+                        break
             if a < 0:
                 continue
             b = text.find(tail, a) if tail else -1

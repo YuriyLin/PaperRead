@@ -164,3 +164,16 @@ test("blank lines between numbered steps do not reset each displayed number to o
   assert.ok(html.includes('<ol start="2"><li>输入 <math>x</math>。</li></ol>'));
   assert.ok(html.includes('<ol start="3"><li>读取结果。</li></ol>'));
 });
+
+test("highlightSnippet renders KaTeX math formulas in excerpts while highlighting keywords", () => {
+  const PR = markup(true);
+  const snippet = 'Resolution $384 \\times 384$ and scaled to $\\sim 2$ times with <script>alert(1)</script> for bounding box.';
+  const html = PR.highlightSnippet(snippet, ['bounding box', 'resolution']);
+  assert.ok(html.includes('class="katex"'), 'KaTeX formulas must render');
+  assert.ok(html.includes('384 \\times 384'));
+  assert.ok(html.includes('\\sim 2'));
+  assert.ok(html.includes('<mark class="rw-kw-mark">Resolution</mark>'));
+  assert.ok(html.includes('<mark class="rw-kw-mark">bounding box</mark>'));
+  assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('&lt;script&gt;'));
+});

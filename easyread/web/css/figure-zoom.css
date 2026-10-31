@@ -1,4 +1,4 @@
-.figure-viewer { width: min(1200px, 94vw); height: 88vh; max-width: 94vw; max-height: 90vh; padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-lg); }
+.figure-viewer { width: min(1200px, 94vw); height: min(84vh, calc(100% - 48px)); max-width: 94vw; max-height: min(88vh, calc(100% - 36px)); margin: auto; padding: 0; border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--surface); color: var(--ink); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.32); }
 .figure-viewer::backdrop { background: rgb(0 0 0 / .65); }
 .figure-viewer[open] { display: flex; flex-direction: column; }
 .figure-viewer-tools { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--rule); font: 13px var(--ui); }
@@ -7,5 +7,9 @@
 .figure-viewer-scroll.panning { cursor: grabbing; }
 .figure-viewer-canvas { display: grid; place-items: center; width: max-content; height: max-content; min-width: 100%; min-height: 100%; }
 .figure-viewer img { display: block; max-width: none; flex: none; background: #fff; filter: none; mix-blend-mode: normal; user-select: none; }
-#paper .figure-media img, .media-preview .media-image img { cursor: zoom-in; }
-#paper .figure-media img:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#paper .figure-media { position: relative; }
+#paper .figure-media img, #paper .orig-page img { cursor: zoom-in; }
+#paper .figure-media img:focus-visible, #paper .orig-page img:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.fig-zoom-btn { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); color: var(--ink-2); cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / .06); transition: color .15s ease, border-color .15s ease, background-color .15s ease, transform .15s ease; z-index: 2; }
+.fig-zoom-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); transform: scale(1.05); }
+.fig-zoom-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

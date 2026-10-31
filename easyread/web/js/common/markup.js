@@ -54,6 +54,33 @@
     return html;
   };
 
+  /* 摘要或引文高亮關鍵字，同時安全渲染 LaTeX 數學公式與代碼 */
+  PR.highlightSnippet = function (text, terms, markClass) {
+    if (text == null || text === "") return "";
+    const cls = markClass || "rw-kw-mark";
+    const saved = tokens(String(text), false);
+    const list = Array.isArray(terms) ? terms : [terms];
+    const valid = list
+      .flatMap((t) => (Array.isArray(t) ? t : [t]))
+      .map((t) => (t == null ? "" : String(t)).trim())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length)
+      .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, (m) => "\\" + m));
+
+    let body;
+    if (!valid.length) {
+      body = PR.esc(saved.text);
+    } else {
+      const regex = new RegExp("(" + valid.join("|") + ")", "gi");
+      const parts = saved.text.split(regex);
+      body = parts.map((p, idx) => idx % 2 === 1
+        ? '<mark class="' + PR.esc(cls) + '">' + PR.esc(p) + "</mark>"
+        : PR.esc(p)
+      ).join("");
+    }
+    return restore(body, saved, false);
+  };
+
   // Titles allow math, but preserve literal Markdown punctuation and links.
   PR.titleHtml = function (text) {
     const saved = tokens(String(text == null ? "" : text), false);

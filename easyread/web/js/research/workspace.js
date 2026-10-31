@@ -292,35 +292,49 @@
     const q = input.value.trim().toLowerCase();
     $$(".rw-keyword-item").forEach((row) => { row.hidden = !!q && !String(row.dataset.kwText || "").includes(q); });
   }
-  function highlightMatch(text, term) {
+  function highlightMatch(text, ...terms) {
+    if (PR.highlightSnippet) return PR.highlightSnippet(text, terms);
     if (!text) return "";
-    if (!term || !term.trim()) return esc(text);
-    const escaped = term.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp("(" + escaped + ")", "gi");
+    const list = terms.flatMap((t) => Array.isArray(t) ? t : [t]);
+    const valid = list
+      .map((t) => (t == null ? "" : String(t)).trim())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length)
+      .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, (m) => "\\" + m));
+    if (!valid.length) return esc(text);
+    const regex = new RegExp("(" + valid.join("|") + ")", "gi");
     const parts = text.split(regex);
     return parts.map((p, idx) => idx % 2 === 1 ? '<mark class="rw-kw-mark">' + esc(p) + "</mark>" : esc(p)).join("");
   }
   function renderKeywords() {
     const host = $("[data-view='keywords']"); if (!host) return;
+    const prevList = host.querySelector(".rw-kw-list");
+    const prevScrollTop = prevList ? prevList.scrollTop : 0;
     const selected = S.keywordSelected;
+    S.keywordExpandedPapers = S.keywordExpandedPapers || new Set();
+
     const rows = S.keywords.map((k) => {
       const archived = Number(k.archived) === 1;
       const id = escAttr(k.id);
-      return '<div class="rw-keyword-item" data-kw-text="' + escAttr((k.name + " " + k.match_text).toLowerCase()) + '">' +
-        '<label class="rw-keyword-row">' +
-          '<input type="checkbox" data-keyword-id="' + id + '"' + (selected.has(k.id) ? " checked" : "") + ">" +
-          "<span><b>" + esc(k.name) + "</b><small>" + esc(k.match_text) + " · " + PR.t("{n} 篇論文", { n: k.papers || 0 }) + (archived ? " · " + PR.t("已封存") : "") + "</small></span>" +
+      const isSelected = selected.has(k.id);
+      const hasDistinctMatch = k.match_text && k.match_text.trim().toLowerCase() !== k.name.trim().toLowerCase();
+      return '<div class="rw-keyword-item' + (isSelected ? " selected" : "") + '" data-kw-text="' + escAttr((k.name + " " + k.match_text).toLowerCase()) + '">' +
+        '<label class="rw-kw-label">' +
+          '<input type="checkbox" class="rw-kw-checkbox" data-keyword-id="' + id + '"' + (isSelected ? " checked" : "") + ">" +
+          '<div class="rw-kw-content">' +
+            '<div class="rw-kw-title-line">' +
+              '<b class="rw-kw-name" title="' + escAttr(k.name) + '">' + titleHtml(k.name) + "</b>" +
+              '<span class="rw-kw-badge">' + PR.t("{n} 篇", { n: k.papers || 0 }) + "</span>" +
+              (archived ? '<span class="rw-stale-badge">' + PR.t("已封存") + "</span>" : "") +
+            "</div>" +
+            (hasDistinctMatch ? '<small class="rw-kw-match-sub" title="' + escAttr(k.match_text) + '">' + titleHtml(k.match_text) + "</small>" : "") +
+          "</div>" +
         "</label>" +
-        '<div class="rw-keyword-actions">' +
-          (archived
-            ? '<button class="btn sm line" data-action="keyword-restore" data-keyword-id="' + id + '">' + PR.t("恢復") + "</button>" +
-              '<button class="btn sm line danger" data-action="keyword-delete" data-keyword-id="' + id + '">' + PR.t("移除") + "</button>"
-            : '<button class="btn sm line" data-action="keyword-edit" data-keyword-id="' + id + '">' + PR.t("編輯") + "</button>" +
-              '<button class="btn sm line" data-action="keyword-archive" data-keyword-id="' + id + '">' + PR.t("封存") + "</button>" +
-              '<button class="btn sm line danger" data-action="keyword-delete" data-keyword-id="' + id + '">' + PR.t("移除") + "</button>") +
-        "</div>" +
+        '<button type="button" class="btn icon sm rw-kw-more-btn" data-action="keyword-menu" data-keyword-id="' + id + '" title="' + escAttr(PR.t("更多操作")) + '">' +
+          PR.icon("more", "sm") +
+        "</button>" +
       "</div>";
-    }).join("") || '<p class="rw-empty">' + PR.t("尚未收集關鍵字。可在閱讀器反白文字或從術語表加入。") + "</p>";
+    }).join("") || '<div class="rw-kw-sidebar-empty"><p>' + PR.t("尚未收集關鍵字。可在此處直接新增，或在閱讀器中反白文字加入。") + "</p></div>";
 
     const batchBar = selected.size > 0
       ? '<div class="rw-kw-batch-bar">' +
@@ -346,29 +360,38 @@
       const kwCounts = {};
       links.forEach((l) => { kwCounts[l.name] = (kwCounts[l.name] || 0) + (l.occurrences || 1); });
       const pills = Object.entries(kwCounts).map(([kname, count]) =>
-        '<span class="rw-kw-pill"><b>' + esc(kname) + "</b><small>" + PR.t("{n} 處", { n: count }) + "</small></span>"
+        '<span class="rw-kw-pill"><b>' + titleHtml(kname) + "</b><small>" + PR.t("{n} 處", { n: count }) + "</small></span>"
       ).join("");
 
-      const excerpts = links.map((l) => {
+      const renderExcerpt = (l) => {
         const isAuto = l.source === "auto";
         const anchor = l.anchor ? "b-" + escAttr(l.anchor) : "";
         const pageInfo = l.page ? '<span class="rw-kw-page">' + PR.t("第 {page} 頁", { page: l.page }) + "</span>" : "";
-        return '<div class="rw-kw-excerpt-card">' +
+        return '<a class="rw-kw-excerpt-card" href="/read/' + pid + (anchor ? "#" + anchor : "") + '">' +
           '<div class="rw-kw-excerpt-meta">' +
-            '<span class="rw-kw-tag">' + esc(l.name) + "</span>" +
+            '<span class="rw-kw-tag">' + titleHtml(l.name) + "</span>" +
             '<span class="rw-kw-source-type ' + escAttr(l.source) + '">' + (isAuto ? PR.t("自動比對") : PR.t("手動收錄")) + "</span>" +
             pageInfo +
+            '<span class="rw-kw-jump-hint">' + PR.t("定位到此段") + " ↗</span>" +
           "</div>" +
           '<blockquote class="rw-kw-quote">' +
-            highlightMatch(l.quote || PR.t("原文命中"), l.match_text) +
+            highlightMatch(l.quote || PR.t("原文命中"), l.match_text, l.name) +
           "</blockquote>" +
-          '<div class="rw-kw-excerpt-actions">' +
-            '<a class="btn sm accent" href="/read/' + pid + (anchor ? "#" + anchor : "") + '">' +
-              PR.t("開啟論文並定位到此段") + " ↗" +
-            "</a>" +
-          "</div>" +
-        "</div>";
-      }).join("");
+        "</a>";
+      };
+
+      const firstExcerpts = links.slice(0, 2).map(renderExcerpt).join("");
+      const remainingLinks = links.slice(2);
+      let extraHtml = "";
+      let toggleBtn = "";
+      if (remainingLinks.length > 0) {
+        const isExpanded = S.keywordExpandedPapers.has(pid);
+        const extraExcerpts = remainingLinks.map(renderExcerpt).join("");
+        extraHtml = '<div class="rw-kw-excerpts-extra" id="extra-' + pid + '"' + (isExpanded ? "" : " hidden") + ">" + extraExcerpts + "</div>";
+        toggleBtn = '<button type="button" class="btn sm line rw-kw-toggle-excerpts" data-action="toggle-paper-excerpts" data-pid="' + pid + '" data-count="' + remainingLinks.length + '">' +
+          "<span>" + (isExpanded ? PR.t("收合額外段落 ▴") : PR.t("展開另外 {n} 個段落 ▾", { n: remainingLinks.length })) + "</span>" +
+        "</button>";
+      }
 
       return '<article class="rw-card rw-kw-paper-card">' +
         '<div class="rw-kw-paper-head">' +
@@ -378,7 +401,7 @@
           "</div>" +
         "</div>" +
         (pills ? '<div class="rw-kw-pills">' + pills + "</div>" : "") +
-        '<div class="rw-kw-excerpts-list">' + excerpts + "</div>" +
+        '<div class="rw-kw-excerpts-list">' + firstExcerpts + extraHtml + toggleBtn + "</div>" +
       "</article>";
     }).join("");
 
@@ -392,39 +415,102 @@
       '<div class="rw-kw-layout">' +
         '<aside class="rw-kw-sidebar">' +
           '<div class="rw-panel rw-kw-box">' +
-            '<div class="rw-kw-box-title">' + PR.t("關鍵字清單") + "</div>" +
-            '<div class="rw-kw-add-row">' +
-              '<input class="input" id="rw-kw-add-name" placeholder="' + escAttr(PR.t("關鍵字名稱")) + '" maxlength="120">' +
-              '<input class="input" id="rw-kw-add-match" placeholder="' + escAttr(PR.t("原文比對詞")) + '" maxlength="180">' +
-              '<button class="btn sm line" data-action="keyword-create">' + PR.t("新增") + "</button>" +
+            '<div class="rw-kw-box-title">' +
+              "<span>" + PR.t("關鍵字清單") + "</span>" +
             "</div>" +
-            '<div class="rw-toolbar" style="margin-top:10px">' +
-              '<button class="btn sm ' + (S.keywordMode === "all" ? "accent" : "line") + '" data-action="keyword-mode" data-kw-mode="all">' + PR.t("符合全部") + "</button>" +
-              '<button class="btn sm ' + (S.keywordMode === "any" ? "accent" : "line") + '" data-action="keyword-mode" data-kw-mode="any">' + PR.t("符合任一") + "</button>" +
-              '<label class="rw-check"><input type="checkbox" data-keyword-manual' + (S.keywordManual ? " checked" : "") + ">" + PR.t("僅使用者收錄") + "</label>" +
-              '<label class="rw-check"><input type="checkbox" data-keyword-archived' + (S.keywordArchived ? " checked" : "") + ">" + PR.t("顯示已封存") + "</label>" +
+            '<form class="rw-kw-add-box" id="rw-kw-add-form">' +
+              '<span class="rw-kw-add-icon">' + PR.icon("plus", "sm") + "</span>" +
+              '<input class="input rw-kw-add-input" id="rw-kw-add-name" placeholder="' + escAttr(PR.t("輸入關鍵字名稱後 Enter 新增…")) + '" maxlength="120" autocomplete="off">' +
+              '<button class="rw-kw-add-btn" type="submit" data-action="keyword-create" title="' + escAttr(PR.t("新增關鍵字")) + '">' + PR.icon("arrowUp", "sm") + "</button>" +
+            "</form>" +
+            '<div class="rw-kw-segmented">' +
+              '<button type="button" class="rw-kw-seg-btn ' + (S.keywordMode === "all" ? "on" : "") + '" data-action="keyword-mode" data-kw-mode="all">' + PR.t("符合全部") + "</button>" +
+              '<button type="button" class="rw-kw-seg-btn ' + (S.keywordMode === "any" ? "on" : "") + '" data-action="keyword-mode" data-kw-mode="any">' + PR.t("符合任一") + "</button>" +
             "</div>" +
-            '<div class="rw-toolbar" style="margin-top:8px">' +
-              '<input class="rw-search" type="search" data-keyword-search placeholder="' + escAttr(PR.t("搜尋關鍵字…")) + '" aria-label="' + escAttr(PR.t("搜尋關鍵字")) + '" value="' + escAttr(S.keywordQuery || "") + '">' +
-              '<span class="rw-source" data-kw-scan-status aria-live="polite">' + keywordScanHtml() + "</span>" +
+            '<div class="rw-kw-filter-row">' +
+              '<label class="rw-check"><input type="checkbox" data-keyword-manual' + (S.keywordManual ? " checked" : "") + "><span>" + PR.t("僅手動收錄") + "</span></label>" +
+              '<label class="rw-check"><input type="checkbox" data-keyword-archived' + (S.keywordArchived ? " checked" : "") + "><span>" + PR.t("顯示已封存") + "</span></label>" +
             "</div>" +
+            '<div class="rw-kw-search-wrap">' +
+              '<span class="rw-kw-search-icon">' + PR.icon("search", "sm") + "</span>" +
+              '<input class="input rw-kw-search" type="search" data-keyword-search placeholder="' + escAttr(PR.t("篩選關鍵字清單…")) + '" aria-label="' + escAttr(PR.t("搜尋關鍵字")) + '" value="' + escAttr(S.keywordQuery || "") + '">' +
+            "</div>" +
+            '<div class="rw-kw-scan-wrap" data-kw-scan-status aria-live="polite">' + keywordScanHtml() + "</div>" +
             batchBar +
             '<div class="rw-kw-list">' + rows + "</div>" +
           "</div>" +
         "</aside>" +
         '<main class="rw-kw-main">' +
           (S.keywordArchived
-            ? '<div class="rw-empty rw-kw-empty-prompt">' + PR.t("目前顯示已封存的關鍵字。可勾選項目進行「批次恢復」或「批次移除」。") + "</div>"
+            ? '<div class="rw-kw-empty-box">' +
+                '<div class="rw-kw-empty-icon">' + PR.icon("archive", "lg") + "</div>" +
+                '<h3 class="rw-kw-empty-title">' + PR.t("目前顯示已封存的關鍵字") + "</h3>" +
+                '<p class="rw-kw-empty-desc">' + PR.t("可勾選項目進行「批次恢復」或「批次移除」；取消勾選「顯示已封存」即可回到正常搜尋。") + "</p>" +
+              "</div>"
             : (selected.size
                 ? (matches
-                    ? '<div class="rw-kw-results-banner">' + PR.t("共找到 {n} 篇論文符合搜尋條件", { n: S.keywordMatches.length }) + '</div><div class="rw-kw-results">' + matches + "</div>"
-                    : '<div class="rw-empty">' + PR.t("找不到符合目前條件的論文。可切換為「符合任一」或取消「僅使用者收錄」。") + "</div>")
-                : '<div class="rw-empty rw-kw-empty-prompt">' + PR.t("請在左側勾選關鍵字以搜尋文獻庫論文。") + "</div>")) +
+                    ? '<div class="rw-kw-results-banner">' +
+                        '<span>' + PR.t("共找到 {n} 篇論文符合搜尋條件", { n: S.keywordMatches.length }) + "</span>" +
+                        '<span class="rw-kw-banner-filter">' + (S.keywordMode === "all" ? PR.t("模式：符合全部") : PR.t("模式：符合任一")) + "</span>" +
+                      '</div>' +
+                      '<div class="rw-kw-results">' + matches + "</div>"
+                    : '<div class="rw-kw-empty-box">' +
+                        '<div class="rw-kw-empty-icon">' + PR.icon("search", "lg") + "</div>" +
+                        '<h3 class="rw-kw-empty-title">' + PR.t("找不到符合目前條件的論文") + "</h3>" +
+                        '<p class="rw-kw-empty-desc">' + PR.t("找不到符合目前條件的論文。可切換為「符合任一」或取消「僅使用者收錄」。") + "</p>" +
+                      "</div>")
+                : '<div class="rw-kw-empty-box">' +
+                    '<div class="rw-kw-empty-icon">' + PR.icon("search", "lg") + "</div>" +
+                    '<h3 class="rw-kw-empty-title">' + PR.t("選擇或新增關鍵字以展開跨論文探索") + "</h3>" +
+                    '<p class="rw-kw-empty-desc">' + PR.t("從左側勾選 1 個或多個關鍵字，系統將自動比對庫中所有已標註的論文段落。") + "</p>" +
+                  "</div>")) +
         "</main>" +
       "</div>";
     applyKeywordSearch();
+    const newList = host.querySelector(".rw-kw-list");
+    if (newList && prevScrollTop) newList.scrollTop = prevScrollTop;
+    requestAnimationFrame(syncKeywordColumns);
   }
-  document.addEventListener("input", (event) => { const field = event.target.closest && event.target.closest("[data-keyword-search]"); if (field) { S.keywordQuery = field.value; applyKeywordSearch(); } });
+  let kwResizeObserver = null;
+  function syncKeywordColumns() {
+    const host = $("[data-view='keywords']"); if (!host) return;
+    const sidebar = host.querySelector(".rw-kw-sidebar .rw-kw-box");
+    const main = host.querySelector(".rw-kw-main");
+    if (!sidebar || !main) return;
+    if (window.innerWidth <= 900) {
+      main.style.height = "";
+      main.style.maxHeight = "";
+      const res = main.querySelector(".rw-kw-results");
+      if (res) { res.style.height = ""; res.style.maxHeight = ""; }
+      const emp = main.querySelector(".rw-kw-empty-box");
+      if (emp) { emp.style.height = ""; emp.style.minHeight = ""; emp.style.maxHeight = ""; }
+      return;
+    }
+    const h = sidebar.offsetHeight;
+    if (!h || h < 100) return;
+    main.style.height = h + "px";
+    main.style.maxHeight = h + "px";
+    const banner = main.querySelector(".rw-kw-results-banner");
+    const results = main.querySelector(".rw-kw-results");
+    if (results) {
+      const bannerH = banner ? (banner.offsetHeight + 12) : 0;
+      const availH = Math.max(120, h - bannerH);
+      results.style.height = availH + "px";
+      results.style.maxHeight = availH + "px";
+    }
+    const emptyBox = main.querySelector(".rw-kw-empty-box");
+    if (emptyBox) {
+      emptyBox.style.height = h + "px";
+      emptyBox.style.minHeight = h + "px";
+      emptyBox.style.maxHeight = h + "px";
+    }
+    if (typeof window !== "undefined" && window.ResizeObserver && !kwResizeObserver) {
+      kwResizeObserver = new ResizeObserver(() => syncKeywordColumns());
+      kwResizeObserver.observe(sidebar);
+    }
+  }
+  if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", syncKeywordColumns);
+  if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("input", (event) => { const field = event.target.closest && event.target.closest("[data-keyword-search]"); if (field) { S.keywordQuery = field.value; applyKeywordSearch(); } });
   function renderExplore() {
     const host = $("[data-view='explore']");
     const relationHero = renderRelationHero();
@@ -1442,6 +1528,72 @@
           if (!S.keywordArchived) await loadKeywordMatches();
           return renderKeywords();
         }
+        case "keyword-menu": {
+          const kid = b.dataset.keywordId;
+          const current = S.keywords.find((k) => k.id === kid);
+          if (!current) return;
+          const isArchived = Number(current.archived) === 1;
+          const items = [
+            {
+              label: PR.t("編輯關鍵字"),
+              icon: "edit",
+              fn: async () => {
+                const name = window.prompt(PR.t("關鍵字名稱"), current.name);
+                if (!name || !name.trim()) return;
+                const match = window.prompt(PR.t("原文比對詞"), current.match_text);
+                if (!match || !match.trim()) return;
+                const res = await PR.api(API + "/keywords/update", { method: "POST", body: { keyword_id: current.id, name: name.trim(), match_text: match.trim() } });
+                await loadKeywords(false);
+                if (res.scan_needed) startKeywordScan(current.id);
+              }
+            },
+            {
+              label: isArchived ? PR.t("恢復關鍵字") : PR.t("封存關鍵字"),
+              icon: "archive",
+              fn: async () => {
+                await PR.api(API + "/keywords/archive", { method: "POST", body: { keyword_id: current.id, archived: !isArchived } });
+                if (!isArchived) S.keywordSelected.delete(current.id);
+                await loadKeywords(false);
+              }
+            },
+            "-",
+            {
+              label: PR.t("移除關鍵字"),
+              icon: "trash",
+              danger: true,
+              fn: async () => {
+                if (!window.confirm(PR.t("確定要永久移除此關鍵字嗎？相關的比對關聯也會一併清除。"))) return;
+                await PR.api(API + "/keywords/delete", { method: "POST", body: { keyword_id: current.id } });
+                S.keywordSelected.delete(current.id);
+                await loadKeywords(false);
+              }
+            }
+          ];
+          return PR.menu(b, items);
+        }
+        case "toggle-paper-excerpts": {
+          const pid = b.dataset.pid;
+          if (!pid) return;
+          S.keywordExpandedPapers = S.keywordExpandedPapers || new Set();
+          if (S.keywordExpandedPapers.has(pid)) {
+            S.keywordExpandedPapers.delete(pid);
+          } else {
+            S.keywordExpandedPapers.add(pid);
+          }
+          const extraEl = $("#extra-" + pid);
+          if (extraEl) {
+            const isExp = S.keywordExpandedPapers.has(pid);
+            extraEl.hidden = !isExp;
+            const count = Number(b.dataset.count || 0);
+            const span = b.querySelector("span");
+            if (span) {
+              span.textContent = isExp ? PR.t("收合額外段落 ▴") : PR.t("展開另外 {n} 個段落 ▾", { n: count });
+            }
+          } else {
+            renderKeywords();
+          }
+          return;
+        }
         case "keyword-edit": {
           const current = S.keywords.find((k) => k.id === b.dataset.keywordId); if (!current) return;
           const name = window.prompt(PR.t("關鍵字名稱"), current.name); if (!name || !name.trim()) return;
@@ -1452,13 +1604,28 @@
         case "keyword-create": {
           const nameIn = $("#rw-kw-add-name");
           const matchIn = $("#rw-kw-add-match");
-          const name = nameIn?.value.trim(), match = matchIn?.value.trim();
+          const raw = (nameIn?.value || "").trim();
+          let name = raw, match = (matchIn?.value || "").trim();
+          if (!match) {
+            if (raw.includes("/")) {
+              const parts = raw.split("/");
+              name = parts[0].trim();
+              match = parts.slice(1).join("/").trim() || name;
+            } else {
+              match = name;
+            }
+          }
           if (!name || !match) return PR.toast(PR.t("請填寫關鍵字名稱與原文比對詞"));
-          const res = await PR.api(API + "/keywords", { method: "POST", body: { name, match_text: match } });
-          nameIn.value = ""; matchIn.value = "";
-          S.keywordSelected.add(res.keyword.id);
-          await loadKeywords(false);
-          if (res.scan_needed) startKeywordScan(res.keyword.id);
+          try {
+            const res = await PR.api(API + "/keywords", { method: "POST", body: { name, match_text: match } });
+            if (nameIn) nameIn.value = "";
+            if (matchIn) matchIn.value = "";
+            S.keywordSelected.add(res.keyword.id);
+            await loadKeywords(false);
+            if (res.scan_needed) startKeywordScan(res.keyword.id);
+          } catch (err) {
+            PR.toast(err.message || PR.t("新增關鍵字失敗"));
+          }
           return;
         }
         case "keyword-scan": return startKeywordScan();
@@ -1707,7 +1874,30 @@
       }
     } catch (err) { PR.toast(esc(err.message)); }
   });
-  document.addEventListener("submit", (e) => { if (e.target.id === "rw-search") { e.preventDefault(); search(); } });
+  document.addEventListener("submit", async (e) => {
+    if (e.target.id === "rw-search") { e.preventDefault(); search(); }
+    if (e.target.id === "rw-kw-add-form") {
+      e.preventDefault();
+      const nameIn = $("#rw-kw-add-name");
+      const raw = (nameIn?.value || "").trim();
+      if (!raw) return;
+      let name = raw, match = raw;
+      if (raw.includes("/")) {
+        const parts = raw.split("/");
+        name = parts[0].trim();
+        match = parts.slice(1).join("/").trim() || name;
+      }
+      try {
+        const res = await PR.api(API + "/keywords", { method: "POST", body: { name, match_text: match } });
+        nameIn.value = "";
+        S.keywordSelected.add(res.keyword.id);
+        await loadKeywords(false);
+        if (res.scan_needed) startKeywordScan(res.keyword.id);
+      } catch (err) {
+        PR.toast(err.message || PR.t("新增關鍵字失敗"));
+      }
+    }
+  });
   document.addEventListener("input", (e) => {
     const fields = { "rw-query": "query", "rw-venue-query": "venueQuery", "rw-year-from": "yearFrom", "rw-year-to": "yearTo", "rw-sort": "exploreSort" };
     const key = fields[e.target.id];

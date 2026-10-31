@@ -213,6 +213,8 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; line-height:
 .btn.danger-fill:hover { background: var(--danger); opacity: .9; }
 .menu-list button, .menu-list a { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 10px; border-radius: 7px; font-size: 13.5px; color: var(--ink-2); text-align: left; text-decoration: none; }
 .menu-list button:hover, .menu-list a:hover, .menu-list .kb-on { background: var(--accent-soft); color: var(--ink); }
+.menu-list button.danger { color: var(--danger, #e53e3e); }
+.menu-list button.danger:hover { background: var(--mine-soft, rgba(229, 62, 62, 0.1)); color: var(--danger, #e53e3e); }
 .menu-list .kbd { margin-left: auto; font: 11px var(--mono); color: var(--ink-3); }
 .menu-list hr { border: 0; border-top: 1px solid var(--rule); margin: 5px 4px; }
 

@@ -94,6 +94,28 @@ class ResearchV2Test(unittest.TestCase):
             research_v2.post(self.app, "/statuses", {"statuses": values[:-1], "moves": {"custom-review": "missing"}})
         self.assertEqual(ws.values["item"]["status"], "unread")
 
+    def test_keyword_scan_matches_chinese_translation_and_auto_resolves_glossary(self):
+        ws = FakeWorkspace("kw-zh")
+        ws.values["paper"] = {
+            "meta": {"title_en": "Zh Test"},
+            "glossary": [{"en": "visual reasoning", "zh": "視覺推理"}],
+            "blocks": [{"id": "b1", "page": 1, "en": "The model performs reasoning.", "zh": "本方法在視覺推理任務上表現優異。"}]
+        }
+        self.lib.workspaces = {ws.id: ws}
+
+        # 1. Provide only Chinese term -> auto-resolves English match_text from glossary and matches zh text
+        created = research_v2.post(self.app, "/keywords", {"name": "視覺推理", "scan_now": True, "paper_id": ws.id})
+        kw = created["keyword"]
+        self.assertEqual(kw["match_text"], "visual reasoning")
+        matches = research_v2.get(self.app, research_v2.PREFIX + "/keywords/matches?ids=" + kw["id"])["matches"]
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["paper_id"], ws.id)
+        self.assertIn("視覺推理", matches[0]["links"][0]["quote"])
+
+        # 2. Provide only English term -> auto-resolves Chinese name from glossary
+        created_en = research_v2.post(self.app, "/keywords", {"name": "referring expression", "match_text": "referring expression", "scan_now": True})
+        self.assertEqual(created_en["keyword"]["name"], "referring expression")
+
     def test_keywords_scan_filter_exclude_and_search_modes_are_library_scoped(self):
         first, second = FakeWorkspace("keyword-one"), FakeWorkspace("keyword-two")
         first.values["paper"] = {"meta": {"title_en": "One"}, "blocks": [{"id": "b1", "page": 1, "en": "Vision language learning is useful."}]}

@@ -80,10 +80,12 @@
   </div>
   <details class="ink-width" id="inkWidth">
     <summary title="筆寬"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 14.5h12M6.5 10h7M8.5 5.5h3"></path></svg><span>筆寬</span></summary>
-    <label><span>筆寬</span><input type="range" data-ink-width min="1" max="12" step="1" value="2" aria-label="筆寬"><output data-ink-width-value>2</output></label>
+    <label><span>筆寬</span><input type="range" data-ink-width min="1" max="12" step="1" value="2" aria-label="筆寬"></label>
   </details>
   <span class="ink-tool-divider" aria-hidden="true"></span>
-  <button type="button" class="ink-action" data-ink-erase aria-pressed="false" title="橡皮擦"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.1 4.1l8.8 8.8-3.5 3.5H6.8l-3.1-3.1zM3.7 13.4h9.1"></path></svg><span>橡皮擦</span></button>
+  <div class="ink-width ink-eraser"><button type="button" class="ink-action" data-ink-erase aria-pressed="false" aria-expanded="false" aria-controls="eraserSize" title="橡皮擦"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.1 4.1l8.8 8.8-3.5 3.5H6.8l-3.1-3.1zM3.7 13.4h9.1"></path></svg><span>橡皮擦</span></button><label id="eraserSize" data-eraser-size hidden><span>橡皮擦大小</span><input type="range" data-eraser-width min="8" max="80" step="2" value="24" aria-label="橡皮擦大小"></label></div>
+  <button type="button" class="ink-action" data-ink-lasso aria-pressed="false" title="套索選取"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5.5c2.8-2.8 8.5-2.7 10.2.4 1.5 2.7-.8 6.6-4.7 7.5-3.8.9-7.2-1.2-6.6-4.6.4-2.6 3.7-3.3 5.5-1.8 1.4 1.2.5 3.2-1.1 3.1M8.3 10.2l-2.7 4.3"></path></svg><span>套索選取</span></button>
+  <button type="button" class="ink-action" data-ink-text aria-pressed="false" title="插入文字方塊"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5V3h14v2M10 3v14M7 17h6"></path></svg><span>插入文字方塊</span></button>
   <button type="button" class="ink-action" data-ink-undo title="復原（Ctrl/⌘ + Z）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5L3.5 8.5 7 12M4 8.5h7a4.5 4.5 0 1 1 0 9"></path></svg><span>復原</span></button>
   <button type="button" class="ink-action" data-ink-redo title="重做（Ctrl/⌘ + Shift + Z）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M13 5l3.5 3.5L13 12m3.5-3.5h-7a4.5 4.5 0 1 0 0 9"></path></svg><span>重做</span></button>
   <button type="button" class="ink-action" data-ink-hide aria-pressed="false" title="隱藏筆跡"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-4.5 7.5-4.5S17.5 10 17.5 10 14.8 14.5 10 14.5 2.5 10 2.5 10zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"></path></svg><span data-ink-hide-label>隱藏筆跡</span></button>
@@ -141,8 +143,10 @@
 <script src="/web/js/common/markup.js"></script>
 <script src="/web/js/reader/store.js"></script>
 <script src="/web/js/reader/annotation-history.js"></script>
+<script src="/web/js/reader/ink-eraser.js"></script>
 <script src="/web/js/reader/ink.js"></script>
 <script src="/web/js/reader/sticker-geometry.js"></script>
+<script src="/web/js/reader/sticker-lasso.js"></script>
 <script src="/web/js/reader/sticker-style.js"></script>
 <script src="/web/js/reader/stickers.js"></script>
 <script src="/web/js/reader/render.js"></script>

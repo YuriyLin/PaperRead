@@ -336,10 +336,12 @@ test('tabs system detects modal open state and toggles body modal-open class', a
   assert.ok(paperFrame);
 
   let modalOpen = false;
+  let figureViewerOpen = false;
   let taskModalHidden = true;
   paperFrame.contentDocument.querySelector = (sel) => {
     if (sel === '#pr-research-task-modal') return { hidden: taskModalHidden };
     if (sel.includes('.dialog-backdrop.open') || sel.includes('#mindmapDlg')) return modalOpen ? {} : null;
+    if (sel.includes('dialog.figure-viewer[open]')) return figureViewerOpen ? {} : null;
     return null;
   };
 
@@ -357,6 +359,15 @@ test('tabs system detects modal open state and toggles body modal-open class', a
 
   // Trigger modal close
   modalOpen = false;
+  tabsApi.select('paper_modal');
+  assert.ok(!context.document.body.classList.contains('modal-open'));
+
+  // Open figure-viewer lightbox dialog
+  figureViewerOpen = true;
+  tabsApi.select('paper_modal');
+  assert.ok(context.document.body.classList.contains('modal-open'));
+
+  figureViewerOpen = false;
   tabsApi.select('paper_modal');
   assert.ok(!context.document.body.classList.contains('modal-open'));
 });

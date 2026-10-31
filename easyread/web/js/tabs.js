@@ -1229,24 +1229,26 @@
 
     const checkModal = () => {
       if (tab.id !== active) return;
+      const figViewer = doc.querySelector ? doc.querySelector("dialog.figure-viewer[open]") : null;
       const mmOpen = doc.querySelector ? doc.querySelector("#mindmapDlg.dialog-backdrop.open") : null;
       const taskModal = doc.querySelector ? doc.querySelector("#pr-research-task-modal") : null;
       const isTaskModalOpen = taskModal && !taskModal.hidden;
       const hasModal = !!(
         doc.querySelector?.(".dialog-backdrop.open, .popover.confirm.open") ||
+        figViewer ||
         mmOpen ||
         isTaskModalOpen
       );
       const isDark = (doc.documentElement?.dataset?.theme === "dark" || doc.documentElement?.getAttribute?.("data-theme") === "dark" || document.documentElement?.dataset?.theme === "dark");
       document.body?.classList?.toggle("modal-open", hasModal);
-      document.body?.classList?.toggle("modal-mindmap-dark", !!(hasModal && mmOpen && isDark));
+      document.body?.classList?.toggle("modal-mindmap-dark", !!(hasModal && (mmOpen || figViewer) && isDark));
     };
 
     tab.modalObserver?.disconnect();
     tab.modalObserver = new MutationObserver(checkModal);
     tab.modalObserver.observe(doc.body || doc.documentElement, {
       attributes: true,
-      attributeFilter: ["class", "data-theme", "hidden"],
+      attributeFilter: ["class", "data-theme", "hidden", "open"],
       subtree: true,
       childList: true
     });

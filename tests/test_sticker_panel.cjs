@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { test } = require('node:test');
 
 function setup(source='Lucide') {
-  function element() { return { hidden:false, dataset:{}, attributes:{}, style:{}, children:[], listeners:{}, classList:{toggle(){},contains(){return false}}, addEventListener(type, fn){this.listeners[type]=fn;}, setAttribute(key,value){this.attributes[key]=value;if(key.startsWith('data-'))this.dataset[key.slice(5)]=value;}, append(node){this.children.push(node);}, querySelector(){return null}, querySelectorAll(){return []}, getBoundingClientRect(){return {left:100,top:100,right:200,bottom:200,width:100,height:100}}, focus(){}, setPointerCapture(){}}; }
+  function element() { return { hidden:false, dataset:{}, attributes:{}, style:{}, children:[], listeners:{}, classList:{toggle(){},contains(){return false}}, addEventListener(type, fn){this.listeners[type]=fn;}, setAttribute(key,value){this.attributes[key]=value;if(key.startsWith('data-'))this.dataset[key.slice(5)]=value;}, getAttribute(key){return this.attributes[key]}, append(node){this.children.push(node);}, remove(){this.removed=true}, querySelector(){return null}, querySelectorAll(){return []}, getScreenCTM(){return {a:1,b:0,c:0,d:1,e:100,f:100}}, getBoundingClientRect(){return {left:100,top:100,right:200,bottom:200,width:100,height:100}}, focus(){}, setPointerCapture(){}}; }
   const panel=element(), bar=element(), layer=element(), toggle=element(), stage=element(), ink=element(), block=element();
   panel.hidden=true; ink.getAttribute=()=> 'true';
   block.dataset.id='p1'; block.innerText='paper';
@@ -14,13 +14,13 @@ function setup(source='Lucide') {
   const item={id:'atom',name:'Atom',category:'science',source,format:'svg',tags:[],offlineData:data};
   const embedded={textContent:JSON.stringify({stickerAssets:[item]})};
   const elements={stickerPanel:panel,stickerToggle:toggle,stickerTools:bar,inkLayer:layer,stage,inkToggle:ink,'b-p1':block,'pr-data':embedded};
-  const document={documentElement:{dataset:{theme:'light'}},listeners:{},getElementById:id=>elements[id],querySelector(){return null},addEventListener(type,fn){this.listeners[type]=fn;},createElementNS(_ns,name){const e=element();e.kind=name;e.querySelector=selector=>selector==='image'?e.children.find(child=>child.kind==='image'):null;return e;}};
+  const document={documentElement:{dataset:{theme:'light'}},body:element(),listeners:{},getElementById:id=>elements[id],querySelector(){return null},addEventListener(type,fn){this.listeners[type]=fn;},createElement(){return element()},createElementNS(_ns,name){const e=element();e.kind=name;e.querySelector=selector=>selector==='image'?e.children.find(child=>child.kind==='image'):selector==='[data-sticker-content]'?e.children.find(child=>Object.hasOwn(child.attributes,'data-sticker-content')):null;return e;}};
   layer.querySelectorAll=selector=>selector==='[data-sticker]'?layer.children.filter(x=>x.dataset.sticker):[];
   const sticker={id:'s1',assetId:'atom',anchor:'p1',textHash:'hash',ref:[100,100],x:0,y:0,width:40,height:40,rotation:0,opacity:.4,z:1,locked:false};
-  const PR={state:{reader:{stickers:{s1:sticker}}}, t:s=>s, esc:s=>String(s||''), icon:name=>`<svg data-icon="${name}"></svg>`, ls:{get:(_k,d)=>d,set:()=>true}, on(){}, renderInk(){}, toggleInk(){}, hashText:()=> 'hash', recordStickerHistory(){}, commit(op){if(op.op==='sticker')this.state.reader.stickers[op.sticker.id]=op.sticker;}, $$: () => [block], stickerGeometry:require('../easyread/web/js/reader/sticker-geometry.js'),stickerStyle:require('../easyread/web/js/reader/sticker-style.js')};
+  const PR={state:{reader:{stickers:{s1:sticker}}}, t:s=>s, esc:s=>String(s||''), md:text=>String(text).replace(/\$([^$]+)\$/g,'<span class="katex">$1</span>'), icon:name=>`<svg data-icon="${name}"></svg>`, ls:{get:(_k,d)=>d,set:()=>true}, on(){}, renderInk(){}, toggleInk(){}, hashText:()=> 'hash', recordStickerHistory(){}, commit(op){if(op.op==='sticker')this.state.reader.stickers[op.sticker.id]=op.sticker;}, $$: () => [block], stickerLasso:require('../easyread/web/js/reader/sticker-lasso.js'), stickerGeometry:require('../easyread/web/js/reader/sticker-geometry.js'),stickerStyle:require('../easyread/web/js/reader/sticker-style.js')};
   let themeChanged;
   class MockImage { constructor() { setTimeout(() => { this.naturalWidth = 24; this.naturalHeight = 24; this.onload?.(); }, 0); } }
-  const context={window:{PR,innerWidth:1200,innerHeight:800,addEventListener(){}},document,innerWidth:1200,innerHeight:800,Image:MockImage,MutationObserver:class{constructor(callback){themeChanged=callback}observe(){}},DOMParser:class{parseFromString(){return {querySelector(){return null},documentElement:{localName:'svg'},querySelectorAll(){return []}}}},TextDecoder,Uint8Array,atob:s=>Buffer.from(s,'base64').toString('binary'),console};
+  const context={window:{PR,innerWidth:1200,innerHeight:800,addEventListener(){}},document,innerWidth:1200,innerHeight:800,Image:MockImage,URL,MutationObserver:class{constructor(callback){themeChanged=callback}observe(){}},DOMParser:class{parseFromString(){return {querySelector(){return null},documentElement:{localName:'svg'},querySelectorAll(){return []}}}},TextDecoder,Uint8Array,atob:s=>Buffer.from(s,'base64').toString('binary'),console};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../easyread/web/js/reader/stickers.js'),'utf8'),context);
   return {PR,panel,bar,layer,toggle,document,themeChanged};
 }
@@ -87,6 +87,17 @@ test('Escape closes the category dropdown and restores focus',()=>{
   assert.equal(dropdown.open,false); assert.ok(focused && prevented && stopped);
 });
 
+test('finishing a lasso returns to direct object selection',()=>{
+  const {PR,layer}=setup();
+  PR.setLassoMode(true);
+  layer.listeners.pointerdown({button:0,pointerId:1,clientX:110,clientY:110,preventDefault(){},stopPropagation(){}});
+  layer.listeners.pointermove({pointerId:1,clientX:130,clientY:110});
+  layer.listeners.pointermove({pointerId:1,clientX:120,clientY:130});
+  layer.listeners.pointerup({pointerId:1});
+  assert.equal(PR.lassoMode,false);
+  assert.equal(layer.classList.contains('lasso-mode'),false);
+});
+
 test('double clicking a sticker asset in the panel triggers insert',()=>{
   const {toggle,panel,PR}=setup(); toggle.listeners.click();
   let committed = null;
@@ -109,4 +120,43 @@ test('selected Lucide sticker renders directional edge lines and handles',()=>{
   assert.ok(handles.includes('w'), 'should have left edge handle');
   assert.ok(handles.includes('e'), 'should have right edge handle');
   assert.ok(handles.includes('rotate'), 'should have rotate handle');
+});
+
+test('sticker links persist and reject dangerous URLs', async ()=>{
+  const {PR,layer,toggle,bar}=setup(); toggle.listeners.click();
+  const group={dataset:{sticker:'s1'}};
+  layer.listeners.pointerdown({button:0,target:{dataset:{},closest:()=>group},preventDefault(){},stopPropagation(){},pointerId:1,clientX:120,clientY:120});
+  PR.promptText=async()=> 'https://example.com/paper';
+  const click=action=>bar.listeners.click({target:{closest:()=>({dataset:{action}})}});
+  click('link'); await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(PR.state.reader.stickers.s1.href,'https://example.com/paper');
+  let warning=''; PR.toast=value=>warning=value; PR.promptText=async()=> 'javascript:alert(1)';
+  click('link'); await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(PR.state.reader.stickers.s1.href,'https://example.com/paper'); assert.ok(warning);
+  click('unlink'); assert.equal(PR.state.reader.stickers.s1.href,undefined);
+});
+
+test('text box inserts on the ink layer and saves multiline edits and styles',()=>{
+  const {PR,layer,document,bar}=setup(); PR.uid=()=> 'text1';
+  PR.renderInk=()=>{layer.children=[];PR.renderStickers(layer,{left:0,top:0},{scrollTop:0},'front')};
+  PR.insertInkText(150,160);
+  assert.equal(PR.state.reader.stickers.text1.assetId,'paperread-text-box');
+  const input=document.body.children.at(-1); assert.ok(input);
+  input.value='first line\n第二行'; input.listeners.blur();
+  assert.equal(PR.state.reader.stickers.text1.text,'first line\n第二行'); assert.equal(input.removed,true);
+  bar.listeners.change({target:{dataset:{field:'textColor'},value:'#335577'}});
+  bar.listeners.change({target:{dataset:{field:'textSize'},value:'28'}});
+  assert.equal(PR.state.reader.stickers.text1.textColor,'#335577'); assert.equal(PR.state.reader.stickers.text1.textSize,28);
+  assert.match(bar.innerHTML,/data-field="textSize" type="number"/);
+  assert.doesNotMatch(bar.innerHTML,/data-field="textSize" type="range"/);
+  const click=action=>bar.listeners.click({target:{closest:()=>({dataset:{action}})}});
+  click('text-size-up'); assert.equal(PR.state.reader.stickers.text1.textSize,29);
+  click('text-size-down'); assert.equal(PR.state.reader.stickers.text1.textSize,28);
+  bar.listeners.change({target:{dataset:{field:'textSize'},value:'99'}}); assert.equal(PR.state.reader.stickers.text1.textSize,72);
+  click('text-size-up'); assert.equal(PR.state.reader.stickers.text1.textSize,72);
+  bar.listeners.change({target:{dataset:{field:'textSize'},value:''}}); assert.equal(PR.state.reader.stickers.text1.textSize,72);
+  click('text-bold'); assert.equal(PR.state.reader.stickers.text1.textBold,true); assert.match(bar.innerHTML,/data-action="text-bold"[^>]*aria-pressed="true"/);
+  PR.state.reader.stickers.text1.text='E = $mc^2$'; layer.children=[]; PR.renderStickers(layer,{left:0,top:0},{scrollTop:0},'front');
+  const textGroup=layer.children.find(group=>group.dataset.sticker==='text1');
+  assert.match(textGroup.children.find(child=>child.kind==='foreignObject').children[0].innerHTML,/class="katex"/);
 });

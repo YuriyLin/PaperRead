@@ -4,7 +4,7 @@
   const layer = document.getElementById("inkLayer"), tools = document.getElementById("inkTools");
   const colors = ["#1d1d1d", "#d94b4b", "#2878c8", "#27845b"];
   const colorOk = value => /^#[0-9a-f]{6}$/i.test(value);
-  let active = false, hidden = false, erasing = false, color = colors[0], width = 2, drawing = null, erasingStrokes = null, last = null;
+  let active = false, hidden = false, erasing = false, color = colors[0], width = 2, drawing = null, erasingStrokes = null, last = null, erasePrevious = null, eraseCursor = null, eraserWidth = 24, textMode = false;
   const undo = [], redo = [];
   const strokes = () => Object.values(PR.state.reader.ink || {}).filter(stroke => !stroke.deleted);
   const stage = () => document.getElementById("stage");
@@ -47,6 +47,13 @@
       path.setAttribute("fill", "none"); path.setAttribute("stroke", stroke.color);
       path.setAttribute("stroke-width", stroke.width); path.setAttribute("stroke-linecap", "round"); path.setAttribute("stroke-linejoin", "round");
       path.setAttribute("vector-effect", "non-scaling-stroke");
+      if (PR.stickerMode && PR.isInkSelected?.(stroke.id)) {
+        const outline=document.createElementNS("http://www.w3.org/2000/svg", "path");
+        outline.setAttribute("d",path.getAttribute("d")); outline.setAttribute("transform",path.getAttribute("transform"));
+        outline.setAttribute("fill","none"); outline.setAttribute("stroke","#2878c8"); outline.setAttribute("stroke-width",stroke.width+5);
+        outline.setAttribute("stroke-linecap","round"); outline.setAttribute("stroke-linejoin","round"); outline.setAttribute("stroke-opacity",".6"); outline.setAttribute("vector-effect","non-scaling-stroke"); outline.setAttribute("pointer-events","none");
+        layer.append(outline);
+      }
       layer.append(path);
     }
     PR.renderStickers?.(layer, sr, host, "front");
@@ -67,14 +74,42 @@
     PR.commit({ op: "ink", stroke });
     undo.push({ add: [stroke] }); redo.length = 0; render();
   }
-  function removeStroke(id, record = true) {
-    const stroke = PR.state.reader.ink[id];
-    if (!stroke || stroke.deleted) return;
-    PR.commit({ op: "ink_del", id });
-    if (record) { undo.push({ remove: [stroke] }); redo.length = 0; }
-    render();
-  }
   function replay(entry, undoing) {
+    if (entry.selection) {
+      const content = value => {
+        if (!value || value.deleted) return "deleted";
+        const clean={...value}; delete clean.updated; delete clean.deleted;
+        return JSON.stringify(clean, (_key,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])) : item);
+      };
+      const expected=undoing ? "after" : "before";
+      const changed=(entry.selection.stickers || []).some(item=>content(PR.state.reader.stickers?.[item.id])!==content(item[expected])) ||
+        (entry.selection.ink || []).some(item=>content(PR.state.reader.ink?.[item.id])!==content(item[expected]));
+      if (changed) { undo.length=redo.length=0; PR.toast(PR.t("選取內容已在其他地方修改，無法復原")); return false; }
+      for (const item of entry.selection.stickers || []) {
+        const value=undoing ? item.before : item.after;
+        if (value) PR.commit({op:"sticker",sticker:{...value,deleted:false}}); else PR.commit({op:"sticker_del",id:item.id});
+      }
+      for (const item of entry.selection.ink || []) {
+        const value=undoing ? item.before : item.after;
+        if (value) PR.commit({op:"ink",stroke:{...value,deleted:false}}); else PR.commit({op:"ink_del",id:item.id});
+      }
+      render(); return true;
+    }
+    if (entry.stickers) {
+      const content = value => {
+        if (!value || value.deleted) return "deleted";
+        const clean={...value}; delete clean.updated; delete clean.deleted;
+        return JSON.stringify(clean, (_key,item) => item && typeof item === "object" && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key=>[key,item[key]])) : item);
+      };
+      if (entry.stickers.some(item => content(PR.state.reader.stickers?.[item.id]) !== content(undoing ? item.after : item.before))) {
+        undo.length = redo.length = 0; PR.toast(PR.t("貼紙已在其他地方修改，無法復原")); return false;
+      }
+      for (const item of entry.stickers) {
+        const value=undoing ? item.before : item.after;
+        if (value) PR.commit({op:"sticker",sticker:{...value,deleted:false}}); else PR.commit({op:"sticker_del",id:item.id});
+      }
+      render(); return true;
+    }
     if (entry.sticker) {
       const content = value => {
         if (!value || value.deleted) return "deleted";
@@ -98,6 +133,8 @@
     return true;
   }
   PR.recordStickerHistory = (id, before, after) => { undo.push({ sticker: true, id, before, after }); redo.length = 0; };
+  PR.recordStickerBatchHistory = entries => { if (entries.length) { undo.push({ stickers:entries }); redo.length=0; } };
+  PR.recordSelectionHistory = (stickers, ink) => { if (stickers.length || ink.length) { undo.push({selection:{stickers,ink}}); redo.length=0; } };
   PR.inkHistory = isRedo => {
     const from = isRedo ? redo : undo, to = isRedo ? undo : redo;
     if (!from.length) return false;
@@ -109,21 +146,47 @@
     if (stroke.points.length) addStroke(stroke);
   }
   function eraseAt(e, gesture) {
-    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("path[data-stroke]");
-    if (target) {
-      const stroke = PR.state.reader.ink[target.dataset.stroke];
-      if (stroke && !stroke.deleted) { removeStroke(stroke.id, !gesture); if (gesture) gesture.push(stroke); }
+    const next = { x:e.clientX, y:e.clientY }, previous = erasePrevious || next;
+    const hits = [...layer.querySelectorAll("path[data-stroke]")].filter(path => PR.inkEraser.hitPath(path, previous, next, eraserWidth / 2));
+    erasePrevious = next;
+    for (const path of hits) {
+      const stroke = PR.state.reader.ink[path.dataset.stroke];
+      if (stroke && !stroke.deleted) { PR.commit({ op:"ink_del", id:stroke.id }); if (gesture) gesture.push(stroke); }
     }
+    if (hits.length) render();
+  }
+  function cursor(e) {
+    if (!eraseCursor) { eraseCursor = document.createElement("div"); eraseCursor.className = "ink-eraser-cursor"; document.body.append(eraseCursor); }
+    eraseCursor.style.width = eraseCursor.style.height = eraserWidth + "px";
+    eraseCursor.style.left = e.clientX + "px"; eraseCursor.style.top = e.clientY + "px"; eraseCursor.hidden = !active || !erasing;
   }
   function finishErase() {
     if (!erasingStrokes) return;
     if (erasingStrokes.length) { undo.push({ remove: erasingStrokes }); redo.length = 0; }
-    erasingStrokes = null;
+    erasingStrokes = null; erasePrevious = null;
   }
+  function showEraserSize(show) {
+    const popup=tools.querySelector("[data-eraser-size]"), button=tools.querySelector("[data-ink-erase]");
+    if (popup) popup.hidden=!show;
+    button?.setAttribute("aria-expanded",String(show));
+  }
+  function setEraser(on) {
+    if (!on) { finishErase(); if (eraseCursor) eraseCursor.hidden=true; showEraserSize(false); }
+    erasing=on; layer.classList.toggle("erase",on);
+    tools.querySelector("[data-ink-erase]")?.setAttribute("aria-pressed",String(on));
+  }
+  PR.setInkEraser = setEraser;
 
   layer.addEventListener("pointerdown", e => {
     if (!active || e.button !== 0 || PR.stickerMode) return;
     e.preventDefault();
+    if (textMode) {
+      textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false");
+      const group=e.target.closest?.("[data-sticker]"), item=group && PR.state.reader.stickers?.[group.dataset.sticker];
+      if (item?.assetId === "paperread-text-box") PR.setStickerMode?.(true);
+      else PR.insertInkText?.(e.clientX, e.clientY);
+      return;
+    }
     if (erasing) { erasingStrokes = []; layer.setPointerCapture(e.pointerId); eraseAt(e, erasingStrokes); return; }
     const block = nearestBlock(e.clientY);
     if (!block) return;
@@ -134,6 +197,7 @@
     layer.setPointerCapture(e.pointerId);
   });
   layer.addEventListener("pointermove", e => {
+    if (active && erasing) cursor(e);
     if (drawing) {
       const block = document.getElementById("b-" + drawing.anchor), r = block.getBoundingClientRect(), p = point(e, r);
       const prev = drawing.points[drawing.points.length - 1];
@@ -141,11 +205,13 @@
         if (drawing.points.length < 2000) drawing.points.push(p); else drawing.points[1999] = p;
         renderPreview();
       }
-    } else if (active && erasing && (e.buttons & 1)) eraseAt(e, erasingStrokes);
+    } else if (active && erasing && erasingStrokes && (e.buttons & 1)) eraseAt(e, erasingStrokes);
   });
+  layer.addEventListener("pointerleave", () => { if (eraseCursor && !erasingStrokes) eraseCursor.hidden = true; });
   layer.addEventListener("pointerup", e => {
     if (drawing) { const d = drawing; finish(); last = { anchor: d.anchor, color: d.color, width: d.width, time: now(), point: d.points[d.points.length - 1], group: d.group }; }
     finishErase();
+    if (eraseCursor) eraseCursor.hidden = true;
   });
   layer.addEventListener("pointercancel", () => { finish(); finishErase(); });
   window.addEventListener("blur", () => { finish(); finishErase(); });
@@ -162,15 +228,17 @@
   document.getElementById("inkToggle")?.addEventListener("click", () => {
     active = !active; tools.hidden = !active; layer.classList.toggle("active", active);
     document.getElementById("inkToggle").setAttribute("aria-pressed", String(active));
-    if (!active) { finish(); erasing = false; layer.classList.remove("erase"); tools.querySelector("[data-ink-erase]").setAttribute("aria-pressed", "false"); }
+    if (!active) { finish(); setEraser(false); PR.setLassoMode?.(false); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); }
   });
   PR.toggleInk = () => document.getElementById("inkToggle")?.click();
   PR.toggleInkEraser = () => {
     if (!active) PR.toggleInk();
-    tools.querySelector("[data-ink-erase]")?.click();
+    setEraser(!erasing); showEraserSize(erasing);
   };
   function setColor(next, button) {
     if (!colorOk(next)) return;
+    if (erasing) setEraser(false);
+    PR.setLassoMode?.(false); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false");
     color = next.toLowerCase();
     const custom = tools.querySelector("[data-ink-custom]");
     const customSwatch = custom?.closest(".ink-custom");
@@ -181,30 +249,33 @@
   function setWidth(next) {
     width = Math.max(1, Math.min(12, Number(next) || 2));
     const input = tools.querySelector("[data-ink-width]");
-    const output = tools.querySelector("[data-ink-width-value]");
     if (input) input.value = String(width);
-    if (output) { output.value = String(width); output.textContent = String(width); }
   }
   tools.addEventListener("click", e => {
     const button = e.target.closest("button"); if (!button) return;
     if (button.dataset.inkColor) { PR.setStickerMode?.(false); setColor(button.dataset.inkColor, button); }
-    if (button.hasAttribute("data-ink-erase")) { PR.setStickerMode?.(false); finishErase(); erasing = !erasing; button.setAttribute("aria-pressed", String(erasing)); layer.classList.toggle("erase", erasing); }
+    if (button.hasAttribute("data-ink-erase")) { PR.setStickerMode?.(false); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); setEraser(true); showEraserSize(true); }
+    if (button.hasAttribute("data-ink-lasso")) { setEraser(false); textMode=false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed","false"); PR.setLassoMode?.(!PR.lassoMode); button.setAttribute("aria-pressed",String(!!PR.lassoMode)); }
+    if (button.hasAttribute("data-ink-text")) { PR.setLassoMode?.(false); PR.setStickerMode?.(false); setEraser(false); textMode = !textMode; button.setAttribute("aria-pressed", String(textMode)); }
     if (button.hasAttribute("data-ink-hide")) { hidden = !hidden; button.setAttribute("aria-pressed", String(hidden)); const label = button.querySelector("[data-ink-hide-label]"); if (label) label.textContent = hidden ? PR.t("顯示筆跡") : PR.t("隱藏筆跡"); render(); }
     if (button.hasAttribute("data-ink-undo")) PR.inkHistory(false);
     if (button.hasAttribute("data-ink-redo")) PR.inkHistory(true);
   });
   tools.addEventListener("input", e => {
     if (e.target.matches("[data-ink-width]")) setWidth(e.target.value);
+    if (e.target.matches("[data-eraser-width]")) { eraserWidth = Math.max(8, Math.min(80, Number(e.target.value) || 24)); if (eraseCursor) eraseCursor.style.width = eraseCursor.style.height = eraserWidth + "px"; }
     if (e.target.matches("[data-ink-custom]")) { PR.setStickerMode?.(false); setColor(e.target.value, e.target); }
   });
+  document.addEventListener("pointerdown", e => { if (!e.target.closest?.(".ink-eraser")) showEraserSize(false); });
   document.addEventListener("keydown", e => {
     if (e.defaultPrevented || e.isComposing || e.target.closest?.("input,textarea,select,[contenteditable],#chatStyleHelp")) return;
     if (!active) return;
     if (e.key === "Escape") {
-      PR.setStickerMode?.(false);
-      e.preventDefault(); e.stopImmediatePropagation(); active = false; tools.hidden = true; erasing = false;
-      layer.classList.remove("active", "erase"); document.getElementById("inkToggle").setAttribute("aria-pressed", "false");
-      tools.querySelector("[data-ink-erase]").setAttribute("aria-pressed", "false"); finish(); finishErase(); return;
+      PR.setLassoMode?.(false); PR.setStickerMode?.(false);
+      if (tools.querySelector("[data-eraser-size]")?.hidden === false) { e.preventDefault(); e.stopImmediatePropagation(); showEraserSize(false); tools.querySelector("[data-ink-erase]")?.focus(); return; }
+      e.preventDefault(); e.stopImmediatePropagation(); active = false; tools.hidden = true; setEraser(false);
+      layer.classList.remove("active"); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); tools.querySelector("[data-ink-lasso]")?.setAttribute("aria-pressed", "false"); document.getElementById("inkToggle").setAttribute("aria-pressed", "false");
+      finish(); return;
     }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     if (e.key.toLowerCase() === "z" && PR.inkHistory(e.shiftKey)) e.preventDefault();

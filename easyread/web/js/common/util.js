@@ -278,7 +278,7 @@ window.PR = window.PR || {};
     let m = PR.$("#ctxmenu");
     if (!m) { m = PR.el("div", { id: "ctxmenu", class: "menu" }); document.body.appendChild(m); }
     m.innerHTML = '<div class="menu-list">' + items.map((it, i) => it === "-" ? "<hr>" :
-      '<button data-i="' + i + '"' + (it.disabled ? " disabled" : "") + ">" + (it.icon ? PR.icon(it.icon, "sm") : "") + "<span>" + PR.esc(it.label) + "</span>" +
+      '<button data-i="' + i + '"' + (it.disabled ? " disabled" : "") + (it.danger ? ' class="danger"' : "") + ">" + (it.icon ? PR.icon(it.icon, "sm") : "") + "<span>" + PR.esc(it.label) + "</span>" +
       (it.kbd ? '<span class="kbd">' + PR.esc(it.kbd) + "</span>" : "") + "</button>").join("") + "</div>";
     m.onclick = (e) => {
       const b = e.target.closest("[data-i]"); if (!b) return;

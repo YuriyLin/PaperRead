@@ -95,10 +95,18 @@ def pin(ws: Workspace, tid: str, mid: str) -> None:
     msgs = (t or {}).get("messages", [])
     i = next((k for k, m in enumerate(msgs) if m.get("id") == mid and m.get("role") == "assistant"), None)
     if i is None:
+        for candidate in threads(ws):
+            candidate_msgs = candidate.get("messages", [])
+            candidate_i = next((k for k, m in enumerate(candidate_msgs) if m.get("id") == mid and m.get("role") == "assistant"), None)
+            if candidate_i is not None:
+                t, msgs, i = candidate, candidate_msgs, candidate_i
+                break
+    if i is None:
         raise KeyError(mid)
     ans, q = msgs[i], (msgs[i - 1] if i and msgs[i - 1].get("role") == "user" else {})
     blocks = {b.get("id") for b in ws.load("paper").get("blocks", [])}
     entry = {"kind": "qa", "q": q.get("content", ""), "body": ans["content"], "by": ans.get("model", "")}
-    if ans.get("anchor") in blocks:
-        entry["anchor"] = ans["anchor"]
+    anchor = ans.get("anchor") or q.get("anchor")
+    if anchor in blocks:
+        entry["anchor"] = anchor
     add_discussion(ws, [entry])

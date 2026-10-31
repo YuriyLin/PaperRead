@@ -314,15 +314,20 @@ def _keyword_excluded_paper(item: dict) -> bool:
 
 
 def _keyword_scan(app, keyword: dict, *, only_paper: str = "", cancel=None) -> dict:
-    """Index already extracted paper text only; scanned images remain deliberately out of scope.
+    """Index extracted paper text (both English original and Chinese translation).
 
+    Matches both keyword name (e.g. Chinese translated term) and match_text (e.g. English original).
     Each paper is committed atomically, so a failure never clears earlier results.
     Returns {"matched": papers_with_hits, "no_text": [paper ids without extracted text], "scanned": papers_checked}.
     """
     root = _root(app)
-    needle = _keyword_text(keyword.get("match_text"))
+    needles = []
+    for raw_needle in [keyword.get("match_text"), keyword.get("name")]:
+        n = _keyword_text(raw_needle)
+        if n and n not in needles:
+            needles.append(n)
     report = {"matched": 0, "no_text": [], "scanned": 0}
-    if not needle:
+    if not needles:
         return report
     for ws in app.lib.all():
         if cancel and (cancel.is_set() if hasattr(cancel, "is_set") else cancel()):
@@ -333,22 +338,38 @@ def _keyword_scan(app, keyword: dict, *, only_paper: str = "", cancel=None) -> d
         if _keyword_excluded_paper(item):
             continue
         blocks = [b for b in (paper.get("blocks") or []) if isinstance(b, dict)]
-        texts = [(b, str(b.get("en") or b.get("text") or "")) for b in blocks]
-        if not any(raw.strip() for _, raw in texts):
+        texts = [(b, str(b.get("en") or b.get("text") or ""), str(b.get("zh") or "")) for b in blocks]
+        if not any(en.strip() or zh.strip() for _, en, zh in texts):
             report["no_text"].append(ws.id)
             planning_store.keyword_replace_auto(root, keyword["id"], ws.id, [], "")
             continue
-        joined = "\n".join(raw for _, raw in texts)
-        content = sha256((needle.casefold() + "\n" + joined).encode("utf-8")).hexdigest()
+        joined = "\n".join(en + "\n" + zh for _, en, zh in texts)
+        content = sha256(("\0".join(sorted(needles)).casefold() + "\n" + joined).encode("utf-8")).hexdigest()
         report["scanned"] += 1
         if planning_store.keyword_scan_state(root, keyword["id"], ws.id) == content:
             report["matched"] += 1
             continue
         hits = []
-        for block, raw in texts:
-            count, snippet = _keyword_hits(needle, raw)
-            if count:
-                hits.append({"anchor": str(block.get("id") or ""), "page": block.get("page"), "quote": snippet, "occurrences": count})
+        for block, en_raw, zh_raw in texts:
+            block_hits = 0
+            best_snippet = ""
+            for needle in needles:
+                # Check Chinese translation first
+                if zh_raw:
+                    c, s = _keyword_hits(needle, zh_raw)
+                    if c:
+                        block_hits += c
+                        if not best_snippet:
+                            best_snippet = s
+                # Check English original
+                if en_raw:
+                    c, s = _keyword_hits(needle, en_raw)
+                    if c:
+                        block_hits += c
+                        if not best_snippet:
+                            best_snippet = s
+            if block_hits:
+                hits.append({"anchor": str(block.get("id") or ""), "page": block.get("page"), "quote": best_snippet, "occurrences": block_hits})
         planning_store.keyword_replace_auto(root, keyword["id"], ws.id, hits, content)
         report["matched"] += 1 if hits else 0
     return report
@@ -1734,7 +1755,43 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
     root = _root(app)
     body = body if isinstance(body, dict) else {}
     if endpoint == "/keywords":
-        keyword = planning_store.keyword_upsert(root, body.get("name", ""), body.get("match_text", ""), replace_match=bool(body.get("replace_match")))
+        name = str(body.get("name") or "").strip()
+        match_text = str(body.get("match_text") or "").strip()
+        pid = str(body.get("paper_id") or "")
+        # Bi-directional automatic glossary resolution
+        if name and (not match_text or match_text == name):
+            # Check glossary in this paper or across all papers
+            found = False
+            if pid and app.lib.ws(pid):
+                for g in (app.lib.ws(pid).load("paper") or {}).get("glossary") or []:
+                    if isinstance(g, dict):
+                        if g.get("zh", "").strip().lower() == name.lower() and g.get("en"):
+                            match_text = g.get("en").strip(); found = True; break
+                        elif g.get("en", "").strip().lower() == name.lower() and g.get("zh"):
+                            name = g.get("zh").strip(); match_text = g.get("en").strip(); found = True; break
+            if not found:
+                for ws_item in app.lib.all():
+                    for g in (ws_item.load("paper") or {}).get("glossary") or []:
+                        if isinstance(g, dict):
+                            if g.get("zh", "").strip().lower() == name.lower() and g.get("en"):
+                                match_text = g.get("en").strip(); found = True; break
+                            elif g.get("en", "").strip().lower() == name.lower() and g.get("zh"):
+                                name = g.get("zh").strip(); match_text = g.get("en").strip(); found = True; break
+                    if found:
+                        break
+            if not match_text:
+                match_text = name
+        elif match_text and not name:
+            name = match_text
+            found = False
+            for ws_item in app.lib.all():
+                for g in (ws_item.load("paper") or {}).get("glossary") or []:
+                    if isinstance(g, dict):
+                        if g.get("en", "").strip().lower() == match_text.lower() and g.get("zh"):
+                            name = g.get("zh").strip(); found = True; break
+                if found:
+                    break
+        keyword = planning_store.keyword_upsert(root, name, match_text, replace_match=bool(body.get("replace_match")))
         pid = str(body.get("paper_id") or "")
         if pid and app.lib.ws(pid):
             planning_store.keyword_link(root, keyword["id"], pid, source="manual", anchor=str(body.get("anchor") or ""), page=body.get("page"), quote=str(body.get("quote") or ""))

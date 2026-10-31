@@ -68,6 +68,13 @@
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="caption"><div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + key + '">' + body + staleTag(key) + "</div>" + enIfZh(key, b.caption_en) + "</div>";
   }
+  function zoomBtnHtml(b) {
+    if (!b || !b.page) return "";
+    const label = PR.t("放大檢視原文第 {n} 頁", { n: b.page });
+    const icon = PR.icon ? PR.icon("search", "sm") : '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM13.5 13.5L17 17"/></svg>';
+    const blockAttr = b.id ? ' data-zoom-block="' + PR.esc(b.id) + '"' : "";
+    return '<button type="button" class="fig-zoom-btn" data-zoom-page="' + b.page + '"' + blockAttr + ' title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '">' + icon + "</button>";
+  }
   function linkify(t) { return PR.esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 
   const R = {
@@ -88,13 +95,13 @@
     table(b) {
       const placeholder = '<button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
         '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
-      const table = '<div class="figure-media">' + placeholder + '</div>';
+      const table = '<div class="figure-media">' + placeholder + zoomBtnHtml(b) + '</div>';
       return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
     },
     figure(b) {
       const placeholder = '<button class="fig-placeholder" data-t="page" aria-label="' + PR.t("圖表保留於原文") + '">' +
         '<span>' + PR.t("圖表保留於原文") + '</span><small>' + PR.t("圖見原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
-      return '<div class="figure-media">' + placeholder + '</div>' + captionHtml(b);
+      return '<div class="figure-media">' + placeholder + zoomBtnHtml(b) + '</div>' + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {

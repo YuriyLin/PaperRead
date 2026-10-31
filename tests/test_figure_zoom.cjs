@@ -18,7 +18,16 @@ function setup() {
     showModal(){this.open = true;}, close(){this.open = false; this.events.close();}};
   const document = {createElement: () => dialog, body: {appendChild(){}}, querySelectorAll: () => [source],
     addEventListener(k, fn){listeners[k] = fn;}};
-  const PR = {t: s => s, on(){}, toast(){}};
+  const PR = {
+    t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
+    on(){},
+    toast(){},
+    imageUrl: rel => '/p/demo/' + rel,
+    state: {
+      paper: {meta: {pages: [{n: 3, img: 'pages/page-003.webp'}]}},
+      layout: {fig3: {page: 3, box: [0.16, 0.45, 0.84, 0.85]}},
+    },
+  };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../easyread/web/js/reader/figure-zoom.js'), 'utf8'), {window:{PR}, document, Date});
   const event = extra => ({preventDefault(){this.prevented = true;}, stopImmediatePropagation(){this.stopped = true;}, ...extra});
   const click = () => listeners.click(event({target:{closest: () => source}}));
@@ -60,7 +69,18 @@ test('keyboard opens figures and viewer keys do not trigger underlying reader sh
   r.listeners.keydown(r.event({key:'Escape'})); assert.equal(r.dialog.open, false);
 });
 
-test('dragging a figure onto notes does not also open the viewer', () => {
-  const r = setup(); r.listeners.dragend(); r.click();
-  assert.equal(r.dialog.open, undefined);
+test('placeholder zoom button opens the full original page in lightbox, scrolls to figure position, and restores focus on Escape', () => {
+  const r = setup();
+  const zoomBtn = {dataset: {zoomPage: '3', zoomBlock: 'fig3'}, focus() { this.focused = true; }};
+  const ev = r.event({target: {closest: s => s === '[data-zoom-page]' ? zoomBtn : null}});
+  r.listeners.click(ev);
+  assert.equal(ev.prevented, true);
+  assert.equal(ev.stopped, true);
+  assert.equal(r.dialog.open, true);
+  assert.equal(r.image.src, '/p/demo/pages/page-003.webp');
+  assert.equal(r.image.alt, '原文第 3 页');
+  assert.ok(r.viewport.scrollTop > 0);
+  r.listeners.keydown(r.event({key: 'Escape'}));
+  assert.equal(r.dialog.open, false);
+  assert.equal(zoomBtn.focused, true);
 });

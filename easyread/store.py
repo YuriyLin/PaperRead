@@ -19,6 +19,7 @@ import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 from PIL import Image
@@ -122,6 +123,16 @@ def empty_discussion() -> dict:
 
 def _newer(a: str | None, b: str | None) -> bool:
     return (a or "") >= (b or "")
+
+
+def _valid_sticker_link(value: str) -> bool:
+    if not isinstance(value, str) or len(value) > 2048 or any(ord(c) < 33 or ord(c) == 127 for c in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        return parsed.scheme in ("http", "https") and bool(parsed.hostname) and parsed.username is None and parsed.password is None and (parsed.port is None or 0 < parsed.port < 65536)
+    except ValueError:
+        return False
 
 
 def _valid_sticker_data(value: str) -> bool:
@@ -228,6 +239,7 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
                         raise ValueError("Invalid ink stroke points")
                     if (not isinstance(stroke.get("anchor"), str) or len(stroke["anchor"]) > 200 or
                             not isinstance(stroke.get("group"), str) or len(stroke["group"]) > 80 or
+                            ("groupId" in stroke and (not isinstance(stroke["groupId"], str) or not re.fullmatch(r"[a-z0-9-]{1,80}", stroke["groupId"]))) or
                             not isinstance(stroke.get("textHash"), str) or len(stroke["textHash"]) != 8 or
                             any(c not in "0123456789abcdef" for c in stroke["textHash"].lower()) or
                             not isinstance(stroke.get("color"), str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", stroke["color"]) or
@@ -262,6 +274,12 @@ def apply_ops(reader: dict, ops: list[dict]) -> list[str]:
                         abs(sticker["z"]) > 1000000 or not isinstance(sticker.get("locked"), bool) or
                         ("strokeColor" in sticker and (not isinstance(sticker["strokeColor"], str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", sticker["strokeColor"]))) or
                         ("strokeWidth" in sticker and (not isinstance(sticker["strokeWidth"], (int, float)) or isinstance(sticker["strokeWidth"], bool) or not math.isfinite(sticker["strokeWidth"]) or not 1 <= sticker["strokeWidth"] <= 4)) or
+                        ("href" in sticker and not _valid_sticker_link(sticker["href"])) or
+                        ("textColor" in sticker and (not isinstance(sticker["textColor"], str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", sticker["textColor"]))) or
+                        ("textSize" in sticker and (not isinstance(sticker["textSize"], (int, float)) or isinstance(sticker["textSize"], bool) or not math.isfinite(sticker["textSize"]) or not 10 <= sticker["textSize"] <= 72)) or
+                        ("textBold" in sticker and not isinstance(sticker["textBold"], bool)) or
+                        ("groupId" in sticker and (not isinstance(sticker["groupId"], str) or not re.fullmatch(r"[a-z0-9-]{1,80}", sticker["groupId"]))) or
+                        (sticker["assetId"] == "paperread-text-box" and (not isinstance(sticker.get("text"), str) or len(sticker["text"]) > 2000)) or
                         ("customData" in sticker and not _valid_sticker_data(sticker["customData"])) or
                         (sticker["assetId"].startswith("custom-") and "customData" not in sticker)):
                     raise ValueError("Invalid sticker")

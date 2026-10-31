@@ -302,13 +302,21 @@
       return render();
     }
     const card = b.closest(".cm.ai");
-    const m = card && thread() && thread().messages.find((x) => x.id === card.dataset.id);
-    if (c === "export-md" && m) return PR.exportChatMarkdown(st.cur, m.id, b);
-    if (c === "export-obsidian" && m) return PR.exportChatObsidian(st.cur, m.id, b);
+    if (!card) return;
+    const mid = card.dataset.id;
+    let t = thread();
+    let m = t && (t.messages || []).find((x) => x.id === mid);
+    if (!m) {
+      t = st.threads.find((th) => (th.messages || []).some((x) => x.id === mid)) || t;
+      m = t && (t.messages || []).find((x) => x.id === mid);
+    }
+    const tid = (t && t.id) || st.cur;
+    if (c === "export-md" && m) return PR.exportChatMarkdown(tid, m.id, b);
+    if (c === "export-obsidian" && m) return PR.exportChatObsidian(tid, m.id, b);
     if (c === "copy" && m) navigator.clipboard.writeText(m.content).then(() => PR.toast(PR.t("已复制")));
     if (c === "pin" && m) {
       try {
-        await PR.api("/api/p/" + PR.pid + "/chat/pin", { method: "POST", body: { thread: st.cur, id: m.id } });
+        await PR.api("/api/p/" + PR.pid + "/chat/pin", { method: "POST", body: { thread: tid, id: m.id } });
         PR.toast(PR.t("已放到页边")); setTimeout(() => PR.poll && PR.poll(), 200);
       } catch (err) { PR.toast(PR.t("没放成：{msg}", { msg: PR.esc(err.message) })); }
     }

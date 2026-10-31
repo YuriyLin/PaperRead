@@ -40,6 +40,27 @@ class ChatMarkdownTests(unittest.TestCase):
         assert "Self-attention relates different positions of a single sequence." in decoded
         assert "2026-10-27T12:00:00Z" in decoded
 
+    def test_chat_markdown_export_mismatched_thread_fallback(self):
+        tmp_path = self.tmp_path
+        ws = Workspace(tmp_path)
+        (tmp_path / "paper.json").write_text(json.dumps({
+            "meta": {"title_en": "Paper"}
+        }, ensure_ascii=False), encoding="utf-8")
+        (tmp_path / "chat.json").write_text(json.dumps({
+            "threads": [
+                {"id": "t1", "title": "T1", "messages": []},
+                {"id": "t2", "title": "T2", "messages": [
+                    {"role": "user", "id": "u1", "content": "Question in T2"},
+                    {"role": "assistant", "id": "a2", "content": "Answer in T2"}
+                ]}
+            ]
+        }, ensure_ascii=False), encoding="utf-8")
+
+        # Passing t1 even though a2 is in t2
+        result = chat_markdown.export(ws, {"thread": "t1", "id": "a2"})
+        decoded = base64.b64decode(result["data"]).decode("utf-8")
+        assert "Question in T2" in decoded
+        assert "Answer in T2" in decoded
 
     def test_chat_markdown_export_with_image(self):
         tmp_path = self.tmp_path
@@ -73,7 +94,6 @@ class ChatMarkdownTests(unittest.TestCase):
             assert z.read("assets/fig1.png") == b"FAKE_PNG_DATA"
             md_content = z.read(md_name).decode("utf-8")
             assert "assets/fig1.png" in md_content
-
 
     def test_chat_markdown_export_not_found(self):
         tmp_path = self.tmp_path

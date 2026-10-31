@@ -223,13 +223,26 @@
       return '<div class="kw-item"><div><b>' + PR.esc(g.name) + "</b><small>" + PR.esc(g.match_text) + " · " + status + (g.manual.length ? " · " + PR.t("手動收錄") : "") + "</small></div>" +
         '<details><summary>' + PR.t("展開命中片段") + " (" + sources.length + ")</summary><ul>" +
         sources.map((l) => "<li><blockquote>" + PR.esc(l.quote || PR.t("手動收錄")) + "</blockquote>" + (l.anchor ? '<button class="btn sm line" data-kw-jump="' + PR.esc(l.anchor) + '">' + PR.t("跳轉") + "</button>" : "") + "</li>").join("") + "</ul></details>" +
-        '<div class="row"><button class="btn sm line" data-kw-edit="' + PR.esc(g.id) + '">' + PR.t("編輯") + "</button></div></div>";
+        "</div>";
     }).join("");
     const ids = groups.map((g) => g.id).join(",");
-    return (paperNoText ? '<p class="hint">' + PR.t("本篇尚無可比對原文；這不代表原文沒有這些關鍵字。") + "</p>" : "") +
+    const topBar = '<div class="kw-top-bar">' +
+      '<form class="kw-add-box" id="kwAddForm">' +
+        '<span class="kw-add-icon">' + PR.icon("plus", "sm") + '</span>' +
+        '<input class="input kw-add-input" id="kwQuickAdd" placeholder="' + PR.esc(PR.t("+ 新增關鍵字… (輸入後按 Enter 加入)")) + '" maxlength="120" autocomplete="off">' +
+        '<button class="kw-add-btn" type="submit" title="' + PR.esc(PR.t("新增關鍵字")) + '">' + PR.icon("arrowUp", "sm") + '</button>' +
+      '</form>' +
+    '</div>';
+    const footer = '<div class="kw-footer">' +
+      '<span class="kw-footer-count">' + PR.t("共 {n} 個關鍵字", { n: groups.length }) + '</span>' +
+      '<a class="kw-footer-link" href="/research?mode=keywords' + (ids ? "&ids=" + encodeURIComponent(ids) : "") + '">' +
+        PR.t("前往跨論文搜尋") + " ↗" +
+      '</a>' +
+    '</div>';
+    return topBar +
+      (paperNoText ? '<p class="hint">' + PR.t("本篇尚無可比對原文；這不代表原文沒有這些關鍵字。") + "</p>" : "") +
       (list ? '<div class="terms-keywords">' + list + "</div>" : '<p class="hint">' + PR.t("尚未為本篇收錄關鍵字。") + "</p>") +
-      '<div class="kw-new"><input class="input" id="kwNewName" placeholder="' + PR.t("關鍵字名稱") + '"><input class="input" id="kwNewMatch" placeholder="' + PR.t("原文比對詞") + '"><button class="btn sm line" data-kw-new>' + PR.t("新增關鍵字") + "</button></div>" +
-      '<a class="btn sm line" href="/research?mode=keywords' + (ids ? "&ids=" + encodeURIComponent(ids) : "") + '" style="margin-top:12px">' + PR.t("前往跨論文搜尋") + "</a>";
+      footer;
   }
   function termsHtml() {
     const g = S.paper.glossary || [];
@@ -237,9 +250,20 @@
       PR.api("/api/research/v2/keywords?paper_id=" + encodeURIComponent(PR.pid)).then((data) => { paperKeywords = data.links || []; paperNoText = (data.no_text || []).some((x) => x.id === PR.pid); if (tab === "terms" && termsView === "keywords") PR.renderDrawer(); }).catch(() => { paperKeywords = []; });
     }
     const tabs = '<div class="seg" style="margin:0 0 10px"><button data-terms-view="glossary" class="' + (termsView === "glossary" ? "on" : "") + '">' + PR.t("術語表") + '</button><button data-terms-view="keywords" class="' + (termsView === "keywords" ? "on" : "") + '">' + PR.t("我的關鍵字") + '</button></div>';
-    const glossary = '<p class="hint" style="margin:0 0 10px">' + PR.t("译法不合心意？改右边的译法，再点“替换”，会把正文里的旧译法换成新的（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。") + "</p>" +
-      (g.length ? '<div class="row" style="margin:0 0 8px"><button class="btn sm line" data-keywords-add>' + PR.t("加入關鍵字") + '</button></div><table class="terms-t">' + g.map((t, i) => "<tr><td><input type=\"checkbox\" data-keyword-term=\"" + i + "\"></td><td>" + PR.esc(t.en) + '</td><td><input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '"></td><td><button class="btn sm line" data-term="' + i + '">' + PR.t("替换") + "</button></td></tr>").join("") + "</table>" : '<p class="hint">' + PR.t("这篇论文还没有术语表。") + "</p>") +
-      '<div class="term-free"><div class="hint" style="margin:14px 0 6px">' + PR.t("任意替换") + '</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="' + PR.t("原译法") + '"><input class="input" id="tTo" placeholder="' + PR.t("新译法") + '"><button class="btn sm line" data-term="free">' + PR.t("替换") + "</button></div></div>";
+    const hint = '<p class="hint" style="margin:0 0 10px">' + PR.t("译法不合心意？改右边的译法，按 Enter 即可自动替换正文中的旧译法（记为你的修改，公式不动，随时可在段落右键“恢复译者稿”）。") + "</p>";
+    const freeReplace = '<div class="term-free" style="margin:0 0 12px;padding:10px;background:var(--surface-2);border-radius:8px;border:1px solid var(--rule)"><div class="hint" style="margin:0 0 6px;font-weight:600">' + PR.t("任意替换") + '</div><div style="display:flex;gap:6px"><input class="input" id="tFrom" placeholder="' + PR.t("原译法") + '"><input class="input" id="tTo" placeholder="' + PR.t("新译法") + '"><button class="btn sm line" data-term="free">' + PR.t("替换") + "</button></div></div>";
+    const addBtn = g.length ? '<div class="row" style="margin:0 0 8px"><button class="btn sm line" data-keywords-add>' + PR.t("加入關鍵字") + '</button></div>' : '';
+    const table = g.length ? '<table class="terms-t">' + g.map((t, i) =>
+      "<tr>" +
+        '<td><input type="checkbox" data-keyword-term="' + i + '"></td>' +
+        '<td class="term-en">' + PR.esc(t.en) + "</td>" +
+        '<td class="term-zh-cell">' +
+          '<input class="input term-in" data-i="' + i + '" value="' + PR.esc(t.zh) + '" title="' + PR.esc(PR.t("按 Enter 直接替換正文")) + '">' +
+          '<span class="term-replaced-badge" data-term-badge="' + i + '" hidden>' + PR.icon("check", "sm") + ' ' + PR.t("已替換") + "</span>" +
+        "</td>" +
+      "</tr>"
+    ).join("") + "</table>" : '<p class="hint">' + PR.t("这篇论文还没有术语表。") + "</p>";
+    const glossary = hint + freeReplace + addBtn + table;
     const keywords = paperKeywordsHtml();
     return tabs + (termsView === "glossary" ? glossary : keywords);
   }
@@ -263,6 +287,70 @@
         : "<p>" + PR.t("快捷键已关闭。") + "</p>") +
       '<button class="btn sm line" data-x="keys">' + PR.t("设置快捷键和功能") + "</button></div>";
   }
+  PR.$("#drawer").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.classList.contains("term-in")) {
+      e.preventDefault();
+      const input = e.target;
+      const idx = +input.dataset.i;
+      const g = (S.paper.glossary || [])[idx];
+      if (!g) return;
+      const from = g.zh;
+      const to = input.value.trim();
+      if (!to || from === to) return;
+      const n = PR.replaceTerm(from, to, true);
+      if (!n) {
+        PR.toast(PR.t("正文里没找到“{s}”", { s: from }));
+        return;
+      }
+      PR.replaceTerm(from, to);
+      g.zh = to;
+      const badge = PR.$('[data-term-badge="' + idx + '"]', PR.$("#drawer"));
+      if (badge) {
+        badge.hidden = false;
+        badge.classList.remove("pop");
+        void badge.offsetWidth;
+        badge.classList.add("pop");
+        setTimeout(() => { badge.hidden = true; }, 2400);
+      }
+      PR.toast(PR.t("已替換 {n} 處", { n }));
+    }
+  });
+  PR.$("#drawer").addEventListener("submit", (e) => {
+    if (e.target.id === "kwAddForm") {
+      e.preventDefault();
+      const input = PR.$("#kwQuickAdd");
+      const raw = (input?.value || "").trim();
+      if (!raw) return;
+      let name = raw, match = raw;
+      if (raw.includes("/")) {
+        const parts = raw.split("/");
+        name = parts[0].trim();
+        match = parts.slice(1).join("/").trim() || name;
+      } else {
+        const glossary = S.paper.glossary || [];
+        const lower = raw.toLowerCase();
+        const byZh = glossary.find((g) => g && g.zh && g.zh.trim().toLowerCase() === lower);
+        if (byZh && byZh.en) {
+          name = byZh.zh.trim();
+          match = byZh.en.trim();
+        } else {
+          const byEn = glossary.find((g) => g && g.en && g.en.trim().toLowerCase() === lower);
+          if (byEn && byEn.zh) {
+            name = byEn.zh.trim();
+            match = byEn.en.trim();
+          }
+        }
+      }
+      PR.addKeyword({ name, match_text: match, paper_id: PR.pid })
+        .then((saved) => {
+          PR.toast(PR.t("已加入關鍵字「{name}」", { name }));
+          if (input) input.value = "";
+          return PR.scanKeyword(saved.keyword.id);
+        })
+        .then(() => PR.refreshKeywords())
+        .catch((error) => PR.toast(PR.t("加入關鍵字失敗：{message}", { message: error.message })));
+    }
+  });
   PR.$("#drawer").addEventListener("click", (e) => {
     const termsTab = e.target.closest("[data-terms-view]");
     if (termsTab) { termsView = termsTab.dataset.termsView; return PR.renderDrawer(); }
@@ -272,20 +360,11 @@
     if (kwJump) { const id = "b-" + kwJump.dataset.kwJump; if (!document.getElementById(id)) return PR.toast(PR.t("找不到這個段落，來源可能已變動")); PR.jumpTo(id); return; }
     const kwNew = e.target.closest("[data-kw-new]");
     if (kwNew) {
-      const name = PR.$("#kwNewName").value.trim(), match = PR.$("#kwNewMatch").value.trim();
+      const name = PR.$("#kwNewName")?.value.trim(), match = PR.$("#kwNewMatch")?.value.trim();
       if (!name || !match) return PR.toast(PR.t("請填寫關鍵字名稱與原文比對詞"));
       PR.addKeyword({ name, match_text: match, paper_id: PR.pid }).then((saved) => PR.scanKeyword(saved.keyword.id)).catch(kwFail);
       return;
     }
-    const kwEdit = e.target.closest("[data-kw-edit]");
-    if (kwEdit) {
-      const group = keywordGroups().find((g) => g.id === kwEdit.dataset.kwEdit); if (!group) return;
-      const name = window.prompt(PR.t("關鍵字名稱"), group.name); if (!name || !name.trim()) return;
-      const match = window.prompt(PR.t("原文比對詞"), group.match_text); if (!match || !match.trim()) return;
-      kwApi("/update", { keyword_id: group.id, name: name.trim(), match_text: match.trim() }).then(() => PR.scanKeyword(group.id)).catch(kwFail);
-      return;
-    }
-
     const keywordAdd = e.target.closest("[data-keywords-add]");
     if (keywordAdd) {
       const selected = PR.$$("[data-keyword-term]:checked", PR.$("#drawer")).map((box) => S.paper.glossary[Number(box.dataset.keywordTerm)]).filter(Boolean);

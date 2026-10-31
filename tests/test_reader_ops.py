@@ -7,6 +7,34 @@ from easyread.store import Workspace
 
 
 class ReaderOpsTest(unittest.TestCase):
+    def test_text_box_and_safe_sticker_link_round_trip(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Workspace(Path(d))
+            base = {"id": "s1", "assetId": "book-open", "anchor": "p1", "textHash": "1234abcd",
+                    "ref": [200, 100], "x": 10, "y": 20, "width": 40, "height": 30,
+                    "rotation": 0, "opacity": 1, "z": 1, "locked": False}
+            ws.apply_reader_ops([{"op": "sticker", "sticker": {**base, "href": "https://example.com/paper"}}])
+            self.assertEqual(ws.load("reader")["stickers"]["s1"]["href"], "https://example.com/paper")
+            for url in ("javascript:alert(1)", "data:text/html,foo", "https://user:pass@example.com", "https://example.com/\nheader", "https://example.com:99999"):
+                with self.subTest(url=url), self.assertRaises(ValueError):
+                    ws.apply_reader_ops([{"op": "sticker", "sticker": {**base, "id": "bad", "href": url}}])
+            text = {**base, "id": "t1", "assetId": "paperread-text-box", "text": "第一行 $x^2$\nsecond line", "textBold": True}
+            ws.apply_reader_ops([{"op": "sticker", "sticker": text}])
+            self.assertEqual(ws.load("reader")["stickers"]["t1"]["text"], text["text"])
+            self.assertTrue(ws.load("reader")["stickers"]["t1"]["textBold"])
+            grouped = {**text, "id": "t2", "groupId": "gabc123"}
+            ws.apply_reader_ops([{"op": "sticker", "sticker": grouped}])
+            self.assertEqual(ws.load("reader")["stickers"]["t2"]["groupId"], "gabc123")
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "sticker", "sticker": {**text, "text": "x" * 2001}}])
+            for field, value in (("textColor", "red"), ("textSize", 100), ("textSize", float("nan"))):
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    ws.apply_reader_ops([{"op": "sticker", "sticker": {**text, field: value}}])
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "sticker", "sticker": {**text, "textBold": "yes"}}])
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "sticker", "sticker": {**text, "groupId": "not valid"}}])
+
     def test_sticker_persistence_deletion_and_validation(self):
         with tempfile.TemporaryDirectory() as d:
             ws = Workspace(Path(d))
@@ -47,11 +75,16 @@ class ReaderOpsTest(unittest.TestCase):
             stroke = {"id": "i1", "group": "g1", "anchor": "p1", "textHash": "1234abcd", "ref": [200, 100],
                       "points": [[1, 2], [3.5, 8]], "color": "#d94b4b", "width": 2}
             ws.apply_reader_ops([{"op": "ink", "stroke": stroke, "at": "2026-10-01T00:01:00Z"}])
+            grouped = {**stroke, "id": "i2", "groupId": "gabc123"}
+            ws.apply_reader_ops([{"op": "ink", "stroke": grouped, "at": "2026-10-01T00:01:01Z"}])
+            self.assertEqual(ws.load("reader")["ink"]["i2"]["groupId"], "gabc123")
             ws.apply_reader_ops([{"op": "ink_del", "id": "i1", "at": "2026-10-01T00:02:00Z"}])
             ws.apply_reader_ops([{"op": "ink", "stroke": stroke, "at": "2026-10-01T00:01:00Z"}])
             self.assertTrue(ws.load("reader")["ink"]["i1"]["deleted"])
             with self.assertRaises(ValueError):
                 ws.apply_reader_ops([{"op": "ink", "stroke": {**stroke, "id": "bad", "points": [[float("nan"), 1]]}}])
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "ink", "stroke": {**stroke, "id": "bad-group", "groupId": "not valid"}}])
 
     def test_deletion_wins_over_delayed_creation_in_both_orders(self):
         note = {"op": "note", "note": {"id": "n1", "body": "旧笔记", "updated": "2026-10-01T00:01:00Z"}}

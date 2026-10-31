@@ -8,7 +8,7 @@ import zipfile
 from pathlib import PurePosixPath
 from urllib.parse import unquote
 
-from .chat_store import get
+from .chat_store import get, threads
 from .i18n import tr
 
 
@@ -16,6 +16,13 @@ def export(ws, body):
     thread = get(ws, str(body.get("thread", "")))
     messages = (thread or {}).get("messages", [])
     index = next((i for i, m in enumerate(messages) if m.get("id") == body.get("id") and m.get("role") == "assistant"), None)
+    if index is None:
+        for candidate in threads(ws):
+            candidate_msgs = candidate.get("messages", [])
+            candidate_index = next((i for i, m in enumerate(candidate_msgs) if m.get("id") == body.get("id") and m.get("role") == "assistant"), None)
+            if candidate_index is not None:
+                thread, messages, index = candidate, candidate_msgs, candidate_index
+                break
     if index is None:
         raise ValueError(tr("未找到回答"))
     answer = messages[index]

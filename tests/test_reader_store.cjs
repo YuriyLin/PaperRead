@@ -47,6 +47,17 @@ test("sticker edits and deletes survive offline replay and export", async () => 
   assert.equal(PR.state.reader.stickers.s1.deleted, undefined);
 });
 
+test("text boxes and sticker links survive offline export", async () => {
+  const PR = await offlineReader();
+  const base = { anchor:"p1", ref:[200,100], x:10, y:20, width:100, height:50, rotation:0, opacity:1, z:1, locked:false, textHash:"1234abcd" };
+  PR.commit({op:"sticker",sticker:{...base,id:"t1",assetId:"paperread-text-box",text:"First\n第二行",textColor:"#335577",textSize:24}});
+  PR.commit({op:"sticker",sticker:{...base,id:"s1",assetId:"book-open",href:"https://example.com/paper"}});
+  const ops=PR.exportOps().ops;
+  assert.equal(ops.find(op=>op.sticker?.id==="t1").sticker.text,"First\n第二行");
+  assert.equal(ops.find(op=>op.sticker?.id==="t1").sticker.textSize,24);
+  assert.equal(ops.find(op=>op.sticker?.id==="s1").sticker.href,"https://example.com/paper");
+});
+
 test("exit waits for an in-flight save and drains the newer progress", async () => {
   const pending = [];
   const PR = { t: s => s, uid: () => "client", nowIso: () => "2026-10-14T00:00:00Z", emit() {},
