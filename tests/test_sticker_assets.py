@@ -10,6 +10,16 @@ WEB = Path(__file__).resolve().parents[1] / "easyread" / "web"
 
 
 class StickerAssetsTest(unittest.TestCase):
+    def test_license_manifest_matches_asset_licenses(self):
+        repo = WEB.parents[1]
+        paths = [repo / "data/stickers/license-manifest.json", WEB / "stickers/license-manifest.json"]
+        manifests = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
+        self.assertEqual(manifests[0], manifests[1])
+        assets = json.loads((WEB / "stickers/sticker-manifest.json").read_text(encoding="utf-8"))["assets"]
+        used = {license_id for asset in assets for license_id in asset["license_ids"]}
+        self.assertEqual(used, {license["id"] for license in manifests[0]["licenses"]})
+        self.assertEqual(used, {"ISC", "MIT-Feather", "CC-BY-SA-4.0"})
+
     def test_maria_letta_assets_are_decorative_in_both_catalogs(self):
         repo = WEB.parents[1]
         manifests = [json.loads((repo / "data/stickers/sticker-manifest.json").read_text(encoding="utf-8")),

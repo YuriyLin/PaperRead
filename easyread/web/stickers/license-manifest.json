@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "checked_on": "2026-10-30",
+  "checked_on": "2026-10-31",
   "licenses": [
     {
       "id": "ISC",
@@ -31,7 +31,7 @@
     }
   ],
   "use_assessment": {
-    "commercial": "Permitted under ISC and MIT, subject to notices.",
+    "commercial": "Permitted under ISC, MIT, and CC BY-SA 4.0, subject to applicable notices and ShareAlike conditions.",
     "saas_embedding": "Permitted under broad use and distribution grants, subject to notices.",
     "insert_into_pdf": "Permitted under broad use and modification grants, subject to notices.",
     "export_pdf": "Permitted under broad distribution grants, subject to notices; exported copies need a practical notice mechanism, which is not implemented here.",
@@ -39,37 +39,5 @@
     "author_attribution": "Lucide and Feather require copyright and license notices. Mega Doodles requires attribution to Maria Letta, source and license links, and an indication of changes.",
     "interpretation": "The listed scenarios are interpretations of broad license grants, not explicit scenario-specific confirmations from the authors.",
     "cc_by_sa_4_0": "Commercial use, SaaS display, PDF use, export and redistribution permitted under broad license grants, subject to attribution and license notices. Adapted material must be shared under the same or compatible license; whether a particular PDF creates adapted material depends on the use. Actual PDF notices are not implemented."
-  },
-  "excluded_sources": [
-    {
-      "source": "Flaticon",
-      "status": "excluded",
-      "reason": "Terms restrict icon collections, third-party use and distribution; applicable to this use case.",
-      "url": "https://www.flaticon.com/legal/"
-    },
-    {
-      "source": "Icons8",
-      "status": "excluded",
-      "reason": "License prohibits distribution of standalone SVG files without written consent.",
-      "url": "https://icons8.com/vue-static/landings/pricing/icons8-license.pdf"
-    },
-    {
-      "source": "Storyset",
-      "status": "unverified",
-      "reason": "Permission for reusable end-user asset library and exports not established; no assets included.",
-      "url": "https://storyset.com/terms"
-    },
-    {
-      "source": "Open Doodles",
-      "status": "unverified",
-      "reason": "Commercial use advertised, but precise redistribution terms for this library not established; no assets included.",
-      "url": "https://www.opendoodles.com/"
-    },
-    {
-      "source": "SVG Repo",
-      "status": "per-asset review required",
-      "reason": "Licenses vary by asset; Lucide upstream used directly with pinned license.",
-      "url": "https://www.svgrepo.com/page/licensing/"
-    }
-  ]
+  }
 }
