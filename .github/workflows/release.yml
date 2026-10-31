@@ -109,6 +109,5 @@ jobs:
             release-assets/**/latest*.yml
             release-assets/**/*.AppImage
             release-assets/**/*.dmg
-            release-assets/**/*.dmg.blockmap
           generate_release_notes: false
           body_path: release-notes.md
