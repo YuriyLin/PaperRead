@@ -1,6 +1,30 @@
 # 資料格式
 
-## paper.json
+PaperRead 的核心資料結構以檔案與標準 SQLite 為核心，兼顧單機易讀性、Git 備份友善與高效檢索。
+
+---
+
+## 1. 論文目錄結構 (`papers/{id}/`)
+
+每篇論文擁有獨立目錄，以 PDF 雜湊前 12 碼小寫命名（例如 `papers/a1b2c3d4e5f6/`）：
+
+| 檔案 | 權限/職責 | 說明 |
+|---|---|---|
+| `paper.json` | 引擎寫入 | 論文中英文雙語內容、排版區塊（Blocks）、中繼資料、術語表與參考文獻 |
+| `discussion.json` | 引擎寫入 | 保存於頁邊的 AI 解釋、問答與即時追問記錄 |
+| `reader.json` | 使用者寫入 | 讀者劃線、邊注、智慧標註、手寫筆跡（Ink）、圖章貼紙、全文心得與閱讀進度 |
+| `report.json` | 引擎寫入 | 論文深度技術剖析（五維技術審查報告） |
+| `layout.json` | 系統生成 | PDF 字元座標與區塊歸一化邊界框（Bounding Box），供原頁燈箱高亮 |
+| `item.json` | 系統/使用者 | 閱讀狀態、星標、自定義分類標籤與中繼資料覆蓋 |
+| `chat.json` | 系統寫入 | 「問 AI」的多分頁對話記錄、圖片附件與錨定上下文 |
+| `job.json` | 系統排程 | 背景翻譯任務狀態（進度、失敗頁面、重試佇列） |
+| `source.pdf` | 唯讀原檔 | 使用者匯入的原始 PDF 檔案 |
+| `pages/page-*.webp` | 系統生成 | PDF 各頁高解析度光柵圖，供原頁燈箱全頁呈現 |
+| `figures/crop-*.webp` | 系統生成 | 自動擷取的圖表檔案（以雜湊防快取衝突） |
+
+---
+
+## 2. paper.json
 
 ```json
 {
@@ -9,141 +33,206 @@
     "title_zh": "給評測加上誤差條：語言模型評測的統計學方法",
     "short_zh": "給評測加上誤差條",
     "title_en": "Adding Error Bars to Evals: ...",
-    "authors": "Evan Miller", "affiliation": "Anthropic",
-    "date": "2024 年 11 月 4 日", "arxiv": "arXiv:2411.00640v1 [stat.AP]",
-    "pdf": "source.pdf", "source_sha256": "…", "pages": [{"n": 1, "w": 612, "h": 792, "img": "pages/page-001.webp"}]
+    "authors": "Evan Miller",
+    "affiliation": "Anthropic",
+    "date": "2024 年 11 月 4 日",
+    "arxiv": "arXiv:2411.00640v1 [stat.AP]",
+    "pdf": "source.pdf",
+    "source_sha256": "…",
+    "pages": [{"n": 1, "w": 612, "h": 792, "img": "pages/page-001.webp"}]
   },
-  "translation": { "scope": "全文", "done_pages": [1, 2, 3], "note": "參考文獻保留原文" },
-  "glossary": [{ "en": "standard error", "zh": "標準誤", "note": "可選" }],
-  "references": [{ "id": "1", "text": "原文條目" }],
+  "translation": {
+    "scope": "全文",
+    "done_pages": [1, 2, 3],
+    "note": "參考文獻保留原文"
+  },
+  "glossary": [
+    { "en": "standard error", "zh": "標準誤差", "note": "統計術語" }
+  ],
+  "references": [
+    { "id": "1", "text": "原文條目" }
+  ],
   "blocks": [ … ]
 }
 ```
 
-`translation.en_pages`：用“只讀原文”整理過、還沒翻譯的頁（這些頁的塊只有 `en`，沒有 `zh`；頁面直接排英文）。翻譯它們時就地補 `zh`，塊 id 不變，補齊的頁從 `en_pages` 去掉。`done_pages` 包含這些頁。
-
-`meta.pages`、`page_count`、`source_sha256`、`pdf` 由匯入時寫，不要手改。文獻庫頁裡改的標題、作者等存在 `item.json` 的 `meta_override`，不改 paper.json。
-
-### 塊
-
-每塊必須有唯一 `id`（後續討論、筆記都錨在它上面，定下後不要改）、`type`、`page`（這塊在原 PDF 從哪頁開始）。
+### 區塊（Blocks）定義
+每個區塊擁有全域唯一且不可變的 `id`，後續筆記、劃線與原頁定位均錨定於此：
 
 | type | 欄位 | 說明 |
 |---|---|---|
-| `heading` | `level`(1/2)、`num`、`zh`、`en`、`appendix` | 章節標題。`num` 如 "2.1"、"A"；附錄的標題加 `"appendix": true` |
-| `para` | `zh`、`en`、`role`、`cont` | 段落。`role: "abstract"` 用摘要樣式；`cont: true` 表示接著公式的半句（如 “其中 …”） |
-| `list` | `ordered`、`items: [{zh, en}]` | 列表 |
-| `math` | `tex`、`tag` | 行間公式。`tag` 是原文編號（"1"），無編號不寫。多行用 `aligned` / `gathered` |
-| `table` | `num`、`head: [[…]]`、`rows: [[…]]`、`align`、`caption_zh`、`caption_en`、`caption_pos` | 表格。單元格支援行內標記，`\n` 換行（第二行括號內容自動變灰，適合“均值\n(標準誤)”）。`align` 如 "lrrr" |
-| `figure` | `num`、`src`、`box`、`image_en`、`image_zh`、`caption_zh`、`caption_en` | 圖。`src` 是論文目錄下的圖片（如 `figures/crop-4-….webp`），留空時頁面顯示“圖見原文第 N 頁”。`box`、`image_*` 見下文“圖：裁圖和圖內文字” |
-| `references` | `zh`、`en` | 放參考文獻列表的位置（內容取 `references`） |
-| `note` | `zh` | 正文流裡的“閱讀批註（非原文）”。儘量不用，解釋放 discussion.json |
+| `heading` | `level`(1/2)、`num`、`zh`、`en`、`appendix` | 章節標題。`num` 如 "2.1"、"A"；附錄標記 `"appendix": true` |
+| `para` | `zh`、`en`、`role`、`cont` | 段落。`role: "abstract"` 為摘要樣式；`cont: true` 表示緊接公式的未完句 |
+| `list` | `ordered`、`items: [{zh, en}]` | 項目清單 |
+| `math` | `tex`、`tag` | 獨立行間公式。`tag` 為原文編號（如 "(4)"） |
+| `table` | `num`、`head: [[…]]`、`rows: [[…]]`、`align`、`caption_zh`、`caption_en` | 三線書籍表格。單元格支援換行與行內標記 |
+| `figure` | `num`、`src`、`box`、`image_en`、`image_zh`、`caption_zh`、`caption_en` | 圖表區塊。`box` 為歸一化裁剪框，`src` 為圖檔路徑 |
+| `references` | `zh`、`en` | 參考文獻列表容器（取用 `references` 條目） |
+| `note` | `zh` | 正文流內的專題閱讀註解 |
 
-可選 `box: [x0, y0, x1, y1]`（按頁寬高歸一化）手工指定原頁高亮區域，覆蓋自動定位。
+### 行內語法支援
+- `$...$`：行內 KaTeX 數學公式（純文字美元符號請跳脫為 `\$`）。
+- `**粗體**`、`*斜體*`、`` `程式碼` ``。
+- `[7]`、`[2, 5]`：自動連結至文末參考文獻。
+- 自動跳轉：文字中的「公式 (4)」、「表 2」、「圖 3」、「第 2.2 節」自動識別為可點選跳轉與懸停預覽的微連結。
 
-浮動體（表、圖）放在正文第一次提到它的段落之後，`page` 仍寫它實際所在頁。
+---
 
-新增一批塊（`easyread blocks ID --from 批次.json --done 4-6`）時可帶 `"_after": "某塊id"` 指定插入位置，否則追加到末尾；同 id 的塊整塊替換。
+## 3. reader.json
 
-### 行內標記（zh、en、單元格、討論正文通用）
-
-- `$...$` 行內公式（KaTeX）；字面美元符寫 `\$`
-- `**粗體**`、`*斜體*`、`` `程式碼` ``
-- `[7]`、`[2, 5]` 自動鏈到參考文獻
-- 中文裡的“公式 (4)”“公式 (9) 和 (10)”“表 2”“圖 3”“第 2.2 節”“附錄 A”，英文裡的 “Equation 4”“Table 2”“Section 2.2”“Appendix A”，自動變成可懸停預覽、點選跳轉的連結（目標要存在）
-- 討論正文裡空行分段；單獨一段 `$$...$$` 是行間公式
-
-JSON 裡 TeX 的反斜槓要寫兩個（`\\frac`）。`\f` `\b` `\t` `\n` `\r` 開頭的命令（`\frac`、`\bar`、`\text`、`\nu`、`\right`）寫錯會被 JSON 悄悄吃掉，`paper.py check` 會報“含控制字元”。
-
-## discussion.json
+由前端透過 `/api/p/{id}/ops` 發送原子操作寫入：
 
 ```json
-{ "schema": 2, "entries": [
-  { "id": "d001-ab12c", "anchor": "s2-1-p4", "quote": "對它（即“真實”的平均評測分數）進行推斷",
-    "kind": "check", "title": "原句漏了一個符號", "body": "…", "at": "…" }
-]}
+{
+  "schema": 2,
+  "rev": 15,
+  "edits": {
+    "s1-p3": { "zh": "讀者修訂後的中文", "base": "修改時譯者稿的雜湊", "at": "2026-10-31T12:00:00Z" },
+    "tab1#caption": { "zh": "修訂後的表格題注", "base": "…", "at": "…" }
+  },
+  "notes": {
+    "n_123": {
+      "id": "n_123", "anchor": "s1-p2", "key": "s1-p2",
+      "quote": "選中的文字片段", "prefix": "前文", "suffix": "後文",
+      "kind": "note | question | highlight",
+      "color": "yellow | green | blue | pink",
+      "body": "讀者筆記內容",
+      "created": "2026-10-31T12:00:00Z", "updated": "2026-10-31T12:00:00Z",
+      "deleted": false
+    }
+  },
+  "ai_annotations": {
+    "a_456": {
+      "annotation_id": "a_456", "block_id": "s2-p1",
+      "quote": "關注語句", "kind": "terminology | methodology | insight",
+      "comment": "AI 生成的智慧洞察", "created_at": "…", "updated_at": "…"
+    }
+  },
+  "ink": {
+    "i_789": {
+      "id": "i_789", "group": "g_01", "anchor": "s1-p2", "textHash": "1234abcd",
+      "ref": [620, 180], "points": [[20, 30], [22, 34]],
+      "color": "#d94b4b", "width": 2,
+      "updated": "2026-10-31T12:00:00Z", "deleted": false
+    }
+  },
+  "stickers": {
+    "stk_01": {
+      "id": "stk_01", "assetId": "star-01", "anchor": "s1-p2", "textHash": "1234abcd",
+      "ref": [620, 180], "x": 20, "y": 30, "width": 80, "height": 80,
+      "rotation": 0, "opacity": 0.9, "z": 1, "locked": false,
+      "strokeColor": "#d94b4b", "strokeWidth": 2,
+      "href": "https://...", "textColor": "#23211d", "textSize": 14, "textBold": false,
+      "text": "圖章文字", "updated": "2026-10-31T12:00:00Z", "deleted": false
+    }
+  },
+  "paper_note": {
+    "body": "全篇論文綜合筆記（支援 Markdown 與 KaTeX）",
+    "at": "2026-10-31T12:00:00Z"
+  },
+  "progress": {
+    "block": "s3-1-p2", "ratio": 0.42, "at": "2026-10-31T12:00:00Z"
+  }
+}
 ```
 
-| 欄位 | 說明 |
-|---|---|
-| `anchor` | 塊 id；不寫表示整篇（顯示在題頭旁） |
-| `quote` | 可選，錨點塊**譯文**裡的一段原話（純文字，不能含 `$` 公式），頁面會給它加下劃線 |
-| `kind` | `explain` 解釋 / `qa` 問答 / `insight` 感悟 / `reply` 回覆使用者問題 / `check` 原文核對提示 |
-| `title`、`q`、`body` | 標題、問題（問答用）、正文（必填，支援行內標記） |
-| `reply_to` | 回覆使用者筆記時填筆記 id（`easyread status` 裡能看到），錨點自動跟隨那條筆記 |
+---
 
-用 `easyread discuss ID --from 檔案.json` 追加（陣列或單個物件）；帶已有 `id` 是修改；`--delete ID` 刪除。`id`、`at` 不寫會自動生成。
-
-## reader.json（只讀）
+## 4. report.json（論文深度剖析）
 
 ```json
-{ "rev": 12,
-  "edits": { "s1-p3": { "zh": "使用者版本", "base": "改時譯者稿的雜湊", "at": "…" },
-             "tab1#caption": { … }, "s1-recs#2": { … } },
-  "notes": { "n…": { "id": "n…", "anchor": "s1-p2", "key": "s1-p2", "quote": "…", "prefix": "…", "suffix": "…",
-                    "kind": "note | question | highlight", "color": "yellow | green | blue | pink",
-                    "body": "…", "created": "…", "updated": "…", "deleted": false } },
-  "ink": { "i…": { "id": "i…", "group": "g…", "anchor": "s1-p2", "textHash": "1234abcd", "ref": [620, 180],
-                    "points": [[20, 30], [22, 34]], "color": "#d94b4b", "width": 2,
-                    "updated": "…", "deleted": false } },
-  "paper_note": { "body": "整篇的論文筆記", "at": "…" },
-  "progress": { "block": "s3-1-p2", "ratio": 0.35, "at": "…" } }
+{
+  "schema": 1,
+  "paper_id": "a1b2c3d4e5f6",
+  "markdown": "## 1. 核心主張與證據對照\n...\n## 2. 消融實驗審查 (Ablation Audit)\n...\n## 3. 關鍵公式拆解與數值示範 (Formula & Toy Example)\n...\n## 4. 基準線公平性與數據審查\n...\n## 5. 局限性、邊界與盲點\n...",
+  "focus": "重點檢視 Transformer 注意力層的計算量瓶頸",
+  "model": "claude-3-7-sonnet",
+  "created_at": "2026-10-31T10:00:00Z",
+  "updated_at": "2026-10-31T10:00:00Z"
+}
 ```
 
-編輯的鍵：普通塊是塊 id，表/圖題注是 `id#caption`，列表項是 `id#序號`。頁面只透過 `/api/p/ID/ops` 發操作（`edit`、`note`、`note_del`、`ink`、`ink_del`、`paper_note`、`progress`），每個操作冪等、帶時間戳，同一物件以較新的為準；服務端加鎖、原子寫、記日誌。`ink` 是錨定正文段落的 SVG 向量筆劃資料；目前 Markdown／Obsidian 匯出會提示但不包含筆跡。離線版匯出的修改用 `easyread merge ID --from 匯出.json` 並回。
+---
 
-## item.json（只讀）
+## 5. discussion.json（AI 頁邊問答）
 
 ```json
-{ "added": "…", "tags": ["統計"], "status": "unread | reading | done", "starred": false,
-  "last_opened": "…", "meta_override": { "title_zh": "…" } }
+{
+  "schema": 2,
+  "entries": [
+    {
+      "id": "d001-ab12c",
+      "anchor": "s2-1-p4",
+      "quote": "對它進行推斷",
+      "kind": "explain | qa | insight | reply | check",
+      "title": "原句推導疑問",
+      "body": "詳細解答內容...",
+      "reply_to": "n_123",
+      "at": "2026-10-31T11:00:00Z"
+    }
+  ]
+}
 ```
 
-## job.json（後臺任務狀態）
+---
 
-`{"type": "translate", "state": "queued | running | done | partial | error | cancelled", "message": "…", "done": 4, "total": 14, "error": "", "failed": {"7": "原因"}, "scope": "all | body | first:N"}`。服務重啟後 queued / running 的任務會自動繼續。`partial` 表示有頁沒譯成功（`failed` 裡是頁碼和原因），頁面上可以一鍵重試。每篇的翻譯過程記在 `job.log`。
-
-## layout.json（自動生成的原頁定位）
+## 6. layout.json（原頁歸一化座標定位）
 
 ```json
-{ "s1-p3": {
-  "page": 1, "src": "text", "box": [0.08, 0.10, 0.92, 0.90],
-  "boxes": [[0.08, 0.60, 0.48, 0.90], [0.52, 0.10, 0.92, 0.30]]
-} }
+{
+  "s1-p3": {
+    "page": 1,
+    "src": "text",
+    "box": [0.08, 0.10, 0.92, 0.90],
+    "boxes": [
+      [0.08, 0.60, 0.48, 0.90],
+      [0.52, 0.10, 0.92, 0.30]
+    ]
+  }
+}
 ```
 
-每個座標框都是按原頁寬高歸一化的 `[x0, y0, x1, y1]`。跨欄段落的可選 `boxes` 儲存各欄的獨立區域，按從左到右排列；原頁高亮和點選定位逐個使用這些區域，保留欄間空白。`box` 保留整體外接框以相容舊資料；沒有 `boxes` 時只使用 `box`。圖表仍使用包含影象的完整區域。
+每個座標方框均為以原 PDF 頁面寬高為基準的歸一化數值 `[x0, y0, x1, y1]`。`boxes` 支援多欄排版中折行段落的分段精準框選。
 
-服務首次開啟已有文獻時會用本地字元座標重算定位，無需重新翻譯；離線匯出會包含同樣的定位資料和高亮邏輯。
+---
 
-## chat.json（“問 AI”的對話記錄，只有服務寫）
+## 7. 研究工作區資料庫 (`.paperread-planning.sqlite3`)
 
-```json
-{ "threads": [
-  { "id": "t…", "title": "我標紅的那些公式有什麼聯絡", "model": "opus", "created": "…", "updated": "…",
-    "messages": [
-      { "role": "user", "content": "…", "anchor": "s1-recs", "quote": "", "note": null, "at": "…" },
-      { "id": "m…", "role": "assistant", "content": "……", "model": "Claude Opus 5", "anchor": "s1-recs", "note": null, "at": "…" } ] } ] }
+存放於資料目錄根目錄下，採用 SQLite WAL 模式，管理文獻庫之上的研究規劃資料：
+
+- **`statuses`**：閱讀看板欄位定義（`id`, `label`, `color`, `position`, `builtin`）。
+- **`saved_papers`**：已收錄候選論文之延伸中繼資料、研讀計劃與所屬分類。
+- **`candidates`**：OpenAlex 與外部探索檢索出的候選池清單。
+- **`candidate_summaries`**：AI 預讀摘要快取與回收站管理。
+- **`keywords` & `keyword_links`**：跨論文關鍵字索引表與段落雙向參照圖譜。
+- **`cache`**：閱讀路徑（`reading-path:latest`）、心智圖與非同步背景任務狀態快取。
+
+---
+
+## 8. Obsidian 知識庫匯出目錄規範
+
+在觸發匯出至 Obsidian 時，系統於目標 Vault 建立嚴格隔離的 6 大專題目錄：
+
+```text
+Vault Root/
+├── 01-論文分析/          # 核心觀點、架構剖析與引文導讀
+├── 02-心智圖/            # Markmap 階層大綱與雙向結構圖
+├── 03-閱讀標註/          # 匯總全文劃線、邊注、AI 洞察與貼紙標籤
+├── 04-論文深度剖析/      # 五維技術審查（Claims, Ablations, Toy Example 等）
+├── 05-跨論文比較/        # 多篇論文之橫向綜合比較
+├── 06-論文摘要/          # 候選論文精簡速讀摘要
+└── .paperread-index.json # 匯出索引與雜湊映射表
 ```
 
-一篇論文可以有多個對話。`note` 不為空時，這次是在回答頁邊那條筆記裡的問題，回答同時寫進 discussion.json（`reply_to` 那條筆記，`live: true`）。“放到頁邊”把一條回答寫成 discussion.json 裡的 `qa` 條目。提問時會把讀者的全部標記（按顏色分組）一起交給模型。
+### 使用者自定義筆記保護機制
+匯出之 Markdown 檔案均包含受管區塊標記：
 
-## 資料目錄裡的其他檔案
+```markdown
+<!-- paperread:managed:start -->
+# 系統自動生成之結構化內容
+...
+<!-- paperread:managed:end -->
 
-| 檔案 | 內容 |
-|---|---|
-| `config.json` | 設定：翻譯引擎、各家 API Key（`openai.keys`，按服務商分開存）、問 AI 的模型名單和預設模型（`chat.models`、`chat.default`） |
-| `prefs.json` | 介面偏好：閱讀頁字號、版心、主題、劃線筆（`reader`），功能開關和快捷鍵總開關（`ui`），改過的鍵位（`keys`） |
-| `easyread.log` | 服務日誌，設定底部“檢視執行日誌”能看到 |
-
-## 圖：裁圖和圖內文字
-
-- `box` 是模型給的圖本身的歸一化裁剪框 `[x0, y0, x1, y1]`，不含題注。翻譯和只讀原文整理都在合併鎖裡、塊 id 最終去重之後才按 `box` 裁圖，所以併發批次撞了 id 也不會指到別人的圖
-- 截圖檔名是 `figures/crop-<頁>-<雜湊>.webp`，雜湊包含頁碼、裁剪框和 PDF 檔案身份：重譯改了框會換新檔案，不會沿用舊圖或瀏覽器快取。裁圖失敗就清掉 `src` 和 `box`，保留原頁入口
-- 沒有 `box` 的圖塊（模型沒給，或舊論文）：開啟閱讀頁時後臺按原頁定位（layout.json）裡的圖區域補截，這個區域包含題注
-- `image_en` 是圖內可讀文字原文，`image_zh` 是目標語言的譯文（欄位名沿用歷史叫法），在圖下單獨顯示，不改圖片畫素。只讀原文先顯示 `image_en`，補譯時按 `id#image` 寫入，編輯和重譯用同一個鍵
-- 舊論文不會自動調模型補提取圖內文字；要重新整理對應頁，或由 agent 核對原頁後補上
-
-## 為什麼用 JSON 檔案而不是資料庫
-
-PaperRead 是個人工具：一個人、一臺電腦、幾十到幾百篇論文。每篇一個資料夾、幾個 JSON，好處是能直接看、能直接備份和同步（網盤、git 都行），agent 在對話裡也能直接讀寫；按“誰寫哪個檔案”分開之後，也不需要資料庫的併發控制。文獻庫列表每次掃描各資料夾生成，幾百篇以內是毫秒級。瀏覽器 localStorage 只用來暫存還沒寫進檔案的修改和快取偏好，不是資料的正本。
+## 我的個人心得與延伸思考
+讀者在此區塊手動撰寫的心得、待辦清單或 [[內部雙向連結]]，在後續覆蓋更新時均獲得 100% 完整保留。
+```
