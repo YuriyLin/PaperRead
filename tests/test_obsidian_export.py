@@ -185,5 +185,26 @@ class ObsidianExportTest(unittest.TestCase):
             self.assertIn("Research/03-閱讀標註/SamplePaper/所有AI問答/AllAiQa.md", archive.namelist())
 
 
+    def test_export_deep_analysis_to_04_folder(self):
+        doc = {
+            'id': 'paper:p1:deep_analysis',
+            'kind': 'deep-analysis',
+            'paper_id': 'p1',
+            'title': '測試論文 - 深度剖析',
+            'filename': 'test-paper-deep-analysis',
+            'body': '## 1. 核心假說\n充分支持。',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with mock.patch.object(obsidian_export, 'vault_path', lambda: root):
+                result = obsidian_export.export_to_vault([doc])
+                zip_res = obsidian_export.export_zip([doc])
+            self.assertEqual(result['written'], ['Research/04-論文深度剖析/test-paper-deep-analysis.md'])
+            self.assertTrue((root / 'Research' / '04-論文深度剖析' / 'test-paper-deep-analysis.md').is_file())
+            import zipfile, io, base64
+            archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(zip_res['content_base64'])))
+            self.assertIn('Research/04-論文深度剖析/test-paper-deep-analysis.md', archive.namelist())
+
+
 if __name__ == "__main__":
     unittest.main()

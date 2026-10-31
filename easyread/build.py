@@ -62,6 +62,24 @@ def build(ws: Workspace, out: Path | None = None, assets: Path | None = None, ex
         else:
             images[rel] = _data_uri(src, "image/webp")
     data = {n: ws.load(n) for n in ("discussion", "reader", "layout", "item")}
+    # Keep stickers already placed in the standalone reader available offline.
+    catalog = json.loads((WEB / "stickers" / "sticker-manifest.json").read_text(encoding="utf-8"))
+    used = {s.get("assetId") for s in data["reader"].get("stickers", {}).values() if not s.get("deleted")}
+    sticker_assets = []
+    for asset in catalog["assets"]:
+        if asset.get("id") not in used:
+            continue
+        rel = str(asset.get("path", "")).removeprefix("/public/stickers/")
+        file = (WEB / "stickers" / rel).resolve()
+        if not file.is_relative_to((WEB / "stickers").resolve()) or not file.is_file():
+            continue
+        mime = {".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp"}.get(file.suffix.lower())
+        if mime:
+            sticker_assets.append({**asset, "offlineData": _data_uri(file, mime)})
+    data["stickerAssets"] = sticker_assets
+    if sticker_assets:
+        data["stickerLicenses"] = {name: (WEB / "stickers" / name).read_text(encoding="utf-8")
+                                   for name in ("LICENSE-LUCIDE.txt", "LICENSE-CC-BY-SA-4.0.txt")}
     if mobile:  # 笔记、讨论、改过的译文都带上（手机上只读）；原页定位用不上
         data["layout"] = {}
     data.update({"paper": paper, "images": images}, **(extra or {}))

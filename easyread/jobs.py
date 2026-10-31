@@ -234,9 +234,18 @@ class Jobs:
     # ---------- 小任务 ----------
     def submit_small(self, kind: str, pid: str, **kw) -> dict:
         job = {"id": "j" + uuid4().hex, "kind": kind, "pid": pid, "state": "queued", "message": tr("排队中"),
-               "at": now_iso(), **kw}
+               "done": 0, "total": 0, "at": now_iso(), **kw}
         with self.lock:
             self.recent = ([job] + self.recent)[:50]
+        cancel_evt = self.small_cancels.setdefault(job["id"], threading.Event())
+        if kind == "smart-annotate":
+            try:
+                from .research import tasks as rtasks
+                scope = rtasks.scope_id(self.lib.root)
+                rtasks.register_external(job["id"], "smart-annotate", scope=scope, key=pid, paper_id=pid,
+                                         title=kw.get("title", ""), cancel_event=cancel_evt)
+            except Exception:
+                pass
         self.small.put(job)
         return job
 
@@ -248,6 +257,12 @@ class Jobs:
                 return False
             self.small_cancels.setdefault(job_id, threading.Event()).set()
             job["message"] = tr("正在取消")
+            if job.get("kind") == "smart-annotate":
+                try:
+                    from .research import tasks as rtasks
+                    rtasks.update_external(job_id, state="cancelling", phase="cancelling", message=tr("正在取消工作…"))
+                except Exception:
+                    pass
             return True
 
     def small_status(self, pid: str | None = None) -> list[dict]:
@@ -270,6 +285,12 @@ class Jobs:
                 continue
             cancel = self.small_cancels.setdefault(job["id"], threading.Event())
             job["state"], job["message"] = "running", tr("模型思考中")
+            if job.get("kind") == "smart-annotate":
+                try:
+                    from .research import tasks as rtasks
+                    rtasks.update_external(job["id"], state="running", phase="running", message=tr("模型思考中"))
+                except Exception:
+                    pass
             try:
                 if cancel.is_set():
                     raise Cancelled()
@@ -280,19 +301,59 @@ class Jobs:
                     translate.retranslate(ws, cfg, job["key"], job.get("hint", ""), None)
                 elif job["kind"] == "smart-annotate":
                     from . import smart_annotations
+
+                    def on_progress(done_chunks: int, total_chunks: int, count: int) -> None:
+                        with self.lock:
+                            job["done"] = done_chunks
+                            job["total"] = total_chunks
+                            job["saved"] = count
+                            if total_chunks > 0:
+                                if done_chunks < total_chunks:
+                                    job["message"] = f"正在分析第 {done_chunks + 1} / {total_chunks} 批..."  # i18n-ok
+                                else:
+                                    job["message"] = tr("完成")
+                            if job.get("kind") == "smart-annotate":
+                                try:
+                                    from .research import tasks as rtasks
+                                    rtasks.update_external(job["id"], done=done_chunks, total=total_chunks, message=job["message"])
+                                except Exception:
+                                    pass
+
                     result = smart_annotations.generate(
                         ws, scope=job.get("scope", "all"), section_id=job.get("section_id", ""),
                         mode=job.get("mode", "auto"), purpose=job.get("purpose", ""),
+                        intensity=job.get("intensity", "standard"),
                         model_id=job.get("model", ""), cancel=cancel,
+                        on_progress=on_progress,
                     )
                     job["result"] = result
+                    job["done"] = job.get("total", 0)
                 if cancel.is_set():
                     raise Cancelled()
                 job["state"], job["message"] = "done", tr("完成")
+                if job.get("kind") == "smart-annotate":
+                    try:
+                        from .research import tasks as rtasks
+                        rtasks.update_external(job["id"], state="completed", phase="completed", done=job.get("total", 0),
+                                               message=tr("完成"), result=job.get("result"))
+                    except Exception:
+                        pass
             except Cancelled:
                 job["state"], job["message"] = "cancelled", tr("已取消")
+                if job.get("kind") == "smart-annotate":
+                    try:
+                        from .research import tasks as rtasks
+                        rtasks.update_external(job["id"], state="cancelled", phase="cancelled", message=tr("已取消"))
+                    except Exception:
+                        pass
             except Exception as e:  # noqa: BLE001
                 job["state"], job["message"] = "error", str(e)[:500]
+                if job.get("kind") == "smart-annotate":
+                    try:
+                        from .research import tasks as rtasks
+                        rtasks.update_external(job["id"], state="failed", phase="failed", message=str(e)[:500])
+                    except Exception:
+                        pass
                 log.exception("小任务出错 %s", job.get("kind"))
             finally:
                 with self.lock:

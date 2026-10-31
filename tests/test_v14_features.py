@@ -155,6 +155,17 @@ class TestV14Features(unittest.TestCase):
         # Should contain the notes
         self.assertIn("My note", html)
 
+    def test_standalone_export_contains_used_sticker_assets(self):
+        ws, _ = self.lib.create_from_pdf(b"%PDF-1.4 export\n%%EOF", "export.pdf")
+        write_json_atomic(ws.root / "paper.json", {"id": ws.id, "meta": {"title_en": "Sticker"}, "blocks": []})
+        write_json_atomic(ws.root / "reader.json", {"stickers": {"s1": {"id": "s1", "assetId": "doodle-smiling-book"}}})
+        out = export_build.build(ws, out=self.tmp / "sticker.html")
+        html = out.read_text(encoding="utf-8")
+        self.assertIn('"stickerAssets":', html)
+        self.assertIn('"assetId": "doodle-smiling-book"', html)
+        self.assertIn('/public/stickers/decorative/doodle-smiling-book.svg', html)
+        self.assertIn('data:image/svg+xml;base64,', html)
+
 
 if __name__ == "__main__":
     unittest.main()

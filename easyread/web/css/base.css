@@ -1,6 +1,8 @@
 /* PaperRead · 共用的设计变量与基础组件（文献库页和阅读页都用） */
 [hidden] { display: none !important; }  /* 元素设了 hidden 就一定藏起来，别被自己的 display 盖掉 */
 :root {
+  color-scheme: light;
+  scrollbar-color: var(--rule-2) transparent;
   --bg: #f6f3ec;
   --surface: #fbfaf6;
   --surface-2: #efebe2;
@@ -50,6 +52,8 @@ html[data-target="ja"] { --serif-zh: "Noto Serif JP", "Source Han Serif JP", "Hi
 html[data-target="ko"] { --serif-zh: "Noto Serif KR", "Source Han Serif KR", AppleMyungjo, Batang, serif; --sans-zh: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
 html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif-zh: "Source Serif 4", "Source Serif Pro", Charter, "Iowan Old Style", Georgia, serif; --sans-zh: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 :root[data-theme="dark"] {
+  color-scheme: dark;
+  scrollbar-color: rgba(255, 255, 255, .24) transparent;
   --bg: #1a1917;
   --surface: #22211e;
   --surface-2: #2a2825;
@@ -75,6 +79,45 @@ html[data-target="es"], html[data-target="fr"], html[data-target="de"] { --serif
   --focus: rgba(134, 184, 201, .05);
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .45);
   --shadow-lg: 0 2px 6px rgba(0, 0, 0, .3), 0 24px 60px rgba(0, 0, 0, .55);
+}
+
+/* 自訂現代簡約滾動條：適配淺色與深色模式，消除 Windows 亮白色軌道底色與箭頭按鈕 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule-2);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+:root[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.24);
+  background-clip: padding-box;
+}
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.40);
+  background-clip: padding-box;
 }
 
 * { box-sizing: border-box; }

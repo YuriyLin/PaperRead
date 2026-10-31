@@ -103,6 +103,44 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
     return snapshot
 
 
+def register_external(identity: str, kind: str, *, scope: str = "", key: str = "", cancel_event: threading.Event | None = None, **extra) -> dict:
+    with _LOCK:
+        expired = sorted((t for t in _TASKS.values() if t["state"] not in ("queued", "running", "cancelling")),
+                         key=lambda item: item["updated"], reverse=True)[100:]
+        for old in expired:
+            _TASKS.pop(old["id"], None)
+        task = {
+            "id": identity, "kind": kind, "key": key, "state": "queued", "phase": "queued",
+            "done": 0, "total": 0, "message": tr("排入背景工作…"),
+            "created": time.time(), "updated": time.time(), "scope": scope, **extra
+        }
+        _TASKS[identity] = task
+        if cancel_event is not None:
+            _CANCEL[identity] = cancel_event
+        return _public(task)
+
+
+def update_external(identity: str, *, state: str | None = None, phase: str | None = None, done: int | None = None, total: int | None = None, message: str | None = None, result: any = None) -> dict | None:
+    with _LOCK:
+        task = _TASKS.get(identity)
+        if not task:
+            return None
+        if state is not None:
+            task["state"] = state
+        if phase is not None:
+            task["phase"] = phase
+        if done is not None:
+            task["done"] = max(0, int(done))
+        if total is not None:
+            task["total"] = max(0, int(total))
+        if message is not None:
+            task["message"] = str(message)[:240]
+        if result is not None:
+            task["result"] = result
+        task["updated"] = time.time()
+        return _public(task)
+
+
 def get(identity: str, scope: str | None = None) -> dict | None:
     with _LOCK:
         task = _TASKS.get(identity)

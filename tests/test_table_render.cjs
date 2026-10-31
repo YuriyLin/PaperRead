@@ -9,6 +9,7 @@ function render(blocks) {
   const bodyClass = new Set();
   const PR = {
     t: (s, v) => v ? s.replace(/\{(\w+)\}/g, (m, k) => v[k]) : s,
+    icon: () => "",
     titleOf: (m) => m.title_en || "",
     state: {
       paper: { meta: { title_en: "Table test", pages: [{ n: 1, img: "pages/page-001.webp" }] }, translation: { done_pages: [1] }, blocks },

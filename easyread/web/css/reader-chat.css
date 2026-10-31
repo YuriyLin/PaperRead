@@ -22,7 +22,7 @@ body.ch-open #chatpanel { transform: none; }
 .ch-thread:hover .tx { display: grid; }
 .ch-thread.newt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 13.5px; color: var(--accent); border-bottom: 1px solid var(--rule); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
 
-.ch-scroll { flex: 1; overflow-y: auto; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 18px; }
+.ch-scroll { flex: 1; overflow-y: auto; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 18px; scrollbar-width: thin; }
 .cm.user { align-self: flex-end; max-width: 88%; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
 .cm.user .bubble { background: var(--surface); color: var(--ink); padding: 9px 13px; border-radius: 14px 14px 4px 14px; font-size: 14px; line-height: 1.7; box-shadow: 0 0 0 1px var(--rule); }
 .cm-ctx { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--ink-3); max-width: 100%; }

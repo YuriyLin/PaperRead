@@ -115,7 +115,23 @@
     if (key === "doi") el.textContent = val;
     if ((i[key] || "") === val) return;
     const override = Object.assign({}, { [key]: val });
-    await L.patch(i.id, { meta_override: Object.assign({}, i.meta_override || {}, override) });
+    if (key === "title_zh") {
+      override.short_zh = PR.deriveShortTitle ? PR.deriveShortTitle(val, true) : val;
+    }
+    const fullOv = Object.assign({}, i.meta_override || {}, override);
+    await L.patch(i.id, { meta_override: fullOv });
+    try {
+      const bus = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("paperread-tabs-bus") : null;
+      bus?.postMessage({
+        type: "pr:paper-updated",
+        pid: i.id,
+        title_zh: fullOv.title_zh || i.title_zh,
+        short_zh: fullOv.short_zh || i.short_zh,
+        title_en: fullOv.title_en || i.title_en,
+        meta_override: fullOv
+      });
+      bus?.close();
+    } catch (_) {}
   }
 
   const box = PR.$("#detail");

@@ -33,7 +33,7 @@
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
       .replace(/\*\*([^*\n]+)\*\*/g, "$1")
       .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1$2")
-      .replace(/`([^`]+)`/g, "$1");
+      .replace(/\x60([^\x60\n]+)\x60/g, "$1");
   }
 
   function escRe(s) {
@@ -90,6 +90,39 @@
           }
           if (best) return best;
         } catch (_) { /* ignore regex errors */ }
+      }
+      // 純公式或無外圍非公式文字錨點時，使用 prefix/suffix 定位公式 DOM 區間
+      if (prefix || suffix) {
+        const pre = stripMdSyntax(prefix || "").trim();
+        const suf = stripMdSyntax(suffix || "").trim();
+        const prePat = pre ? escRe(pre.slice(-16)).replace(/\s+/g, "\\s*") : "";
+        const sufPat = suf ? escRe(suf.slice(0, 16)).replace(/\s+/g, "\\s*") : "";
+        if (prePat && sufPat) {
+          try {
+            const re = new RegExp(`(${prePat})\\s*([\\s\\S]{1,160}?)\\s*(${sufPat})`, "g");
+            let best = null, bestScore = -1, m;
+            while ((m = re.exec(text)) !== null) {
+              if (!m[2]) { re.lastIndex++; continue; }
+              const start = m.index + m[1].length;
+              const len = m[2].length;
+              const score = scoreHit(text, start, len, prefix, suffix);
+              if (score > bestScore) { best = { i: start, len: Math.max(1, len) }; bestScore = score; }
+            }
+            if (best) return best;
+          } catch (_) {}
+        } else if (prePat) {
+          try {
+            const re = new RegExp(`(${prePat})\\s*([\\s\\S]{1,160}?)`, "g");
+            const m = re.exec(text);
+            if (m && m[2]) return { i: m.index + m[1].length, len: Math.max(1, m[2].length) };
+          } catch (_) {}
+        } else if (sufPat) {
+          try {
+            const re = new RegExp(`([\\s\\S]{1,160}?)\\s*(${sufPat})`, "g");
+            const m = re.exec(text);
+            if (m && m[1]) return { i: m.index, len: Math.max(1, m[1].length) };
+          } catch (_) {}
+        }
       }
     }
     return null;
@@ -210,6 +243,17 @@
       }
     }
     for (const e of S.discussion.entries || []) if (e.quote && e.anchor) items.push({ id: e.id, n: e, p: e, attrs: { class: "hl agent", "data-card": e.id } });
+    items.sort((a, b) => {
+      const aUl = a.n.style === "underline" ? 1 : 0;
+      const bUl = b.n.style === "underline" ? 1 : 0;
+      if (aUl !== bUl) return aUl - bUl;
+      const aLen = (a.p.quote || "").length;
+      const bLen = (b.p.quote || "").length;
+      if (aLen !== bLen) return bLen - aLen;
+      const aAi = a.n.ai_generated ? 0 : 1;
+      const bAi = b.n.ai_generated ? 0 : 1;
+      return aAi - bAi;
+    });
     for (const { id, n, p, attrs } of items) {
       if (onlyBlock && p.anchor !== onlyBlock) continue;
       seen.add(id);

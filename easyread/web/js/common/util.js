@@ -41,11 +41,30 @@ window.PR = window.PR || {};
     return isZh ? text.split(/[：:]/)[0].trim() : (text.split(/:\s/)[0] || "").trim();
   }
 
+  PR.deriveShortTitle = function (title, isZh) {
+    if (!title) return "";
+    const maxLen = isZh ? 16 : 36;
+    const s = splitShort(title, isZh);
+    if (s && s !== title && s.length <= maxLen) return s;
+    const parts = title.split(/[？?！!———–\-]/);
+    if (parts.length > 1) {
+      const p2 = parts[1].trim();
+      if (p2 && p2.length >= 2 && p2.length <= maxLen) return p2;
+      const p1 = parts[0].trim();
+      if (p1 && p1.length >= 2 && p1.length <= maxLen) return p1;
+    }
+    if (title.length <= maxLen) return title;
+    return title.slice(0, maxLen - 1) + "…";
+  };
+
   /* 论文标题哪个当主标题：译文语言和界面语言一样时用译文标题（中文界面看中文译文），
      否则用英文原标题，译文标题放第二行。short 是侧栏用的短标题 */
   PR.titles = function (i) {
     const tr = i.title_zh || "", en = i.title_en || "", lang = i.target || "zh";
-    if (tr && (PR.lang === lang || !en)) return { main: tr, sub: en, subLang: "en", short: i.short_zh || splitShort(tr, true) };
+    const shortZh = (i.meta_override && i.meta_override.title_zh && !i.meta_override.short_zh)
+      ? PR.deriveShortTitle(tr, true)
+      : (i.short_zh || splitShort(tr, true));
+    if (tr && (PR.lang === lang || !en)) return { main: tr, sub: en, subLang: "en", short: shortZh };
     return { main: en || PR.t("（未命名）"), sub: tr, subLang: lang, short: splitShort(en, false) || PR.t("（未命名）") };
   };
 

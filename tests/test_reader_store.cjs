@@ -33,6 +33,20 @@ test("progress keeps the block, the position inside it and the ratio", async () 
   assert.equal(PR.state.reader.progress.off, undefined);
 });
 
+test("sticker edits and deletes survive offline replay and export", async () => {
+  const PR = await offlineReader();
+  const sticker = { id: "s1", assetId: "doodle-fox", anchor: "p1", ref: [200, 100], x: 10, y: 20,
+    width: 40, height: 30, rotation: 90, opacity: 0.5, z: 1, locked: false, textHash: "1234abcd" };
+  PR.commit({ op: "sticker", sticker, at: "2026-10-01T00:01:00Z" });
+  PR.commit({ op: "sticker_del", id: "s1", at: "2026-10-01T00:02:00Z" });
+  PR.commit({ op: "sticker", sticker, at: "2026-10-01T00:01:00Z" });
+  assert.equal(PR.state.reader.stickers.s1.deleted, true);
+  assert.equal(PR.exportOps().ops.find(op => op.id === "s1").op, "sticker_del");
+  PR.commit({ op: "sticker", sticker, at: "2026-10-01T00:03:00Z" });
+  assert.equal(PR.state.reader.stickers.s1.rotation, 90);
+  assert.equal(PR.state.reader.stickers.s1.deleted, undefined);
+});
+
 test("exit waits for an in-flight save and drains the newer progress", async () => {
   const pending = [];
   const PR = { t: s => s, uid: () => "client", nowIso: () => "2026-10-14T00:00:00Z", emit() {},

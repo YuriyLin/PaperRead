@@ -393,3 +393,22 @@
 @media (max-width: 500px) {
   .rw-kw-add-row { grid-template-columns: 1fr; }
 }
+
+/* Deep Analysis / X-Ray Audit */
+.rw-deep-detail { display: grid; gap: 16px; background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 24px; }
+.rw-deep-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--rule); padding-bottom: 14px; }
+.rw-deep-header { display: grid; gap: 6px; }
+.rw-deep-header h2 { margin: 0; font: 700 22px/1.35 var(--serif-zh); color: var(--ink); }
+.rw-deep-header .meta { font-size: 13px; color: var(--ink-2); }
+.rw-chip-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.rw-deep-body { font-size: 14px; line-height: 1.8; color: var(--ink); padding-top: 10px; }
+.rw-deep-body h2 { font-size: 17px; margin-top: 24px; margin-bottom: 12px; color: var(--ink); border-bottom: 1px solid var(--rule); padding-bottom: 6px; }
+.rw-deep-body h3 { font-size: 15px; margin-top: 18px; margin-bottom: 8px; color: var(--ink-2); }
+.rw-deep-body ul, .rw-deep-body ol { padding-left: 20px; margin: 8px 0; }
+.rw-deep-body li { margin-bottom: 6px; }
+.rw-deep-body p { margin: 8px 0; }
+.rw-deep-body blockquote { margin: 12px 0; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 6px 6px 0; }
+.rw-deep-picker { max-width: 680px; margin: 0 auto 20px; }
+.ch-deep-link { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--rule); font-size: 12px; }
+.ch-deep-link a { color: var(--accent); font-weight: 500; text-decoration: none; }
+.ch-deep-link a:hover { text-decoration: underline; }

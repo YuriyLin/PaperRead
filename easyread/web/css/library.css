@@ -62,7 +62,7 @@
 .empty-state .btn { margin-top: 18px; }
 
 /* 详情 */
-.detail { border-left: 1px solid var(--rule); background: var(--surface); overflow-y: auto; overflow-x: hidden; }
+.detail { border-left: 1px solid var(--rule); background: var(--surface); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
 .detail-inner { padding: 22px 24px 50px; width: 400px; }
 .detail .cover { display: flex; gap: 16px; }
 .detail .cover .thumb { width: 92px; height: 120px; flex: none; }

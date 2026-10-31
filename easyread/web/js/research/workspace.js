@@ -526,6 +526,7 @@
         return '<article class="rw-card rw-paper"><div class="rw-candidate-titleline"><h3>' + titleHtml(w.title || "未命名論文") + '</h3>' + fullTextBadge + '</div><div class="meta">' + esc([w.authors, w.year, w.venue].filter(Boolean).join(" · ")) + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (record.summary_markdown ? '<span class="rw-chip" title="' + escAttr(PR.t("此摘要根據搜尋來源提供的書目摘要整理，並不代表已取得論文全文。")) + '">' + PR.t("已整理來源摘要") + '</span>' : '') + summaryStatus + '<div class="actions rw-candidate-actions">' + summaryControl + (id ? '<a class="btn sm line" href="/read/' + escAttr(id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板"), "queue", "line", 'title="' + escAttr(PR.t("加入閱讀看板並取得 PDF")) + '" data-key="' + escAttr(record.paper_key) + '"')) + '<details class="rw-candidate-more"><summary class="btn sm line">' + PR.t("更多") + '</summary><div class="menu-list">' + moreActions + '</div></details>' + '</div></article>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
       }).join("") + '</div>' : '<div class="rw-empty">' + PR.t("候選清單目前是空的。先到研究探索搜尋，再按「加入候選」。") + '</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
+
   function renderSummaries() {
     const host = $("[data-view='summaries']"), records = S.summaries || [];
     host.innerHTML = '<div class="rw-section-head"><div><h2>已整理摘要</h2><p>整理結果會獨立保存；論文移出候選清單後，摘要仍會保留。</p></div></div>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */

@@ -28,7 +28,7 @@ function loadReader({ notes, blocks, entries = [] }) {
     HL_COLORS: [["yellow", "黃"], ["green", "綠"], ["blue", "藍"], ["pink", "紅"]],
     debounce: (fn) => { fn.flush = fn; fn.cancel = () => {}; return fn; },
   };
-  vm.runInNewContext(source, { window: { PR }, document: { querySelector() { return noopNode; }, querySelectorAll() { return []; } } });
+  vm.runInNewContext(source, { window: { PR, addEventListener() {} }, document: { addEventListener() {}, querySelector() { return noopNode; }, querySelectorAll() { return []; } }, location: { search: "" }, URLSearchParams });
   return PR;
 }
 

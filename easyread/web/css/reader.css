@@ -92,7 +92,15 @@ body.font-sans #paper { font-family: var(--sans-zh); letter-spacing: .01em; }
 /* 题头 */
 .paper-head { margin: 0 0 3.2em; }
 .paper-head .kicker { font: 12.5px/1.6 var(--ui); letter-spacing: .06em; color: var(--ink-3); margin-bottom: 1.4em; }
-.paper-head h1 { font-size: 1.72em; line-height: 1.42; font-weight: 600; margin: 0 0 .5em; letter-spacing: .02em; text-wrap: pretty; }
+.paper-head h1 { position: relative; font-size: 1.72em; line-height: 1.42; font-weight: 600; margin: 0 0 .5em; letter-spacing: .02em; text-wrap: pretty; display: flex; align-items: flex-start; gap: 8px; cursor: text; }
+.paper-head h1 .title-text { flex: 1; }
+.paper-head .title-edit-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: none; background: transparent; color: var(--ink-3); border-radius: 4px; cursor: pointer; opacity: 0; transition: opacity .15s ease, background .15s ease, color .15s ease; flex-shrink: 0; margin-top: 4px; }
+.paper-head h1:hover .title-edit-btn,
+.paper-head .title-edit-btn:focus-visible { opacity: 1; }
+.paper-head .title-edit-btn:hover { background: var(--bg-hover, rgba(0, 0, 0, 0.06)); color: var(--ink); }
+.paper-head .title-en[data-title-key] { cursor: text; }
+.title-editor-wrap { width: 100%; }
+.title-editor-wrap textarea.editor { font-size: inherit; font-weight: inherit; line-height: inherit; letter-spacing: inherit; font-family: inherit; }
 .paper-head .title-en { font: italic .95em/1.5 var(--serif-en); color: var(--ink-2); margin: 0 0 1.1em; }
 .paper-head .byline { font: 14px/1.7 var(--ui); color: var(--ink-2); margin: 0; }
 .paper-head .scope { margin: 1.6em 0 0; padding-top: 1em; border-top: 1px solid var(--rule); font: 12.5px/1.8 var(--ui); color: var(--ink-3); }
@@ -210,6 +218,8 @@ table.tbl td .sub { color: var(--ink-3); }
 .pending { margin: 3em 0 1.5em; padding: 1em 1.2em; border: 1px dashed var(--rule-2); border-radius: 10px; font: 14px/1.7 var(--ui); color: var(--ink-2); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pending.bad { border-color: color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); }
 .pending .hint { flex-basis: 100%; }
+.pending-tip { flex-basis: 100%; margin-top: 6px; padding: 7px 12px; border-radius: 6px; background: var(--accent-soft); color: var(--ink); font-size: 13px; line-height: 1.5; font-weight: normal; }
+
 .pending-pages.gap .pending { margin-top: 1.5em; }
 .orig-page { margin: 0 0 2em; }
 .orig-page figcaption { font: 12.5px var(--ui); color: var(--ink-3); margin-bottom: 6px; }

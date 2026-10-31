@@ -48,12 +48,105 @@
     });
   };
 
+  PR.saveMetaTitle = async function (key, text) {
+    const S = PR.state;
+    if (!S.paper || !S.paper.meta) return;
+    S.paper.meta[key] = text;
+    if (key === "title_zh") {
+      S.paper.meta.short_zh = PR.deriveShortTitle ? PR.deriveShortTitle(text, true) : text;
+    }
+    PR.updateTitle && PR.updateTitle();
+
+    const ov = Object.assign({}, (S.item || {}).meta_override || {});
+    ov[key] = text;
+    if (key === "title_zh") ov.short_zh = S.paper.meta.short_zh;
+
+    if (PR.store.mode === "server") {
+      try {
+        await PR.api("/api/p/" + PR.pid + "/item", { method: "POST", body: { meta_override: ov } });
+        if (S.item) S.item.meta_override = ov;
+        PR.toast(PR.t("标题已更新"));
+      } catch (e) {
+        PR.toast(PR.t("保存标题失败：{err}", { err: e.message }));
+      }
+    }
+    try {
+      const bus = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("paperread-tabs-bus") : null;
+      bus?.postMessage({
+        type: "pr:paper-updated",
+        pid: PR.pid,
+        title_zh: S.paper.meta.title_zh,
+        short_zh: S.paper.meta.short_zh,
+        title_en: S.paper.meta.title_en,
+        meta_override: ov
+      });
+      bus?.close();
+    } catch (_) {}
+  };
+
+  PR.editTitle = function (el, key) {
+    if (PR.editingKey) return;
+    key = key || el.dataset.titleKey || (el.tagName === "H1" ? "title_zh" : "title_en");
+    PR.hideBlockbar && PR.hideBlockbar();
+    const S = PR.state;
+    const m = S.paper?.meta || {};
+    const current = m[key] || (el.querySelector?.(".title-text")?.textContent || el.textContent).trim();
+    PR.editingKey = "title:" + key;
+
+    const wrapEl = PR.el("div", { class: "editor-wrap title-editor-wrap" });
+    const ta = PR.el("textarea", { class: "editor title-editor", spellcheck: "false", "aria-label": PR.t("编辑标题") });
+    ta.value = current;
+    const bar = PR.el("div", { class: "editor-bar" },
+      "<span>" + PR.t("Enter 保存 · Shift+Enter 换行 · Esc 取消") + "</span>" +
+      '<span class="grow"></span>' +
+      '<button data-e="cancel">' + PR.t("取消") + '</button><button data-e="save" class="primary">' + PR.t("保存") + "</button>");
+    wrapEl.append(ta, bar);
+    el.replaceChildren(wrapEl);
+    PR.autosize(ta);
+    ta.focus();
+    ta.select();
+
+    const finish = async (action) => {
+      PR.editingKey = null;
+      if (action === "save") {
+        const text = ta.value.replace(/\s+$/, "").trim();
+        if (text && text !== current) {
+          await PR.saveMetaTitle(key, text);
+        }
+      }
+      if (PR.renderPaperHead) PR.renderPaperHead();
+    };
+
+    bar.addEventListener("click", (e) => { const b = e.target.closest("[data-e]"); if (b) finish(b.dataset.e); });
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); finish("cancel"); }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); finish("save"); }
+    });
+  };
+
   document.addEventListener("dblclick", (e) => {
+    const titleEl = e.target.closest("#paper .paper-head [data-title-key], #paper .paper-head h1");
+    if (titleEl && !e.target.closest("a, button, textarea")) {
+      getSelection().removeAllRanges();
+      PR.$("#selbar").classList.remove("open");
+      PR.editTitle(titleEl);
+      return;
+    }
     const zh = e.target.closest("#paper .zh[data-key]");
     if (!zh || e.target.closest("a, button, textarea") || zh.closest(".blk-references")) return;
     getSelection().removeAllRanges();
     PR.$("#selbar").classList.remove("open");
     PR.editZh(zh);
+  });
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#paper .paper-head [data-t='edit-title'], #paper .title-edit-btn");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const head = btn.closest(".paper-head");
+    const h1 = head ? head.querySelector("h1") : null;
+    if (h1) PR.editTitle(h1);
   });
 
   /* 我改过、译者稿后来又变了 */

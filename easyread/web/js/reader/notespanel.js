@@ -2,10 +2,9 @@
 (function (PR) {
   "use strict";
   const S = PR.state;
-  let tab = PR.ls.get("easyread-np-tab", "notes");
+  let tab = PR.ls && PR.ls.get ? PR.ls.get("easyread-np-tab", "notes") : "notes";
   let filter = "all";
   let editing = null;
-  let preview = false;
   const panel = () => PR.$("#notespanel");
 
   PR.notesPanelOpen = () => PR.side === "notes";
@@ -14,6 +13,14 @@
     PR.openSide(open ? "notes" : null);
     if (open) PR.renderNotesPanel();
     else editing = null;
+  };
+
+  PR.openPaperNotes = function () {
+    if (editing) stopEditing();
+    tab = "paper";
+    PR.ls && PR.ls.set && PR.ls.set("easyread-np-tab", "paper");
+    PR.toggleNotesPanel(true);
+    PR.renderNotesPanel();
   };
 
   function sectionOf(id) {
@@ -40,66 +47,282 @@
   }
 
   let smartJob = null;
-  const smartItems = () => Object.values(S.reader.ai_annotations || {}).filter((a) => ["pending", "edited"].includes(a.status));
+  function getBlockIndex(anchor) {
+    if (!anchor) return 999999;
+    const blocks = (PR.paper && PR.paper.blocks) || [];
+    const idx = blocks.findIndex((b) => b && b.id === anchor);
+    return idx >= 0 ? idx : 999999;
+  }
+
+  const smartItems = () => {
+    const list = Object.values(S.reader.ai_annotations || {}).filter((a) => ["pending", "edited"].includes(a.status));
+    return list.sort((a, b) => {
+      const pageA = a.page != null ? Number(a.page) : 9999;
+      const pageB = b.page != null ? Number(b.page) : 9999;
+      if (pageA !== pageB) return pageA - pageB;
+      const idxA = getBlockIndex(a.anchor);
+      const idxB = getBlockIndex(b.anchor);
+      if (idxA !== idxB) return idxA - idxB;
+      return (a.created_at || "").localeCompare(b.created_at || "");
+    });
+  };
+
+  function updateSmartNotesIndicator(running) {
+    const btn = PR.$ && PR.$('#bar [data-act="notes"]');
+    if (btn) {
+      if (running) {
+        btn.classList.add("is-running");
+      } else if (!PR.noteHelpRunning || !PR.noteHelpRunning()) {
+        btn.classList.remove("is-running");
+      }
+    }
+  }
   const smartSections = () => (PR.headings || []).filter((h) => h && h.id).map((h) => ({ id: h.id, label: (h.num ? h.num + " " : "") + PR.plain(PR.textFor(h.id) || h.zh || h.en || "") }));
 
   function smartColorLegend() {
-    const items = [
-      ["yellow", PR.t("黃"), PR.t("核心概念、研究動機、主要主張與研究發現")],
-      ["green", PR.t("綠"), PR.t("方法、模型架構、技術創新與實作細節")],
-      ["blue", PR.t("藍"), PR.t("實驗數據、量化結果、比較證據與觀察")],
-      ["pink", PR.t("紅"), PR.t("研究限制、失敗案例、假設條件與待研究問題")],
+    const highlighters = [
+      ["yellow", PR.t("核心主張"), PR.t("標記完整的重要句子、核心論點與結論")],
+      ["green", PR.t("方法與證據"), PR.t("標記研究方法、實驗架構與關鍵結果")],
+      ["blue", PR.t("背景知識"), PR.t("標記重要背景、問題定義與領域概念")],
+      ["pink", PR.t("研究限制"), PR.t("標記研究限制、瓶頸、缺陷與待解問題")],
     ];
-    return '<div class="smart-color-legend"><b>' + PR.t("顏色意義") + '</b><div class="smart-color-grid">' + items.map(([color, label, meaning]) =>
-      '<div class="smart-color-item"><svg class="smart-color-icon smart-color-' + color + '" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7"></circle></svg><span><strong>' + PR.esc(label) + '</strong><small>' + PR.esc(meaning) + '</small></span></div>').join("") + '</div></div>';
+    const underlines = [
+      ["yellow", PR.t("關鍵詞"), PR.t("標記核心概念、專有名詞與新術語")],
+      ["green", PR.t("數據指標"), PR.t("標記數值、統計指標、百分比與實驗數據")],
+      ["blue", PR.t("引用來源"), PR.t("標記作者、理論名稱、基準模型與文獻")],
+      ["pink", PR.t("疑點與風險"), PR.t("標記不確定性、矛盾語句與潛在風險")],
+    ];
+
+    const renderPills = (list, isUnderline) =>
+      list.map(([color, semLabel, desc]) =>
+        '<span class="smart-pill" title="' + PR.esc(desc) + '">' +
+        (isUnderline
+          ? '<span class="smart-bar ul-' + color + '"></span>'
+          : '<span class="smart-dot hl-' + color + '"></span>') +
+        '<span>' + PR.esc(semLabel) + '</span>' +
+        '<span class="smart-info-tip" aria-label="' + PR.esc(desc) + '">i</span>' +
+        '</span>'
+      ).join("");
+
+    return '<div class="smart-legend-box">' +
+      '<div class="smart-legend-head">' +
+      '<span class="smart-legend-title">' + PR.t("標註規則圖例") + '</span>' +
+      '</div>' +
+      '<div class="smart-legend-body">' +
+      '<div class="smart-legend-group">' +
+      '<div class="smart-legend-subhead">' + PR.t("螢光筆（句子）") + '</div>' +
+      '<div class="smart-legend-grid">' + renderPills(highlighters, false) + '</div>' +
+      '</div>' +
+      '<div class="smart-legend-group">' +
+      '<div class="smart-legend-subhead">' + PR.t("底線筆（短語）") + '</div>' +
+      '<div class="smart-legend-grid">' + renderPills(underlines, true) + '</div>' +
+      '</div>' +
+      '</div>' +
+      '</div>';
   }
 
   function smartDialog() {
     const dlg = PR.$("#readerDlg");
     const sections = smartSections();
     dlg.querySelector(".dialog").innerHTML = '<h2>' + PR.t("智慧標註") + '</h2>' +
-      '<p class="hint">' + PR.t("先產生待確認建議；接受後才會套用到正文，不會覆蓋手動標註。") + '</p>' + smartColorLegend() +
-      '<label class="smart-field">' + PR.t("分析模式") + '<select id="smartMode"><option value="auto">' + PR.t("AI 自動標註") + '</option><option value="suggest">' + PR.t("AI 建議標註") + '</option><option value="purpose">' + PR.t("依研究目的標註") + '</option></select></label>' +
-      '<label class="smart-field">' + PR.t("分析範圍") + '<select id="smartScope"><option value="all">' + PR.t("全文") + '</option><option value="section">' + PR.t("指定章節") + '</option></select></label>' +
-      '<label class="smart-field smart-section-field" hidden>' + PR.t("章節") + '<select id="smartSection">' + sections.map((s) => '<option value="' + PR.esc(s.id) + '">' + PR.esc(s.label) + '</option>').join("") + '</select></label>' +
-      '<label class="smart-field">' + PR.t("研究目的（可選）") + '<textarea id="smartPurpose" rows="3" placeholder="' + PR.esc(PR.t("例如：找出可用於 3D segmentation 的方法與限制")) + '"></textarea></label>' +
+      '<div class="smart-alert-banner">' +
+      '<span class="smart-alert-icon">ℹ</span>' +
+      '<span>' + PR.t("先產生待確認建議；接受後才會套用到正文，不會覆蓋手動標註。") + '</span>' +
+      '</div>' +
+      smartColorLegend() +
+      '<div class="smart-form-section">' +
+        '<div class="smart-form-group">' +
+          '<label class="smart-group-label">' + PR.t("劃記強度") + '</label>' +
+          '<input type="hidden" id="smartIntensity" value="standard">' +
+          '<div class="smart-segmented" role="radiogroup" aria-label="' + PR.esc(PR.t("劃記強度")) + '">' +
+            '<button type="button" class="smart-seg-btn" data-seg="smartIntensity" data-val="concise" title="' + PR.esc(PR.t("每段只保留最有價值的資訊，適合快速閱讀")) + '">' +
+              '<span class="seg-title">' + PR.t("精簡") + '</span>' +
+              '<span class="seg-sub">' + PR.t("快速閱讀") + '</span>' +
+            '</button>' +
+            '<button type="button" class="smart-seg-btn active" data-seg="smartIntensity" data-val="standard" title="' + PR.esc(PR.t("保留各類重要資訊與核心詞彙，適合一般研究")) + '">' +
+              '<span class="seg-title">' + PR.t("標準") + '</span>' +
+              '<span class="seg-sub">' + PR.t("一般研究") + '</span>' +
+            '</button>' +
+            '<button type="button" class="smart-seg-btn" data-seg="smartIntensity" data-val="detailed" title="' + PR.esc(PR.t("增加次要證據與詳細數據，適合深入研究")) + '">' +
+              '<span class="seg-title">' + PR.t("詳細") + '</span>' +
+              '<span class="seg-sub">' + PR.t("深入研究") + '</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="smart-form-row">' +
+          '<div class="smart-form-col">' +
+            '<div class="smart-label-wrap">' +
+              '<label class="smart-group-label" for="smartMode">' + PR.t("分析模式") + '</label>' +
+              '<button type="button" class="smart-help-btn" data-smart-mode-help title="' + PR.esc(PR.t("說明三種標註模式的差異")) + '" aria-label="' + PR.esc(PR.t("說明三種標註模式的差異")) + '">' +
+                PR.icon("question", "sm") +
+              '</button>' +
+            '</div>' +
+            '<select id="smartMode" class="smart-select">' +
+              '<option value="auto">' + PR.t("AI 自動標註") + '</option>' +
+              '<option value="suggest">' + PR.t("AI 建議標註") + '</option>' +
+              '<option value="purpose">' + PR.t("依研究目的標註") + '</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="smart-form-col">' +
+            '<label class="smart-group-label">' + PR.t("分析範圍") + '</label>' +
+            '<input type="hidden" id="smartScope" value="all">' +
+            '<div class="smart-segmented" role="radiogroup" aria-label="' + PR.esc(PR.t("分析範圍")) + '">' +
+              '<button type="button" class="smart-seg-btn active" data-seg="smartScope" data-val="all">' +
+                '<span class="seg-title">' + PR.t("全文") + '</span>' +
+              '</button>' +
+              '<button type="button" class="smart-seg-btn" data-seg="smartScope" data-val="section">' +
+                '<span class="seg-title">' + PR.t("指定章節") + '</span>' +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<section id="smartModeHelp" class="smart-mode-help" role="region" hidden>' +
+          '<div class="smart-mode-help-head">' +
+            '<b>' + PR.t("分析模式差異說明") + '</b>' +
+            '<button type="button" class="smart-help-close" data-smart-mode-help-close aria-label="' + PR.t("關閉模式說明") + '">×</button>' +
+          '</div>' +
+          '<dl class="smart-mode-dl">' +
+            '<dt>' + PR.t("AI 自動標註") + '</dt>' +
+            '<dd>' + PR.t("由 AI 全面均衡分析全文，自動發掘最重要的核心主張、方法、關鍵詞與數據指標。") + '</dd>' +
+            '<dt>' + PR.t("AI 建議標註") + '</dt>' +
+            '<dd>' + PR.t("側重標註研究方法、架構設計、實驗結果與文獻引用，適合深化技術細節。") + '</dd>' +
+            '<dt>' + PR.t("依研究目的標註") + '</dt>' +
+            '<dd>' + PR.t("依讀者自訂的研究目的（在下方輸入框填寫）進行聚焦定向標記，精準過濾相關內容。") + '</dd>' +
+          '</dl>' +
+        '</section>' +
+        '<div class="smart-field smart-section-field" hidden>' +
+          '<label class="smart-group-label" for="smartSection">' + PR.t("章節") + '</label>' +
+          '<select id="smartSection" class="smart-select">' + sections.map((s) => '<option value="' + PR.esc(s.id) + '">' + PR.esc(s.label) + '</option>').join("") + '</select>' +
+        '</div>' +
+        '<div class="smart-field smart-purpose-field">' +
+          '<label class="smart-group-label" for="smartPurpose">' + PR.t("研究目的（可選）") + '</label>' +
+          '<textarea id="smartPurpose" rows="2" class="smart-textarea" placeholder="' + PR.esc(PR.t("例如：找出可用於 3D segmentation 的方法與限制")) + '"></textarea>' +
+        '</div>' +
+      '</div>' +
       '<div class="actions"><button class="btn" data-smart-close>' + PR.t("取消") + '</button><button class="btn primary" data-smart-start>' + PR.t("開始分析") + '</button></div>';
     dlg.classList.add("open");
-    const scope = dlg.querySelector("#smartScope");
+
     const section = dlg.querySelector(".smart-section-field");
-    scope.onchange = () => { section.hidden = scope.value !== "section"; };
+    dlg.querySelectorAll(".smart-seg-btn").forEach((btn) => {
+      btn.onclick = () => {
+        const targetId = btn.dataset.seg;
+        const val = btn.dataset.val;
+        btn.closest(".smart-segmented").querySelectorAll(".smart-seg-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const inp = dlg.querySelector("#" + targetId);
+        if (inp) inp.value = val;
+        if (targetId === "smartScope" && section) {
+          section.hidden = (val !== "section");
+        }
+      };
+    });
+    const modeSelect = dlg.querySelector("#smartMode");
+    const purposeTextarea = dlg.querySelector("#smartPurpose");
+    if (modeSelect && purposeTextarea) {
+      modeSelect.onchange = () => {
+        if (modeSelect.value === "purpose") {
+          purposeTextarea.focus();
+        }
+      };
+    }
+    const modeHelpBtn = dlg.querySelector("[data-smart-mode-help]");
+    const modeHelpBox = dlg.querySelector("#smartModeHelp");
+    const modeHelpClose = dlg.querySelector("[data-smart-mode-help-close]");
+    if (modeHelpBtn && modeHelpBox) {
+      modeHelpBtn.onclick = () => {
+        const isHidden = modeHelpBox.hidden;
+        modeHelpBox.hidden = !isHidden;
+        modeHelpBtn.classList.toggle("active", isHidden);
+      };
+    }
+    if (modeHelpClose && modeHelpBox) {
+      modeHelpClose.onclick = () => {
+        modeHelpBox.hidden = true;
+        modeHelpBtn?.classList.remove("active");
+      };
+    }
   }
 
   function smartCard(a) {
-    const label = a.style === "underline" ? PR.t("底線") : PR.t("螢光筆");
+    const isUnderline = a.style === "underline" || a.type === "underline";
+    const label = isUnderline ? PR.t("底線") : PR.t("螢光筆");
     const color = a.color === "pink" ? PR.t("紅") : (PR.HL_COLORS.find(([key]) => key === a.color) || ["", a.color || PR.t("黃")])[1];
+    const semanticRole = isUnderline ? ({
+      yellow: PR.t("關鍵詞"),
+      green: PR.t("數據指標"),
+      blue: PR.t("引用來源"),
+      pink: PR.t("疑點與風險"),
+    }[a.color] || PR.t("關鍵詞")) : ({
+      yellow: PR.t("核心主張"),
+      green: PR.t("方法與證據"),
+      blue: PR.t("背景知識"),
+      pink: PR.t("研究限制"),
+    }[a.color] || PR.t("核心主張"));
     const location = a.locatable ? (a.page ? PR.t("第 {page} 頁", { page: a.page }) : PR.t("已定位")) :
       (a.stale_reason === "translation_changed" ? PR.t("譯文已更新，請重新分析") :
         (a.source_stale ? PR.t("來源已更新，請重新分析") : PR.t("無法定位，請修改原文")));
-    return '<article class="smart-card' + (a.locatable ? "" : " smart-unlocatable") + '" data-smart-id="' + PR.esc(a.annotation_id) + '" data-anchor="' + PR.esc(a.anchor || "") + '">' +
-      '<div class="smart-card-head"><b>' + PR.t("AI 建議標註") + '</b><span class="smart-meta">' + PR.esc(color) + " · " + PR.esc(label) + " · " + PR.esc(location) + '</span></div>' +
-      '<blockquote class="smart-quote">' + PR.md(a.quote || PR.t("沒有可顯示的原文"), { cite: false, xref: false }) + '</blockquote>' +
+
+    const overlapBadge = a.manual_overlap
+      ? '<span class="smart-badge smart-badge-overlap" title="' + PR.esc(PR.t("與手動劃記重疊（{quote}）", { quote: a.overlap_quote || "" })) + '">' + PR.t("與手動劃記重疊") + '</span>'
+      : '';
+
+    let actionsHtml = '';
+    if (a.manual_overlap) {
+      actionsHtml = '<button class="btn sm warning" data-smart-action="accept" title="' + PR.esc(PR.t("保留此 AI 標註，與既有手動標註並存")) + '">' + PR.t("保留重疊") + '</button>' +
+        '<button class="btn sm line" data-smart-action="reject" title="' + PR.esc(PR.t("略過此重疊標註")) + '">' + PR.t("略過") + '</button>' +
+        '<button class="btn sm line" data-smart-action="edit">' + PR.t("修改") + '</button>';
+    } else {
+      actionsHtml = '<button class="btn sm primary" data-smart-action="accept"' + (a.locatable ? "" : " disabled") + '>' + PR.t("接受") + '</button>' +
+        '<button class="btn sm line" data-smart-action="edit">' + PR.t("修改") + '</button>' +
+        '<button class="btn sm line danger" data-smart-action="reject">' + PR.t("拒絕") + '</button>';
+    }
+
+    return '<article class="smart-card' + (a.locatable ? "" : " smart-unlocatable") + (a.manual_overlap ? " smart-overlap" : "") + '" data-smart-id="' + PR.esc(a.annotation_id) + '" data-anchor="' + PR.esc(a.anchor || "") + '">' +
+      '<div class="smart-card-head"><span class="smart-tag smart-tag-' + PR.esc(a.color) + (isUnderline ? ' is-underline' : '') + '">' + PR.esc(semanticRole) + '</span>' + overlapBadge + '<span class="grow"></span><span class="smart-meta">' + PR.esc(color) + " · " + PR.esc(label) + " · " + PR.esc(location) + '</span></div>' +
+      (a.manual_overlap ? '<div class="smart-overlap-hint">' + PR.esc(PR.t("偵測到此處已存在手動劃記：「{quote}」。AI 不會覆蓋您的劃記，您可以決定是否保留此重疊建議。", { quote: a.overlap_quote || "" })) + '</div>' : '') +
+      '<blockquote class="smart-quote' + (isUnderline ? ' smart-quote-underline' : '') + '">' + PR.md(a.quote || PR.t("沒有可顯示的原文"), { cite: false, xref: false }) + '</blockquote>' +
       (a.note ? '<p class="smart-note"><b>' + PR.t("AI 註記") + '</b> ' + PR.mdBlocks(a.note) + '</p>' : '') +
       (a.reason ? '<p class="smart-reason"><b>' + PR.t("標註原因") + '</b> ' + PR.esc(a.reason) + '</p>' : '') +
-      '<div class="smart-actions"><button class="btn sm primary" data-smart-action="accept"' + (a.locatable ? "" : " disabled") + '>' + PR.t("接受") + '</button><button class="btn sm line" data-smart-action="edit">' + PR.t("修改") + '</button><button class="btn sm line danger" data-smart-action="reject">' + PR.t("拒絕") + '</button></div></article>';
+      '<div class="smart-actions">' + actionsHtml + '</div></article>';
   }
 
   function smartHtml() {
     const list = smartItems();
-    const pending = list.filter((a) => a.locatable).length;
+    const locatableList = list.filter((a) => a.locatable);
+    const overlapCount = locatableList.filter((a) => a.manual_overlap).length;
+    const cleanCount = locatableList.filter((a) => !a.manual_overlap).length;
     const running = smartJob && ["queued", "running"].includes(smartJob.state);
+    const progressText = running
+      ? (smartJob.total > 0
+          ? PR.t("正在分析論文（第 {done} / {total} 批）…", { done: Math.min((smartJob.done || 0) + 1, smartJob.total), total: smartJob.total })
+          : PR.t("正在分析論文，完成後會顯示待確認項目…"))
+      : "";
+
+    let batchButtons = '';
+    if (running) {
+      batchButtons = '<button class="btn sm line" data-smart-cancel>' + PR.t("取消分析") + '</button>';
+    } else if (list.length > 0) {
+      if (cleanCount > 0) {
+        batchButtons += '<button class="btn sm primary" data-smart-action="accept-all" title="' + PR.esc(PR.t("僅接受無手動衝突的標註")) + '">' + (overlapCount > 0 ? PR.t("批次接受（{n} 筆非重疊）", { n: cleanCount }) : PR.t("批次接受")) + '</button>';
+      }
+      if (overlapCount > 0) {
+        batchButtons += '<button class="btn sm warning line" data-smart-action="accept-all-overlap" title="' + PR.esc(PR.t("包含與手動劃記重疊的標註一併接受")) + '">' + PR.t("全部接受（含重疊 {n} 筆）", { n: overlapCount }) + '</button>';
+        batchButtons += '<button class="btn sm line" data-smart-action="reject-overlaps" title="' + PR.esc(PR.t("略過所有與手動劃記重疊的建議")) + '">' + PR.t("略過重疊") + '</button>';
+      }
+      batchButtons += '<button class="btn sm line danger" data-smart-action="reject-all">' + PR.t("批次拒絕") + '</button>';
+    }
+
     let h = '<section class="np-smart"><div class="np-smart-head"><div><b>' + PR.t("AI 待確認標註") + '</b><span class="smart-count">' + list.length + '</span></div><span class="grow"></span>' +
-      (running ? '<button class="btn sm line" data-smart-cancel>' + PR.t("取消分析") + '</button>' :
-        (pending ? '<button class="btn sm primary" data-smart-action="accept-all">' + PR.t("批次接受") + '</button>' : '') +
-        (list.length ? '<button class="btn sm line danger" data-smart-action="reject-all">' + PR.t("批次拒絕") + '</button>' : '')) + '</div>' +
-      (running ? '<p class="hint smart-progress"><span class="spin"></span> ' + PR.t("正在分析論文，完成後會顯示待確認項目…") + '</p>' : '') +
+      batchButtons + '</div>' +
+      (running ? '<p class="hint smart-progress"><span class="spin"></span> ' + progressText + '</p>' : '') +
       (list.length ? '<div class="np-smart-list">' + list.map(smartCard).join("") + '</div>' : '<p class="hint smart-empty">' + PR.t("尚未產生 AI 標註建議。先按「智慧標註」開始分析。") + '</p>') + '</section>';
     return h;
   }
 
-  async function smartAction(action, id, patch) {
+  async function smartAction(action, id, patch, extra) {
     try {
-      await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/smart-annotation", { method: "POST", body: { action, id, patch } });
+      const body = { action, id, patch, ...(extra || {}) };
+      await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/smart-annotation", { method: "POST", body });
       await PR.poll();
       PR.renderNotesPanel();
       if (action === "accept" || action === "accept_all") { PR.applyMarks(); PR.renderMargin(); }
@@ -123,19 +346,30 @@
   }
 
   PR.renderNotesPanel = function (editId) {
+    if (editId !== undefined && editing && editId !== editing) stopEditing(false);
     if (editId !== undefined) { editing = editId; tab = "notes"; }
     const el = panel();
-    if (el.contains(document.activeElement) && document.activeElement.matches("textarea") && editId === undefined) return; // 正在打字，不打断
+    if (editing && PR.noteMedia && PR.noteMedia.isChoosing && PR.noteMedia.isChoosing(editing) && editId === undefined) return;
+    if ((editing || tab === "paper") && el.contains(document.activeElement) && document.activeElement.matches("textarea") && editId === undefined) return; // 正在打字，不打断
+    if (tab === "paper" && el.querySelector(".pn-workspace")?.contains(document.activeElement) && editId === undefined) return;
     const list = items();
     const count = PR.myNotes().length + (S.discussion.entries || []).length;
     let h = '<div class="np-head"><div class="seg"><button data-np="notes" class="' + (tab === "notes" ? "on" : "") + '">' + PR.t("批注 {n}", { n: count }) + '</button><button data-np="paper" class="' + (tab === "paper" ? "on" : "") + '">' + PR.t("论文笔记") + "</button></div>" +
       '<span class="grow"></span><button class="btn sm" data-np-act="md" title="' + PR.t("导出 Markdown") + '">' + PR.t("导出") + '</button><button class="btn icon" data-np-act="close" title="' + PR.t("关闭（M）") + '">×</button></div>';
     if (tab === "paper") {
       const body = (S.reader.paper_note || {}).body || "";
-      h += '<div class="np-paper"><div class="np-tools"><span class="hint">' + PR.t("整篇的感悟、总结、待办。自动保存。") + '</span><span class="grow"></span>' + PR.noteHelpButtons() +
-        '<button class="btn sm' + (preview ? " on" : "") + '" data-np-act="preview">' + (preview ? PR.t("编辑") : PR.t("预览")) + "</button></div>" +
-        (preview ? '<div class="np-preview">' + (body ? PR.mdBlocks(body) : '<p class="hint">' + PR.t("还没有写。") + "</p>") + "</div>"
-          : '<textarea id="paperNote" placeholder="' + PR.t("读完这篇，你怎么看？&#10;&#10;可以写：核心论点、我同意/不同意的地方、能用到哪里、还没搞懂的问题……&#10;支持 $公式$、**粗体**，空行分段。") + '">' + PR.esc(body) + "</textarea>") + PR.noteHelpBox() + "</div>";
+      const tools = '<span class="hint">' + PR.t("整篇的感悟、总结、待办。自动保存。") + '</span><span class="grow"></span>' + PR.noteHelpButtons();
+      const helper = PR.noteHelpBox();
+      if (el.querySelector(".pn-workspace") && PR.paperNoteEditor.getBody() === body) {
+        // 保存或 AI 状态刷新时保留编辑器实例、选择位置和撤销记录。
+        el.querySelector(".np-head").outerHTML = h;
+        el.querySelector(".np-tools").innerHTML = tools;
+        const old = el.querySelector(".np-ai");
+        if (old) { if (helper) old.outerHTML = helper; else old.remove(); }
+        else if (helper) el.querySelector(".np-paper").insertAdjacentHTML("beforeend", helper);
+        return;
+      }
+      h += '<div class="np-paper"><div class="np-tools">' + tools + '</div>' + PR.paperNoteEditor.html(body) + helper + '</div>';
     } else {
       const chips = [["all", PR.t("全部")], ["mine", PR.t("我的笔记")], ["hl", PR.t("划线")], ["agent", "AI"], ["open", PR.t("待回答")]]
         .map(([k, l]) => '<button data-nf="' + k + '" class="' + (filter === k ? "on" : "") + '">' + l + "</button>").join("");
@@ -150,56 +384,65 @@
       if (!list.length) h += '<p class="hint np-empty">' + (filter === "all" ? PR.t("还没有批注。选中正文文字可以划线、写笔记、提问；点一下段落也能加笔记。") : PR.t("这个分类下没有内容。")) + "</p>";
       h += "</div>";
     }
+    PR.paperNoteEditor?.destroy();
     el.innerHTML = h;
-    PR.$$("textarea", el).forEach(PR.autosize);
+
+    PR.$$(".card textarea", el).forEach(PR.autosize);
+    if (tab === "paper") PR.paperNoteEditor.mount((S.reader.paper_note || {}).body || "");
     const ta = editing && el.querySelector('.card[data-note="' + editing + '"] textarea');
     if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); ta.scrollIntoView({ block: "nearest" }); }
   };
 
-  const savePaperNote = PR.debounce(() => { const ta = PR.$("#paperNote"); if (ta) PR.commit({ op: "paper_note", body: ta.value }); }, 600);
+  const savePaperNote = PR.debounce(() => {
+    const ta = PR.$("#paperNote");
+    if (ta && ta.value !== ((S.reader.paper_note || {}).body || "")) PR.commit({ op: "paper_note", body: ta.value });
+  }, 600);
   const saveEditing = PR.debounce(() => {
     const ta = editing && panel().querySelector('.card[data-note="' + editing + '"] textarea');
     const n = editing && (S.reader.notes || {})[editing];
     if (ta && n && ta.value.trim() !== (n.body || "")) PR.saveNote(Object.assign({}, n, { body: ta.value.trim(), kind: n.kind === "highlight" && ta.value.trim() ? "note" : n.kind }));
   }, 600);
-  function stopEditing() {
+  function stopEditing(render = true) {
     const ta = editing && panel().querySelector('.card[data-note="' + editing + '"] textarea');
     const n = editing && (S.reader.notes || {})[editing];
     saveEditing.cancel();
-    if (ta && n) PR.finishNote(n, ta.value);
     editing = null;
-    PR.renderNotesPanel();
+    if (ta && n) PR.finishNote(n, ta.value);
+    if (render) PR.renderNotesPanel();
     PR.applyMarks();
   }
+  PR.finishPanelNote = function () {
+    if (editing) stopEditing(false);
+    savePaperNote.flush();
+  };
 
   panel().addEventListener("input", (e) => {
-    PR.autosize(e.target);
     if (e.target.id === "paperNote") {
       savePaperNote();
+      PR.paperNoteEditor.update();
       const btns = PR.$("#notespanel .nh-btns");  // 笔记从空变成有内容（或反过来）：“起草稿”换成“点评 / 帮我改”
       if (btns && (btns.querySelector('[data-nh="draft"]') ? 1 : 0) !== (e.target.value.trim() ? 0 : 1)) btns.outerHTML = PR.noteHelpButtons();
     }
-    else if (e.target.matches(".card textarea")) saveEditing();
+    else if (e.target.matches(".card textarea")) { PR.autosize(e.target); saveEditing(); }
   });
   panel().addEventListener("keydown", (e) => {
     if (e.target.matches(".card textarea") && (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey)))) { e.preventDefault(); stopEditing(); }
   });
   panel().addEventListener("focusout", (e) => {
-    if (e.target.id === "paperNote") savePaperNote.flush();
-    if (!e.target.matches(".card textarea")) return;
+    if (e.target.id === "paperNote" || (e.target.closest && e.target.closest(".pn-workspace"))) savePaperNote.flush();
+    if (!e.target.matches || !e.target.matches(".card textarea")) return;
     setTimeout(() => { const card = e.target.closest(".card"); if (card && card.isConnected && !card.contains(document.activeElement) && editing === card.dataset.note) stopEditing(); }, 150);
   });
   panel().addEventListener("click", async (e) => {
     const np = e.target.closest("[data-np]");
-    if (np) { tab = np.dataset.np; PR.ls.set("easyread-np-tab", tab); return PR.renderNotesPanel(); }
+    if (np) { if (editing) stopEditing(); savePaperNote.flush(); tab = np.dataset.np; PR.ls.set("easyread-np-tab", tab); return PR.renderNotesPanel(); }
     const nf = e.target.closest("[data-nf]");
-    if (nf) { filter = nf.dataset.nf; return PR.renderNotesPanel(); }
+    if (nf) { if (editing) stopEditing(); filter = nf.dataset.nf; return PR.renderNotesPanel(); }
     const act = e.target.closest("[data-np-act]");
     if (act) {
       const a = act.dataset.npAct;
       if (a === "close") PR.toggleNotesPanel(false);
-      if (a === "md") PR.openExport();
-      if (a === "preview") { savePaperNote.flush(); preview = !preview; PR.renderNotesPanel(); }
+      if (a === "md") { savePaperNote.flush(); PR.openExport(); }
       if (a === "add") { const id = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); if (PR.blockById[id]) PR.startNote({ anchor: id }); }
       if (a === "smart") smartDialog();
       if (a === "clear-checks") {
@@ -228,12 +471,15 @@
     if (smartButton) {
       const card = smartButton.closest("[data-smart-id]");
       const id = card && card.dataset.smartId;
-      if (smartButton.dataset.smartAction === "accept-all") return smartAction("accept_all");
-      if (smartButton.dataset.smartAction === "reject-all") return smartAction("reject_all");
+      const act = smartButton.dataset.smartAction;
+      if (act === "accept-all") return smartAction("accept_all", null, null, { include_overlap: false });
+      if (act === "accept-all-overlap") return smartAction("accept_all", null, null, { include_overlap: true });
+      if (act === "reject-overlaps") return smartAction("reject_overlaps");
+      if (act === "reject-all") return smartAction("reject_all");
       const annotation = id && (S.reader.ai_annotations || {})[id];
       if (!annotation) return;
-      if (smartButton.dataset.smartAction === "edit") return smartEdit(card, annotation);
-      return smartAction(smartButton.dataset.smartAction, id);
+      if (act === "edit") return smartEdit(card, annotation);
+      return smartAction(act, id);
     }
     const smartCardEl = e.target.closest(".smart-card");
     if (smartCardEl && !e.target.closest("button, a")) {
@@ -244,6 +490,7 @@
       try { await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/smart-annotate-cancel", { method: "POST", body: { job: smartJob.id } }); }
       catch (error) { PR.toast(PR.errorText(error)); }
       smartJob = null;
+      updateSmartNotesIndicator(false);
       PR.renderNotesPanel();
       return;
     }
@@ -256,35 +503,123 @@
     if (card.dataset.anchor) { PR.jumpTo("b-" + card.dataset.anchor); if (card.dataset.note) setTimeout(() => PR.$$('mark[data-note="' + card.dataset.note + '"], .math-body[data-note="' + card.dataset.note + '"]').forEach((m) => m.classList.add("active")), 400); }
   });
 
+  window.addEventListener("pagehide", () => savePaperNote.flush());
+  window.addEventListener("beforeunload", () => savePaperNote.flush());
+  document.addEventListener("visibilitychange", () => { if (document.hidden) savePaperNote.flush(); });
+
+  function notifySmartComplete(job) {
+    const list = smartItems();
+    const count = list.length;
+    const msg = count > 0
+      ? PR.t("AI 標註分析完成，已產生 {count} 筆待確認標註。", { count })
+      : PR.t("AI 標註分析完成，未發現高價值標註。");
+
+    PR.toast(PR.esc(msg), count > 0 ? {
+      label: PR.t("查看標註"),
+      fn: () => {
+        if (PR.openSide) PR.openSide("notes");
+        setTimeout(() => {
+          const el = PR.$(".np-smart");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 120);
+      },
+    } : null, 6000);
+
+    if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification(PR.t("PaperRead 智慧標註完成"), {
+          body: msg,
+          icon: "/favicon.ico",
+        });
+      } catch (_) {}
+    }
+  }
+
   async function waitSmartJob(job) {
     smartJob = job;
+    updateSmartNotesIndicator(true);
     PR.renderNotesPanel();
+    let lastDone = job.done || 0;
     const timer = setInterval(async () => {
       try {
         const found = (await PR.api("/api/jobs?pid=" + encodeURIComponent(PR.pid))).jobs.find((item) => item.id === job.id);
-        if (!found || !["done", "error", "cancelled"].includes(found.state)) return;
+        if (!found) return;
+        smartJob = found;
+        if ((found.done || 0) > lastDone) {
+          lastDone = found.done;
+          await PR.poll();
+          PR.renderNotesPanel();
+        }
+        if (!["done", "error", "cancelled"].includes(found.state)) {
+          PR.renderNotesPanel();
+          return;
+        }
         clearInterval(timer);
         smartJob = null;
+        updateSmartNotesIndicator(false);
         await PR.poll();
         PR.renderNotesPanel();
-        if (found.state === "done") PR.toast(PR.t("AI 標註分析完成，請逐筆確認結果。"));
-        else if (found.state === "error") PR.toast(PR.t("AI 標註分析失敗：{message}", { message: PR.esc(found.message || "") }));
+        if (found.state === "done") {
+          notifySmartComplete(found);
+        } else if (found.state === "error") {
+          PR.toast(PR.t("AI 標註分析失敗：{message}", { message: PR.esc(found.message || "") }));
+        }
       } catch (_) { /* 下一次輪詢再試 */ }
     }, 1200);
   }
 
-  PR.$("#readerDlg").addEventListener("click", async (e) => {
+  async function syncRunningSmartJob() {
+    try {
+      if (!PR.pid) return;
+      const data = await PR.api("/api/jobs?pid=" + encodeURIComponent(PR.pid));
+      const running = (data.jobs || []).find((j) => j && j.kind === "smart-annotate" && ["queued", "running"].includes(j.state));
+      if (running && (!smartJob || smartJob.id !== running.id)) {
+        waitSmartJob(running);
+      }
+    } catch (_) {}
+  }
+  syncRunningSmartJob();
+
+  PR.on && PR.on("open-smart-annotations", () => {
+    if (PR.openSide) PR.openSide("notes");
+    setTimeout(() => {
+      const el = PR.$(".np-smart");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  });
+  PR.on && PR.on("retry-smart-annotations", () => {
+    smartDialog();
+  });
+  if (new URLSearchParams(location.search).get("open") === "smart-annotations") {
+    setTimeout(() => {
+      if (PR.openSide) PR.openSide("notes");
+      const el = PR.$(".np-smart");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
+  }
+
+  PR.$("#readerDlg")?.addEventListener("click", async (e) => {
     if (e.target.closest("[data-smart-close]")) return PR.$("#readerDlg").classList.remove("open");
     const start = e.target.closest("[data-smart-start]");
     if (!start) return;
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    } catch (_) {}
     start.disabled = true;
     start.innerHTML = '<span class="spin"></span> ' + PR.t("正在送出…");
     try {
       const job = await PR.api("/api/p/" + encodeURIComponent(PR.pid) + "/smart-annotate", { method: "POST", body: {
         scope: PR.$("#smartScope").value, section_id: PR.$("#smartSection").value,
-        mode: PR.$("#smartMode").value, purpose: PR.$("#smartPurpose").value,
+        mode: PR.$("#smartMode").value,
+        intensity: PR.$("#smartIntensity") ? PR.$("#smartIntensity").value : "standard",
+        purpose: PR.$("#smartPurpose").value,
       } });
       PR.$("#readerDlg").classList.remove("open");
+      if (PR.researchTaskMonitor?.track) {
+        PR.researchTaskMonitor.track(job, false);
+      }
       await waitSmartJob(job);
     } catch (error) {
       start.disabled = false;
@@ -396,7 +731,7 @@
         ai: annotations.filter((it) => it.src !== "mine"),
       };
       const labels = { note: PR.t("我的筆記"), highlight: PR.t("我的劃線"), question: PR.t("我的問題"), ai: PR.t("AI 的回答和解釋") };
-      const order = Array.isArray(exportOptions.order) ? exportOptions.order : ["paper", "note", "highlight", "question", "ai", "chat", "mindmap"];
+      const order = Array.isArray(exportOptions.order) ? exportOptions.order : ["paper", "note", "highlight", "question", "ai", "chat", "mindmap", "deep_analysis"];
       for (const kind of order) {
         if (kind === "paper" && pick.paper && pn) out.push("## " + PR.t("論文筆記"), "", pn, "");
         else if (groups[kind] && pick[kind] && groups[kind].length) {
@@ -414,7 +749,10 @@
         } else if (kind === "chat" && pick.chat && exportOptions.chat?.length) {
           out.push("## " + PR.t("問 AI 的對話"), "");
           for (const c of exportOptions.chat) out.push(c.role === "user" ? PR.t("**我**：") + c.content : PR.t("**AI**（{model}）：", { model: c.model || "" }) + c.content, "");
-        } else if (kind === "mindmap" && pick.mindmap && exportOptions.mindmap) { const fence = String.fromCharCode(96).repeat(3); out.push("## " + PR.t("論文心智圖"), "", fence + "mermaid", exportOptions.mindmap, fence, ""); }
+        } else if (kind === "mindmap" && pick.mindmap && exportOptions.mindmap) { const fence = String.fromCharCode(96).repeat(3); out.push("## " + PR.t("論文心智圖"), "", fence + "mermaid", exportOptions.mindmap, fence, "");
+        } else if (kind === "deep_analysis" && pick.deep_analysis && exportOptions.deepAnalysis) {
+          out.push("## " + PR.t("論文深度剖析"), "", exportOptions.deepAnalysis, "");
+        }
       }
       return out.join("\n");
     }

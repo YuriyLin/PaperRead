@@ -148,11 +148,19 @@
       : "<b>" + PR.t("译文") + "</b>　" + (pages ? (done >= pages ? PR.t("全文 {n} 页", { n: pages }) : PR.t("已译 {done} / {n} 页", { done, n: pages })) : PR.t("尚未处理"))) +
       (tr.note ? "　" + PR.esc(tr.note) : "") +
       "";
+    const editBtn = '<button class="title-edit-btn" data-t="edit-title" title="' + PR.t("编辑翻译标题（也可直接双击标题）") + '" aria-label="' + PR.t("编辑翻译标题") + '">' + PR.icon("edit", "sm") + "</button>";
     return '<header class="paper-head" id="b-head" data-id="head">' + (kicker ? '<div class="kicker">' + kicker + "</div>" : "") +
-      "<h1>" + (PR.titleHtml ? PR.titleHtml(m.title_zh || m.title_en || PR.t("（正在识别标题）")) : PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）"))) + "</h1>" +
-      (m.title_zh && m.title_en && m.title_zh !== m.title_en ? '<p class="title-en" lang="' + (m.target === "en" ? "" : "en") + '">' + (PR.titleHtml ? PR.titleHtml(m.title_en) : PR.esc(m.title_en)) + "</p>" : "") +
+      '<h1 data-title-key="title_zh" title="' + PR.t("双击可编辑翻译标题") + '"><span class="title-text">' + (PR.titleHtml ? PR.titleHtml(m.title_zh || m.title_en || PR.t("（正在识别标题）")) : PR.esc(m.title_zh || m.title_en || PR.t("（正在识别标题）"))) + "</span>" + editBtn + "</h1>" +
+      (m.title_zh && m.title_en && m.title_zh !== m.title_en ? '<p class="title-en" lang="' + (m.target === "en" ? "" : "en") + '" data-title-key="title_en">' + (PR.titleHtml ? PR.titleHtml(m.title_en) : PR.esc(m.title_en)) + "</p>" : "") +
       (by ? '<p class="byline">' + by + "</p>" : "") + '<p class="scope">' + scope + "</p>" + creditHtml() + "</header>";
   }
+
+  PR.renderPaperHead = function () {
+    const head = PR.$("#b-head");
+    if (!head) return;
+    head.outerHTML = headHtml();
+    PR.applyReadingLanguage && PR.applyReadingLanguage();
+  };
 
   /* 还没译的页：放原页图，边译边读 */
   const origFig = (p) => '<figure class="orig-page" id="orig-' + p.n + '"><figcaption>' + PR.t("原文第 {n} 页", { n: p.n }) + '</figcaption><img loading="lazy" src="' + PR.imageUrl(p.img) + '" alt="' + PR.t("原文第 {n} 页", { n: p.n }) + '"></figure>';
@@ -166,7 +174,14 @@
     const bad = pages.filter((p) => failed[p.n]);
     const running = ["queued", "running"].includes((S.job || {}).state);
     const label = pages.length > 1 ? PR.t("第 {a}–{b} 页", { a: pages[0].n, b: pages[pages.length - 1].n }) : PR.t("第 {n} 页", { n: pages[0].n });
-    const head = bad.length ? (reading() ? PR.t("{label}没整理成功：", { label }) : PR.t("{label}没译成功：", { label })) + PR.esc(failed[bad[0].n]) + (PR.canAsk() && !running ? '<button class="btn sm line" data-t="retry-failed">' + PR.t("重试") + "</button>" : "")
+    let ctxTip = "";
+    if (bad.length) {
+      const err = failed[bad[0].n] || "";
+      if (/exceeds (?:the )?available context|context length|context size|context_length/i.test(err)) {
+        ctxTip = '<div class="pending-tip">' + PR.t("提示：请求超出模型上下文窗口。建议在 config.json 将 batch_pages 改为 1（改为每次只译 1 页），或在本地模型中调大 context size / num_ctx。") + '</div>';
+      }
+    }
+    const head = bad.length ? (reading() ? PR.t("{label}没整理成功：", { label }) : PR.t("{label}没译成功：", { label })) + PR.esc(failed[bad[0].n]) + (PR.canAsk() && !running ? '<button class="btn sm line" data-t="retry-failed">' + PR.t("重试") + "</button>" : "") + ctxTip
       : running ? (reading() ? PR.t("{label}还在排队整理，先放原页。", { label }) : PR.t("{label}还在排队翻译，先放原页。", { label }))
       : reading() ? PR.t("{label}还没整理，先放原页。", { label }) : PR.t("{label}还没有译文，先放原页。", { label });
     return '<div class="pending-pages gap"><div class="pending' + (bad.length ? " bad" : "") + '">' + head + "</div>" + pages.map(origFig).join("") + "</div>";

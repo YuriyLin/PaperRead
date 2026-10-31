@@ -10,13 +10,8 @@
   const S = PR.state;
   const panel = () => PR.$("#chatpanel");
   const st = { loaded: false, threads: [], cur: null, localSeq: 0, models: [], def: "", model: "", answerStyle: "standard", listOpen: false, menuOpen: false, usageOpen: false, limits: null, refs: [], auto: null, noAuto: false, streaming: null, draft: "" };
-  const STYLES = ["standard", "ste100", "xray"];
-  const styleOf = (t) => t && STYLES.includes(t.answer_style) ? t.answer_style : "standard";
-  const styleLabel = (s) => s === "ste100" ? PR.t("简明回答") : s === "xray" ? PR.t("精讀") : PR.t("標準回答");
-  const styleHint = (s) => s === "ste100" ? PR.t("用短句與條列整理重點，保留數值、條件與限制。適合快速掌握概念或操作步驟。")
-    : s === "xray" ? PR.t("深入說明作者的問題、方法與設計理由，用小例子拆解關鍵公式，檢視實驗證據、對照條件與結論限制。適合想弄懂原理或評估研究。")
-    : PR.t("依目前段落、引用內容與對話直接回答，必要時補充例子。適合閱讀途中釐清單一問題。");
-  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null, helpOpen: false });
+  const styleOf = (t) => t && t.answer_style === "ste100" ? "ste100" : "standard";
+  Object.assign(st, { chatOptions: {}, effortOpen: false, catalog: null });
   const imageDraft = PR.createChatImages(st, panel, render, () => focusInput());
   const imagesHtml = imageDraft.html;
 
@@ -129,7 +124,7 @@
     }
     const live = st.streaming && st.streaming.msg === m;
     return '<div class="cm ai' + (m.error ? " err" : "") + '" data-id="' + PR.esc(m.id || "") + '"><div class="who"><span class="av">' + PR.icon("sparkle", "sm") + "</span>" + PR.esc(m.model || "AI") +
-      (STYLES.indexOf(m.answer_style) > 0 ? '<span class="cm-style">' + styleLabel(m.answer_style) + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
+      (m.answer_style === "ste100" ? '<span class="cm-style">' + PR.t("简明回答") + "</span>" : "") + (live ? ' <span class="spin"></span>' : "") + "</div>" +
       '<div class="body">' + (m.error ? PR.esc(m.error) : m.content ? PR.mdBlocks(m.content) : '<p class="thinking"><i></i><i></i><i></i></p>') + "</div>" +
       (!live && !m.error && m.id ? '<div class="acts"><button data-c="copy">' + PR.icon("copy", "sm") + PR.t("复制") + "</button>" + (PR.canChat() ? '<button data-c="pin" title="' + PR.t("作为 AI 讨论放到这段旁边") + '">' + PR.icon("note", "sm") + PR.t("放到页边") + "</button>" : "") +
         '<button data-c="export-md" title="' + PR.t("下載 Markdown 文件") + '">' + PR.icon("download", "sm") + PR.t("下載") + '</button>' +
@@ -155,18 +150,9 @@
     const menu = st.menuOpen ? '<div class="ch-menu">' + st.models.map((x) => '<button data-c="model" data-m="' + PR.esc(x.id) + '" class="' + (x.id === st.model ? "on" : "") + '"' + (x.ready === false ? ' disabled title="' + PR.esc(x.hint) + '"' : "") + ">" +
       "<b>" + PR.esc(x.label) + (x.id === st.model ? '<span class="ch-model-check">✓</span>' : '') + "</b><small>" + PR.esc(x.ready === false ? x.hint : [x.source, x.id === st.def ? PR.t("默认") : ""].filter(Boolean).join(" · ")) + "</small></button>").join("") +
       PR.chatEffort.section(st, m) + '<hr><button data-c="manage">' + PR.icon("gear", "sm") + PR.t("管理模型…") + "</button></div>" : "";
-    const style = '<div class="ch-mode-controls"><select id="chatAnswerStyle" class="ch-pill' + (st.answerStyle !== "standard" ? " on" : "") +
-      '" aria-label="' + PR.t("回答方式") + '"' + (st.streaming ? " disabled" : "") + '>' +
-      STYLES.map((s) => '<option value="' + s + '"' + (s === st.answerStyle ? " selected" : "") + '>' + styleLabel(s) + '</option>').join("") +
-      '</select><button type="button" id="chatStyleHelpButton" class="ch-style-help-button" data-c="style-help" aria-label="' +
-      PR.t("說明三種回答方式的差異") + '" title="' + PR.t("說明三種回答方式的差異") + '" aria-expanded="' + st.helpOpen +
-      '" aria-controls="chatStyleHelp">' + PR.icon("question", "sm") + '</button></div>';
-    const help = '<section id="chatStyleHelp" class="ch-style-help" role="region" tabindex="-1" aria-labelledby="chatStyleHelpTitle"' + (st.helpOpen ? "" : " hidden") +
-      '><div class="ch-style-help-head"><b id="chatStyleHelpTitle">' + PR.t("如何選擇回答方式？") +
-      '</b><button type="button" data-c="style-help-close" aria-label="' + PR.t("關閉回答方式說明") + '">×</button></div><dl>' +
-      STYLES.map((s) => '<dt>' + styleLabel(s) + '</dt><dd>' + styleHint(s) + '</dd>').join("") +
-      '</dl><p>' + PR.t("簡明與精讀模式會額外帶入目前已整理的論文正文，通常增加用量；長文會節錄，未匯入的頁面與未附上的圖表影像不會自動補齊。") +
-      '</p><p>' + PR.t("三種模式使用你選擇的同一個模型；精讀仍是針對這次問題回答，不會自動完成整篇精讀報告。") + '</p></section>';
+    const brief = st.answerStyle === "ste100";
+    const style = '<button class="ch-pill' + (brief ? " on" : "") + '" data-c="style"' + (st.streaming ? " disabled" : "") + ' aria-pressed="' + brief + '" title="' +
+      PR.esc(PR.t("简明回答：短句、一句只讲一件事、步骤分条列出，数字和前提条件一个不丢。会把全文一起发给模型作依据，用量更多。")) + '">' + PR.t("简明回答") + "</button>";
     const imageStatus = st.imageError || (st.imageLoading ? PR.t("正在读取图片…") : "");
     return '<div class="ch-compose">' + (chips ? '<div class="ch-chips">' + chips + "</div>" : "") +
       imagesHtml(st.images, true) + (imageStatus ? '<div class="ch-attach-status" role="' + (st.imageError ? 'alert' : 'status') + '">' + PR.esc(imageStatus) + '</div>' : '') +
@@ -174,7 +160,7 @@
       '<div class="ch-bar"><button class="ch-model" data-c="menu" title="' + PR.t("换模型和思考强度") + '"' + (st.streaming ? ' disabled' : '') + '>' + PR.esc(m.label) + PR.chatEffort.suffix(st, m) + PR.icon("chevron", "sm") + "</button>" + style + menu +
       '<span class="grow"></span>' + PR.usageChip(st.limits, thread() && thread().messages, st.usageOpen) +
       (st.usageOpen ? PR.usagePop(st.limits, thread() && thread().messages) : "") + (st.streaming ? '<button class="ch-send stop" data-c="stop" title="' + PR.t("停止") + '">' + PR.icon("stop", "sm") + "</button>"
-        : '<button class="ch-send" data-c="send" title="' + PR.t("发送（Enter）；换行用 Shift+Enter") + '">' + PR.icon("arrowUp", "sm") + "</button>") + "</div>" + help + "</div>";
+        : '<button class="ch-send" data-c="send" title="' + PR.t("发送（Enter）；换行用 Shift+Enter") + '">' + PR.icon("arrowUp", "sm") + "</button>") + "</div></div>";
   }
   function render() {
     const el = panel();
@@ -198,14 +184,7 @@
   }
   const renderLiveSoon = PR.throttle(renderLive, 60);
 
-  function showStyleHelp(open, restoreFocus) {
-    st.helpOpen = open;
-    const help = PR.$("#chatStyleHelp"), button = PR.$("#chatStyleHelpButton");
-    if (help) help.hidden = !open;
-    if (button) button.setAttribute("aria-expanded", String(open));
-    if (open && help) help.focus();
-    else if (restoreFocus && button) button.focus();
-  }
+
 
   /* ---------- 发送 ---------- */
   async function send(text, noteId, only) {
@@ -278,7 +257,6 @@
 
   /* ---------- 事件 ---------- */
   document.addEventListener("click", async (e) => {
-    if (st.helpOpen && !e.target.closest("#chatStyleHelp") && !e.target.closest("#chatStyleHelpButton")) showStyleHelp(false);
     if (!e.target.closest("#chatpanel")) return;
     const b = e.target.closest("[data-c]");
     if (!b) { if ((st.menuOpen && !e.target.closest(".ch-menu")) || (st.usageOpen && !e.target.closest(".us-pop"))) { st.menuOpen = st.usageOpen = false; render(); } return; }
@@ -288,8 +266,13 @@
     if (c === "unimage") { st.images.splice(Number(b.dataset.i), 1); st.imageError = ""; render(); return focusInput(); }
     if (c === "list") { st.listOpen = !st.listOpen; st.menuOpen = false; return render(); }
     if (c === "new") { if (st.streaming) return; st.chatOptions = {}; st.effortOpen = false; st.cur = null; st.listOpen = false; st.model = st.def; st.answerStyle = "standard"; st.refs = []; st.noAuto = false; imageDraft.reset(); st.draft = ""; if (PR.$("#chatInput")) PR.$("#chatInput").value = ""; autoContext(); render(); return focusInput(); }
-    if (c === "style-help") return showStyleHelp(!st.helpOpen, true);
-    if (c === "style-help-close") return showStyleHelp(false, true);
+    if (c === "style") {
+      if (st.streaming) return;
+      st.answerStyle = st.answerStyle === "ste100" ? "standard" : "ste100";
+      const t = thread();
+      if (t) t.answer_style = st.answerStyle;
+      return render();
+    }
     if (c === "effort-level") { if (st.streaming) return; const m = modelOf(st.model); st.chatOptions.reasoning_effort = b.dataset.effort === PR.chatEffort.fallback(st, m) && !m.reasoning_effort ? "" : b.dataset.effort; return render(); }  // 菜单不关；点的就是默认档就不传，跟着 CLI
     if (c === "menu") { st.menuOpen = !st.menuOpen; st.listOpen = st.usageOpen = false; return render(); }
     if (c === "usage") { st.usageOpen = !st.usageOpen; st.listOpen = st.menuOpen = false; return render(); }
@@ -342,19 +325,10 @@
     render();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && st.helpOpen && PR.chatOpen()) { e.preventDefault(); e.stopPropagation(); return showStyleHelp(false, true); }
     if (e.key === "Escape" && (st.effortOpen || st.menuOpen)) { st.effortOpen = st.menuOpen = false; render(); return; }
     if (e.target.id !== "chatInput") return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(e.target.value); }
     if (e.key === "Escape") e.target.blur();
-  });
-  document.addEventListener("change", (e) => {
-    if (e.target.id !== "chatAnswerStyle" || st.streaming) return;
-    st.answerStyle = styleOf({ answer_style: e.target.value });
-    const t = thread();
-    if (t) t.answer_style = st.answerStyle;
-    render();
-    PR.$("#chatAnswerStyle").focus();
   });
   document.addEventListener("input", (e) => { if (e.target.id === "chatInput") PR.autosize(e.target); });
   /* 把正文里选中的文字拖进问 AI 面板：变成一段引用，而不是一堆粘进来的字 */

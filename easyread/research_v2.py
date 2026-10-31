@@ -13,8 +13,8 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import config, http, planning_store, sources
-from .research import obsidian_export
+from . import config, http, planning_store, prompts, sources
+from .research import deep_analysis, obsidian_export
 from .i18n import tr
 
 PREFIX = "/api/research/v2"
@@ -216,6 +216,77 @@ def _mindmap_language_guide(meta: dict | None) -> tuple[str, dict]:
     target_lang = langs.of_paper(meta or {})
     guide = MINDMAP_LANGUAGE_GUIDES.get(target_lang) or MINDMAP_LANGUAGE_GUIDES.get("zh-TW")
     return target_lang, guide
+
+
+MINDMAP_SOURCE_BUDGET = 48000
+
+
+def _legacy_evidence_hash(paper: dict) -> str:
+    evidence = []
+    for block in paper.get("blocks") or []:
+        if not isinstance(block, dict):
+            continue
+        parts = [str(block.get(k) or "").strip() for k in ("en", "zh", "text", "caption_en", "caption_zh", "alt_en", "alt_zh")]
+        text = " | ".join(dict.fromkeys(x for x in parts if x))
+        if text:
+            evidence.append({"id": str(block.get("id") or ""), "type": block.get("type"), "page": block.get("page"), "text": text[:1800]})
+    return sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest()
+
+
+def _mindmap_source(paper: dict) -> tuple[str, str]:
+    """提取心智圖來源文字與快取 hash：原文優先、涵蓋表格與數學公式、結構化 Markdown 緊湊格式。"""
+    meta = paper.get("meta") or {}
+    blocks = paper.get("blocks") or []
+    gl = paper.get("glossary") or []
+    out = []
+    used = 0
+    if gl:
+        gl_lines = [f"- {g['en']} = {g['zh']}" for g in gl if isinstance(g, dict) and g.get("en")]
+        if gl_lines:
+            gl_text = "已有術語表（專有名詞請依此對照）：\n" + "\n".join(gl_lines)  # i18n-ok: prompt
+            out.append(gl_text)
+            used += len(gl_text)
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "references":
+            break
+        if prompts._is_note(block):
+            continue
+        btype = block.get("type")
+        page = block.get("page")
+        page_tag = f"[p.{page}] " if page else ""
+        if btype == "heading":
+            title_text = str(block.get("en") or block.get("zh") or "").strip()
+            num = str(block.get("num") or "").strip()
+            t = f"\n## {page_tag}{num} {title_text}".strip()
+        elif btype == "table":
+            cap = str(block.get("caption_en") or block.get("caption_zh") or "").strip()
+            rows = [r for r in (block.get("head") or []) + (block.get("rows") or []) if isinstance(r, list)]
+            table_lines = [" | ".join(str(cell).replace("\n", " ").strip() for cell in row) for row in rows]
+            tbl_body = "\n".join(table_lines)
+            t = f"\n{page_tag}Table: {cap}\n{tbl_body}".strip()
+        elif btype == "figure":
+            cap = str(block.get("caption_en") or block.get("caption_zh") or "").strip()
+            t = f"\n{page_tag}Figure: {cap}".strip()
+        elif btype == "math":
+            tex = str(block.get("tex") or "").strip()
+            t = f"$${tex}$$" if tex else ""
+        elif btype == "list":
+            items = [str(it.get("en") or it.get("zh") or "").strip() for it in block.get("items", []) if isinstance(it, dict)]
+            t = "\n".join(f"- {it}" for it in items if it)
+        else:
+            t = str(block.get("en") or block.get("zh") or block.get("text") or "").strip()
+        if not t:
+            continue
+        if used + len(t) > MINDMAP_SOURCE_BUDGET:
+            out.append("……（後續章節依長度上限省略）")  # i18n-ok: prompt content
+            break
+        out.append(t)
+        used += len(t)
+    source_text = "\n\n".join(out).strip()
+    source_hash = str(meta.get("source_sha256") or sha256(source_text.encode("utf-8")).hexdigest())
+    return source_text, source_hash
 
 
 def _keyword_text(value: str) -> str:
@@ -1234,26 +1305,43 @@ def get(app, path_query: str):
                 return {"task": task}
             current = _current_mindmap_task(_root(app), pid)
             return {"task": current if current and current.get("id") == identity else None}
+        if action in ("deep-analysis/tasks/current", "deep-analysis/task"):
+            return {"task": deep_analysis.current_task(_root(app), pid)}
+        if action.startswith("deep-analysis/tasks/"):
+            from .research import tasks
+            identity = action.rsplit("/", 1)[-1]
+            scope = tasks.scope_id(_root(app))
+            task = tasks.get(identity, scope=scope)
+            return {"task": task}
+        if action == "deep-analysis":
+            return {"report": deep_analysis.get_report(ws), "task": deep_analysis.current_task(_root(app), pid)}
         if action == "mindmap":
             target_lang, _ = _mindmap_language_guide(meta)
-            evidence = []
-            for block in paper.get("blocks") or []:
-                if not isinstance(block, dict):
-                    continue
-                parts = [str(block.get(k) or "").strip() for k in ("en", "zh", "text", "caption_en", "caption_zh", "alt_en", "alt_zh")]
-                text = " | ".join(dict.fromkeys(x for x in parts if x))
-                if text:
-                    evidence.append({"id": str(block.get("id") or ""), "type": block.get("type"), "page": block.get("page"), "text": text[:1800]})
-            source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
+            _, source_hash = _mindmap_source(paper)
             cache_key = f"mindmap:{target_lang}:" + sha256(source_hash.encode()).hexdigest()
             cached, checked = planning_store.cache_get(_root(app), cache_key)
             if not cached:
                 legacy_key = "mindmap:" + sha256(source_hash.encode()).hexdigest()
                 cached, checked = planning_store.cache_get(_root(app), legacy_key)
+            if not cached and not meta.get("source_sha256"):
+                legacy_ev_hash = _legacy_evidence_hash(paper)
+                cached, checked = planning_store.cache_get(_root(app), f"mindmap:{target_lang}:" + sha256(legacy_ev_hash.encode()).hexdigest())
+                if not cached:
+                    cached, checked = planning_store.cache_get(_root(app), "mindmap:" + sha256(legacy_ev_hash.encode()).hexdigest())
             return {**(cached or {}), "cached": bool(cached), "checked_at": checked, "target": target_lang, "paper_id": pid, "task": _current_mindmap_task(_root(app), pid)}
         return {"id": pid, "item": item, "title": meta.get("title_zh") or meta.get("title_en") or "未命名論文",  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
                 "title_en": meta.get("title_en", ""), "doi": meta.get("doi", ""), "arxiv": meta.get("arxiv", ""),
                 "openalex_id": meta.get("openalex_id", ""), "statuses": planning_store.statuses(_root(app))}
+    if endpoint == "deep-analysis":
+        return {"reports": deep_analysis.list_reports(app.lib)}
+    if endpoint == "deep-analysis/tasks/current":
+        return {"task": deep_analysis.current_task(_root(app), q.get("paper_id"))}
+    if endpoint.startswith("deep-analysis/tasks/"):
+        from .research import tasks
+        identity = endpoint.rsplit("/", 1)[-1]
+        scope = tasks.scope_id(_root(app))
+        task = tasks.get(identity, scope=scope)
+        return {"task": task}
     if endpoint == "search":
         kind = q.get("kind", "works")
         if kind == "dblp":
@@ -1880,25 +1968,15 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         meta = paper.get("meta") or {}
         target_lang, guide = _mindmap_language_guide(meta)
         title = str(meta.get("title_zh") or meta.get("title_en") or tr("未命名論文"))[:300]
-        blocks = paper.get("blocks") or []
-        evidence = []
-        for block in blocks:
-            if not isinstance(block, dict):
-                continue
-            parts = [str(block.get(k) or "").strip() for k in ("en", "zh", "text", "caption_en", "caption_zh", "alt_en", "alt_zh")]
-            text = " | ".join(dict.fromkeys(x for x in parts if x))
-            if text:
-                evidence.append({"id": str(block.get("id") or ""), "type": block.get("type"), "page": block.get("page"), "text": text[:1800]})
-        if not evidence:
+        source_text, source_hash = _mindmap_source(paper)
+        if not source_text:
             raise ValueError("這篇論文目前沒有可供分析的內文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
-        source_hash = str(meta.get("source_sha256") or sha256(json.dumps(evidence, ensure_ascii=False).encode()).hexdigest())
         cache_key = f"mindmap:{target_lang}:" + sha256(source_hash.encode()).hexdigest()
         # POST is the explicit "產生/重新產生" action.  It must always invoke
         # the model; cache lookup belongs to the GET path above.
         from . import chat_models, engines, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
         meter = usage.Meter(cfg.get("engine", ""))
-        source_text = json.dumps(evidence, ensure_ascii=False)[:24000]
         branch_lines = "\n".join(f"   - {b}" for b in guide["branches"])
         prompt = (
             "你是一位資深的學術架構分析專家。請根據下方提供的論文文字，為其建構一份結構清晰、資訊密度高且具備強大可讀性的「Mermaid 心智圖 (mindmap)」。\n\n"  # i18n-ok: prompt
@@ -1925,7 +2003,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             "5. 絕對限制：只輸出 Mermaid 程式碼本身！不要包含 Markdown 程式碼區塊標記（不要輸出 ```mermaid 或 ```），不要包含任何引言、前言、解釋或結尾問候語。\n\n"  # i18n-ok: prompt
             f"論文標題：{title}\n"  # i18n-ok: prompt
             f"目標語言：{guide['name']}\n"  # i18n-ok: prompt
-            f"來源文字：{source_text}"  # i18n-ok: prompt
+            f"來源文字（論文結構化原文與實驗數據）：\n{source_text}"  # i18n-ok: prompt
         )
         if _cancel and _cancel.is_set():
             return {}
@@ -1944,6 +2022,32 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         planning_store.cache_put(root, cache_key, result)
         planning_store.cache_put(root, "mindmap:" + sha256(source_hash.encode()).hexdigest(), result)
         return result
+    if (endpoint.startswith("/paper/") and endpoint.endswith("/deep-analysis/tasks")) or (endpoint.startswith("/deep-analysis/tasks") and not endpoint.endswith("/cancel") and not endpoint.endswith("/ack")):
+        pid = endpoint.strip("/").split("/")[1] if endpoint.startswith("/paper/") else str(body.get("pid") or body.get("paper_id") or "")
+        return {"task": deep_analysis.start_deep_analysis_task(app, pid, str(body.get("model") or ""), str(body.get("focus") or ""))}
+    if (endpoint.startswith("/paper/") and "/deep-analysis/tasks/" in endpoint and endpoint.endswith("/cancel")) or (endpoint.startswith("/deep-analysis/tasks/") and endpoint.endswith("/cancel")):
+        from .research import tasks
+        identity = endpoint.split("/")[-2]
+        task = tasks.cancel(identity, scope=tasks.scope_id(root))
+        return {"task": task}
+    if (endpoint.startswith("/paper/") and "/deep-analysis/tasks/" in endpoint and endpoint.endswith("/ack")) or (endpoint.startswith("/deep-analysis/tasks/") and endpoint.endswith("/ack")):
+        from .research import tasks
+        identity = endpoint.split("/")[-2]
+        tasks.acknowledge(identity, scope=tasks.scope_id(root))
+        pid = endpoint.strip("/").split("/")[1] if endpoint.startswith("/paper/") else ""
+        return {"task": deep_analysis.current_task(root, pid)}
+    if endpoint.startswith("/paper/") and endpoint.endswith("/deep-analysis/apply-to-note"):
+        pid = endpoint.strip("/").split("/")[1]
+        ws = app.lib.ws(pid)
+        return deep_analysis.apply_to_paper_note(ws, str(body.get("markdown") or ""))
+    if endpoint.startswith("/paper/") and endpoint.endswith("/deep-analysis/export-obsidian"):
+        pid = endpoint.strip("/").split("/")[1]
+        ws = app.lib.ws(pid)
+        return deep_analysis.export_to_obsidian(ws, body)
+    if endpoint.startswith("/paper/") and endpoint.endswith("/deep-analysis/delete"):
+        pid = endpoint.strip("/").split("/")[1]
+        ws = app.lib.ws(pid)
+        return deep_analysis.delete_report(ws)
     if endpoint == "/candidate":
         work = body.get("paper") or {}
         if not isinstance(work, dict) or not str(work.get("title") or "").strip():

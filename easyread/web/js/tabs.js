@@ -343,6 +343,15 @@
       const textEl = tab.button.querySelector(".tab-text");
       if (textEl) textEl.textContent = libTitle;
       tab.title = libTitle;
+    } else if (tab.frame?.contentDocument?.title) {
+      const docTitle = tab.frame.contentDocument.title.replace(/\s*[·|–-]\s*(PaperRead|EasyRead).*$/i, "");
+      if (docTitle && docTitle !== t("正在打開…")) {
+        tab.title = docTitle;
+        const textEl = tab.button.querySelector(".tab-text");
+        if (textEl) textEl.textContent = docTitle;
+        else tab.button.textContent = docTitle;
+        tab.button.title = docTitle;
+      }
     }
 
     active = id;
@@ -780,6 +789,21 @@
     if (data?.type === "TAB_ATTACHED_ACK" && data.sourceWindowId === windowId) {
       dragAttachedElsewhere = true;
       removeAttachedTabs(data.tabIds);
+    }
+    if (data?.type === "pr:paper-updated" && data.pid) {
+      const tab = tabs.get(data.pid);
+      if (tab) {
+        const newTitle = data.short_zh || data.title_zh || data.title_en;
+        if (newTitle) {
+          tab.title = newTitle;
+          const textEl = tab.button.querySelector(".tab-text");
+          if (textEl) textEl.textContent = newTitle;
+          else tab.button.textContent = newTitle;
+          tab.button.title = newTitle;
+          if (tab.frame) tab.frame.title = newTitle;
+          if (active === tab.id) document.title = newTitle + " · PaperRead";
+        }
+      }
     }
   });
 

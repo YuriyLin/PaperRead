@@ -17,8 +17,9 @@ EXPORT_FOLDERS = {
     "analysis": "01-論文分析",
     "mindmap": "02-心智圖",
     "annotations": "03-閱讀標註",
-    "comparison": "04-跨論文比較",
-    "summary": "05-論文摘要",
+    "deep-analysis": "04-論文深度剖析",
+    "comparison": "05-跨論文比較",
+    "summary": "06-論文摘要",
 }
 MANAGED_START = "<!-- paperread:managed:start -->"
 MANAGED_END = "<!-- paperread:managed:end -->"

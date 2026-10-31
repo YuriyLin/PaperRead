@@ -1,3 +1,4 @@
+import base64
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,40 @@ from easyread.store import Workspace
 
 
 class ReaderOpsTest(unittest.TestCase):
+    def test_sticker_persistence_deletion_and_validation(self):
+        with tempfile.TemporaryDirectory() as d:
+            ws = Workspace(Path(d))
+            sticker = {"id": "s1", "assetId": "doodle-fox", "anchor": "p1", "textHash": "1234abcd",
+                       "ref": [200, 100], "x": 10, "y": 20, "width": 40, "height": 30,
+                       "rotation": 90, "opacity": 0.5, "z": 1, "locked": False}
+            ws.apply_reader_ops([{"op": "sticker", "sticker": sticker, "at": "2026-10-01T00:01:00Z"}])
+            self.assertEqual(ws.load("reader")["stickers"]["s1"]["rotation"], 90)
+            styled = {**sticker, "strokeColor": "#336699", "strokeWidth": 3.25}
+            ws.apply_reader_ops([{"op": "sticker", "sticker": styled, "at": "2026-10-01T00:01:30Z"}])
+            self.assertEqual(ws.load("reader")["stickers"]["s1"]["strokeColor"], "#336699")
+            self.assertEqual(ws.load("reader")["stickers"]["s1"]["strokeWidth"], 3.25)
+            for field, value in [("strokeColor", "red"), ("strokeWidth", float("nan")), ("strokeWidth", 4.5)]:
+                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    ws.apply_reader_ops([{"op": "sticker", "sticker": {**sticker, "id": "invalid-style", field: value}}])
+            ws.apply_reader_ops([{"op": "sticker_del", "id": "s1", "at": "2026-10-01T00:02:00Z"}])
+            ws.apply_reader_ops([{"op": "sticker", "sticker": sticker, "at": "2026-10-01T00:01:00Z"}])
+            self.assertTrue(ws.load("reader")["stickers"]["s1"]["deleted"])
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "sticker", "sticker": {**sticker, "id": "bad", "x": float("nan")}}])
+            safe_svg = b'<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L1 1"/></svg>'
+            unsafe_svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+            data = lambda b: "data:image/svg+xml;base64," + base64.b64encode(b).decode("ascii")
+            custom = {**sticker, "id": "custom1", "assetId": "custom-123", "customData": data(safe_svg)}
+            ws.apply_reader_ops([{"op": "sticker", "sticker": custom}])
+            self.assertEqual(ws.load("reader")["stickers"]["custom1"]["customData"], data(safe_svg))
+            with self.assertRaises(ValueError):
+                ws.apply_reader_ops([{"op": "sticker", "sticker": {**custom, "id": "unsafe", "customData": data(unsafe_svg)}}])
+            for content in [b'<svg xmlns="http://www.w3.org/2000/svg" onload="evil()"/>',
+                            b'<svg xmlns="http://www.w3.org/2000/svg"><image href="https://example.com/x"/></svg>',
+                            b'<svg xmlns="http://www.w3.org/2000/svg"><style>.a{fill:url(https://example.com/x)}</style></svg>']:
+                with self.subTest(content=content), self.assertRaises(ValueError):
+                    ws.apply_reader_ops([{"op": "sticker", "sticker": {**custom, "id": "unsafe", "customData": data(content)}}])
+
     def test_ink_strokes_merge_by_id_and_reject_invalid_coordinates(self):
         with tempfile.TemporaryDirectory() as d:
             ws = Workspace(Path(d))

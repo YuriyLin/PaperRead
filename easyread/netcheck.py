@@ -27,6 +27,7 @@ _ok: dict[str, float] = {}
 _LOCAL = {"localhost", "127.0.0.1", "::1"}
 _NET = re.compile(r"ECONNREFUSED|ETIMEDOUT|ENOTFOUND|ECONNRESET|EAI_AGAIN|fetch failed|connection error|unable to connect"
                   r"|error sending request|stream disconnected|timed out|getaddrinfo|连不上|can't connect", re.I)  # i18n-ok 匹配报错
+_CONTEXT = re.compile(r"exceeds (?:the )?available context size|context length|context_length_exceeded|maximum context length|tokens exceeds the available context|context size \(\d+ tokens\)", re.I)
 _REGION = re.compile(r"unsupported_country|not available in your (country|region)|request not allowed", re.I)
 # 自己给出的连不上 / 证书提示里一定带的词（中英文各一套），见到就不再追加建议
 _MARKS = ("目前無法連線至", "無法連線至", "目前的連線位置不受", "請先確認服務已啟動",  # i18n-ok: 關鍵字比對，不會直接顯示。
@@ -137,6 +138,8 @@ def problem(cfg: dict, timeout: float = 6) -> str | None:
 
 
 def explain(cfg: dict, msg: str) -> str:
+    if _CONTEXT.search(msg):
+        return msg + "\n" + tr("（提示：请求超出模型上下文窗口。建议在 config.json 将 batch_pages 改为 1（改为每次只译 1 页），或在本地模型中调大 context size / num_ctx）")
     t = target(cfg)
     if not t or _has_advice(msg):
         return msg

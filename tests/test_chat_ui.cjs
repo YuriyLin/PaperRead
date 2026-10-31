@@ -21,10 +21,10 @@ async function reader(threads = [], options = {}) {
       const ta = { value: (html.match(/<textarea[^>]*>(.*?)<\/textarea>/s) || [])[1] || "", focus() {} };
       nodes.set("#chatInput", ta);
       nodes.set("#chatList", { scrollHeight: 100, scrollTop: 0, clientHeight: 100 });
-      const select = (html.match(/<select id="chatAnswerStyle"[\s\S]*?<\/select>/) || [""])[0];
+      const button = (html.match(/<button class="ch-pill[^>]*data-c="style"[^>]*>/) || [""])[0];
       nodes.set("#chatAnswerStyle", {
-        id: "chatAnswerStyle", value: (select.match(/value="([^"]+)" selected/) || [])[1],
-        disabled: / disabled/.test(select), focus() { focused.push("style"); },
+        value: /aria-pressed="true"/.test(button) ? "ste100" : "standard",
+        disabled: / disabled/.test(button), focus() { focused.push("style"); },
       });
       nodes.set("#chatStyleHelp", { hidden: /aria-labelledby="chatStyleHelpTitle" hidden/.test(html), focus() { focused.push("help"); } });
       nodes.set("#chatStyleHelpButton", {
@@ -92,7 +92,7 @@ async function reader(threads = [], options = {}) {
   await settled();
   const setStyle = async value => {
     const select = nodes.get("#chatAnswerStyle");
-    if (!select.disabled) { select.value = value; await dispatch("change", select); }
+    if (!select.disabled && select.value !== value) await click("style");
   };
   return { PR, panel, nodes, requests, copied, confirmations, focused, dispatch, click, selectThread, setStyle,
     finishImages: () => pendingReads.splice(0).forEach(done => done()),
@@ -139,17 +139,11 @@ test("each saved conversation restores its mode; legacy and new conversations st
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "standard");
 });
 
-test("all three modes reach the request and XRAY restores its saved badge", async () => {
-  const r = await reader([
-    { id: "xray", title: "Deep reading", answer_style: "xray", messages: [{ id: "x", role: "assistant", content: answer, answer_style: "xray" }] },
-    { id: "unknown", title: "Unknown", answer_style: "broken", messages: [] },
-  ]);
+test("both answer modes reach the request and old deep-reading threads open in standard mode", async () => {
+  const r = await reader([{ id: "xray", title: "Deep reading", answer_style: "xray", messages: [] }]);
   await r.selectThread("xray");
-  assert.equal(r.nodes.get("#chatAnswerStyle").value, "xray");
-  assert.ok(r.panel.innerHTML.includes('class="cm-style">精讀</span>'));
-  await r.selectThread("unknown");
   assert.equal(r.nodes.get("#chatAnswerStyle").value, "standard");
-  for (const style of ["standard", "ste100", "xray"]) {
+  for (const style of ["standard", "ste100"]) {
     await r.setStyle(style);
     r.nodes.get("#chatInput").value = "Explain the evidence";
     const sending = r.click("send"); await settled();
@@ -160,31 +154,12 @@ test("all three modes reach the request and XRAY restores its saved badge", asyn
   }
 });
 
-test("answer-style help explains context and cost, preserves drafts, and restores focus", async () => {
+test("answer mode toggle preserves an unsent draft", async () => {
   const r = await reader();
-  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
-  assert.ok(r.panel.innerHTML.includes('aria-label="回答方式"'));
-  assert.ok(r.panel.innerHTML.includes('aria-controls="chatStyleHelp"'));
-  for (const text of ["標準回答", "简明回答", "精讀", "長文會節錄", "通常增加用量", "同一個模型", "不會自動完成整篇精讀報告"]) assert.ok(r.panel.innerHTML.includes(text));
   r.nodes.get("#chatInput").value = "My unsent question";
-  await r.setStyle("xray");
-  await r.click("style-help");
-  assert.equal(r.nodes.get("#chatStyleHelp").hidden, false);
-  assert.equal(r.nodes.get("#chatStyleHelpButton").expanded, true);
-  assert.equal(r.focused.at(-1), "help");
-  let prevented = false, stopped = false;
-  await r.dispatch("keydown", {}, { key: "Escape", preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
-  assert.ok(prevented && stopped);
-  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
-  assert.equal(r.focused.at(-1), "help-button");
-  await r.click("style-help"); await r.click("style-help-close");
-  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
-  assert.equal(r.focused.at(-1), "help-button");
-  await r.click("style-help");
-  await r.dispatch("click", { closest: () => null });
-  assert.equal(r.nodes.get("#chatStyleHelp").hidden, true);
+  await r.setStyle("ste100");
   assert.equal(r.nodes.get("#chatInput").value, "My unsent question");
-  assert.equal(r.nodes.get("#chatAnswerStyle").value, "xray");
+  assert.match(r.panel.innerHTML, /data-c="style"[^>]*aria-pressed="true"/);
   assert.equal(r.requests.length, 0);
 });
 
@@ -321,7 +296,7 @@ test("Markdown export includes all conversations and complete answers, online an
       debounce: fn => fn,
     };
     const context = {
-      window: { PR }, document: { addEventListener() {}, body: { appendChild() {} } },
+      window: { PR, addEventListener() {} }, document: { addEventListener() {}, body: { appendChild() {} } }, location: { search: "" }, URLSearchParams,
       Blob, URL: { createObjectURL(value) { blob = value; return "blob:test"; } },
     };
     dlg.addEventListener = (name, fn) => { go = fn; };

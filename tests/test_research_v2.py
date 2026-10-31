@@ -343,7 +343,7 @@ class ResearchV2Test(unittest.TestCase):
         with tempfile.TemporaryDirectory() as vault, mock.patch.object(research_v2.obsidian_export, "vault_path", lambda: Path(vault)):
             result = research_v2.post(self.app, "/export/summary", {"paper_key": key})
             self.assertEqual(len(result["written"]), 1)
-            exported = Path(vault) / "Research" / "05-論文摘要" / "Exportable Paper.md"
+            exported = Path(vault) / "Research" / "06-論文摘要" / "Exportable Paper.md"
             self.assertTrue(exported.is_file())
             self.assertIn("Evidence.", exported.read_text(encoding="utf-8"))
 
@@ -468,6 +468,31 @@ class ResearchV2Test(unittest.TestCase):
             self.assertEqual(res_ja["target"], "ja")
             self.assertIn("日語（日本語，Japanese）", captured_prompts[-1])
             self.assertIn("研究背景と課題", captured_prompts[-1])
+
+    def test_mindmap_source_extraction_precision_and_structures(self):
+        paper = {
+            "meta": {"title_en": "Attention Is All You Need", "target": "zh-TW"},
+            "glossary": [{"en": "Multi-Head Attention", "zh": "多頭注意力機制"}],
+            "blocks": [
+                {"id": "h1", "type": "heading", "page": 1, "num": "1", "en": "Introduction", "zh": "導言"},
+                {"id": "p1", "type": "paragraph", "page": 1, "en": "Recurrent models compute sequentially.", "zh": "遞迴模型依序計算。"},
+                {"id": "m1", "type": "math", "page": 3, "tex": "Attention(Q,K,V)=\\mathrm{softmax}(QK^T/\\sqrt{d})V"},
+                {"id": "t1", "type": "table", "page": 8, "caption_en": "Table 1: BLEU scores", "head": [["Model", "BLEU"]], "rows": [["Transformer", "28.4"]]},
+                {"id": "ref", "type": "references", "page": 10, "en": "References list..."},
+                {"id": "p_after", "type": "paragraph", "page": 11, "en": "Should be ignored after references."},
+            ]
+        }
+        source_text, source_hash = research_v2._mindmap_source(paper)
+        self.assertTrue(source_hash)
+        self.assertIn("已有術語表", source_text)
+        self.assertIn("Multi-Head Attention = 多頭注意力機制", source_text)
+        self.assertIn("Introduction", source_text)
+        self.assertIn("Recurrent models compute sequentially.", source_text)
+        self.assertIn("Attention(Q,K,V)=\\mathrm{softmax}(QK^T/\\sqrt{d})V", source_text)
+        self.assertIn("Table: Table 1: BLEU scores", source_text)
+        self.assertIn("Transformer | 28.4", source_text)
+        self.assertNotIn("Should be ignored after references", source_text)
+
 
     def test_publication_venue_is_not_replaced_by_the_public_pdf_repository(self):
         work = research_v2._work({"id": "https://openalex.org/W1", "title": "Paper",

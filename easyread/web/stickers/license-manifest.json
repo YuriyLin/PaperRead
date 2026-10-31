@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-30",
+  "licenses": [
+    {
+      "id": "ISC",
+      "name": "ISC License",
+      "copyright": "Copyright (c) 2026 Lucide Icons and Contributors",
+      "license_url": "https://github.com/lucide-icons/lucide/blob/929b22faab58fd25c9ed4f891e09cc70f7e661ac/LICENSE",
+      "local_license": "/public/stickers/LICENSE-LUCIDE.txt",
+      "applies_to": "assets marked ISC (Lucide)",
+      "notice": "Copyright and permission notice must appear in all copies."
+    },
+    {
+      "id": "MIT-Feather",
+      "name": "MIT License",
+      "copyright": "Copyright (c) 2013-present Cole Bemis",
+      "license_url": "https://github.com/lucide-icons/lucide/blob/929b22faab58fd25c9ed4f891e09cc70f7e661ac/LICENSE",
+      "local_license": "/public/stickers/LICENSE-LUCIDE.txt",
+      "applies_to": "assets marked MIT-Feather",
+      "notice": "Retain the MIT copyright and permission notice in copies or substantial portions."
+    },
+    {
+      "id": "CC-BY-SA-4.0",
+      "name": "Creative Commons Attribution-ShareAlike 4.0 International",
+      "copyright": "Maria Letta",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "local_license": "/public/stickers/LICENSE-CC-BY-SA-4.0.txt",
+      "applies_to": "assets marked CC-BY-SA-4.0 (Mega Doodles Pack)",
+      "notice": "Credit Maria Letta, link the source and license, indicate changes; distribute adaptations under the same or compatible license."
+    }
+  ],
+  "use_assessment": {
+    "commercial": "Permitted under ISC and MIT, subject to notices.",
+    "saas_embedding": "Permitted under broad use and distribution grants, subject to notices.",
+    "insert_into_pdf": "Permitted under broad use and modification grants, subject to notices.",
+    "export_pdf": "Permitted under broad distribution grants, subject to notices; exported copies need a practical notice mechanism, which is not implemented here.",
+    "end_user_reuse": "Permitted under license grants, subject to notices; supply complete applicable license text with distributed assets.",
+    "author_attribution": "Lucide and Feather require copyright and license notices. Mega Doodles requires attribution to Maria Letta, source and license links, and an indication of changes.",
+    "interpretation": "The listed scenarios are interpretations of broad license grants, not explicit scenario-specific confirmations from the authors.",
+    "cc_by_sa_4_0": "Commercial use, SaaS display, PDF use, export and redistribution permitted under broad license grants, subject to attribution and license notices. Adapted material must be shared under the same or compatible license; whether a particular PDF creates adapted material depends on the use. Actual PDF notices are not implemented."
+  },
+  "excluded_sources": [
+    {
+      "source": "Flaticon",
+      "status": "excluded",
+      "reason": "Terms restrict icon collections, third-party use and distribution; applicable to this use case.",
+      "url": "https://www.flaticon.com/legal/"
+    },
+    {
+      "source": "Icons8",
+      "status": "excluded",
+      "reason": "License prohibits distribution of standalone SVG files without written consent.",
+      "url": "https://icons8.com/vue-static/landings/pricing/icons8-license.pdf"
+    },
+    {
+      "source": "Storyset",
+      "status": "unverified",
+      "reason": "Permission for reusable end-user asset library and exports not established; no assets included.",
+      "url": "https://storyset.com/terms"
+    },
+    {
+      "source": "Open Doodles",
+      "status": "unverified",
+      "reason": "Commercial use advertised, but precise redistribution terms for this library not established; no assets included.",
+      "url": "https://www.opendoodles.com/"
+    },
+    {
+      "source": "SVG Repo",
+      "status": "per-asset review required",
+      "reason": "Licenses vary by asset; Lucide upstream used directly with pinned license.",
+      "url": "https://www.svgrepo.com/page/licensing/"
+    }
+  ]
+}

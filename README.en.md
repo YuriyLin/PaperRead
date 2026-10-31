@@ -40,7 +40,7 @@ PaperRead brings literature management, close reading, and research planning int
 | **Background jobs** | Track import progress, confirm before translating large batches, and stop queued or running translation jobs. |
 | **Reader improvements** | Add and erase mouse-drawn notes with undo/redo and autosave; render LaTeX in titles and abstracts; export a mobile-friendly HTML copy. |
 | **AI models** | Add Antigravity CLI as a model source, with local model discovery and reasoning effort controls. |
-| **Answer styles** | Choose Standard, Plain answers, or Deep reading beside the chat model. The question-mark button explains their differences and token use. Deep reading explains mechanisms, formula examples, and experimental limitations for the current question; long papers are excerpted to fit the context budget. |
+| **Answer styles** | Toggle between standard and plain answers. Plain answers use short sentences and lists and may consume more tokens because paper content is included. |
 | **Reliability and updates** | Isolate damaged paper data so one item does not break the library; download desktop updates in the background and restart when ready. |
 | **Linux/Docker compatibility** | Fix reader navigation and paragraph toolbar actions in Docker on Linux Firefox, and use bundled/system trust for research API queries in packaged macOS builds. |
 | **Paper Mind Map** | Ask AI to turn the current paper into a Traditional Chinese Mermaid mind map covering the research question, method, findings, contribution, and limitations. |
@@ -97,9 +97,9 @@ Model availability, rate limits, and response formats depend on the selected pro
 
 The map/list view supports zoom, pan, node selection, and moving a paper earlier or later in the reading order. Dashed arrows represent the suggested reading order; solid arrows represent in-map citation relations that OpenAlex can verify. Reading-path and paper-comparison analysis run in the background, so closing the dialog or changing pages does not cancel them. PaperRead notifies you when a result is ready instead of forcing navigation.
 
-Paper comparisons preserve research questions, core methods, cost, limitations, differences, evaluation conditions, and candidate questions. They can be exported to `Research/04-跨論文比較` in Obsidian. If a selected paper has not yet been exported as a single-paper note, the comparison can still be generated, but its WikiLink may be created after the single-paper note is exported.
+Paper comparisons preserve research questions, core methods, cost, limitations, differences, evaluation conditions, and candidate questions. They can be exported to `Research/05-跨論文比較` in Obsidian. If a selected paper has not yet been exported as a single-paper note, the comparison can still be generated, but its WikiLink may be created after the single-paper note is exported.
 
-Summaries can be imported directly into an Obsidian Vault under `Research/05-論文摘要`. Filenames use a shortened English paper title and do not create an extra child folder. Downloading one item produces Markdown; downloading multiple items produces a ZIP with the full folder structure.
+Summaries can be imported directly into an Obsidian Vault under `Research/06-論文摘要`. Filenames use a shortened English paper title and do not create an extra child folder. Downloading one item produces Markdown; downloading multiple items produces a ZIP with the full folder structure.
 
 ## Install on Windows
 
@@ -161,7 +161,7 @@ npm run dist
 
 ## License
 
-MIT. Math rendering uses [KaTeX](https://katex.org) (MIT).
+The code is MIT licensed. Math rendering uses [KaTeX](https://katex.org) (MIT). Sticker assets have separate licenses: Lucide icons are ISC, with MIT for some Feather-derived icons; [Mega Doodles Pack](https://github.com/MariaLetta/mega-doodles-pack) by Maria Letta is [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). See the [asset overview](data/stickers/README.md) and [license manifest](data/stickers/license-manifest.json) for sources, modification status, and license texts.
 
 ## Contributors
 

@@ -8,12 +8,16 @@
 <link rel="stylesheet" href="/web/vendor/katex/katex.min.css">
 <link rel="stylesheet" href="/web/vendor/mind-elixir/MindElixir.css">
 <link rel="stylesheet" href="/web/css/base.css">
+<link rel="stylesheet" href="/web/css/dropdown.css">
 <link rel="stylesheet" href="/web/css/research-task-monitor.css">
 <link rel="stylesheet" href="/web/css/reader.css">
+<link rel="stylesheet" href="/web/css/stickers.css">
 <link rel="stylesheet" href="/web/css/figure-zoom.css">
 <link rel="stylesheet" href="/web/css/reading-language.css">
 <link rel="stylesheet" href="/web/css/sentences.css">
 <link rel="stylesheet" href="/web/css/reader-panels.css">
+<link rel="stylesheet" href="/web/vendor/note-libraries.css">
+<link rel="stylesheet" href="/web/css/paper-note-editor.css">
 <link rel="stylesheet" href="/web/css/reader-chat.css">
 <link rel="stylesheet" href="/web/css/research.css">
 <link rel="stylesheet" href="/web/css/settings.css">
@@ -41,6 +45,7 @@
   </div>
   <button class="btn" data-act="pages" title="PDF 原页，跟随阅读位置（O）"></button>
   <button class="btn ink-toggle" id="inkToggle" aria-pressed="false" title="手寫註記"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.8 3.2l3 3-8.7 8.7-3.8.8.8-3.8zM3.5 17h13"></path></svg><span>手寫</span></button>
+  <button class="btn" id="stickerToggle" type="button" aria-expanded="false" aria-controls="stickerPanel"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h12v9l-4 4H4zM12 16.5v-4h4"></path></svg><span>貼紙</span></button>
   <button class="btn" data-act="notes" title="笔记面板（M）"></button>
   <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
   <button class="btn" title="研究（R）" data-act="research"></button>
@@ -84,6 +89,8 @@
   <button type="button" class="ink-action" data-ink-hide aria-pressed="false" title="隱藏筆跡"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.7-4.5 7.5-4.5S17.5 10 17.5 10 14.8 14.5 10 14.5 2.5 10 2.5 10zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"></path></svg><span data-ink-hide-label>隱藏筆跡</span></button>
 </div>
 
+<section id="stickerPanel" role="dialog" aria-label="貼紙素材庫" hidden></section>
+<div id="stickerTools" role="toolbar" aria-label="貼紙工具" hidden></div>
 <section id="pageview" class="side-panel" aria-label="PDF 原页">
   <div class="pv-head">
     <button class="btn icon" data-pv="prev" title="上一页（[）">‹</button>
@@ -110,6 +117,7 @@
 <div class="dialog-backdrop" id="settingsDlg"><div class="dialog" role="dialog" aria-label="设置"></div></div>
 <div class="dialog-backdrop" id="textDlg"><div class="dialog wide" role="dialog"></div></div>
 <div class="dialog-backdrop" id="mindmapDlg"><div class="dialog mm-dialog" role="dialog" aria-label="論文心智圖"></div></div>
+<div class="dialog-backdrop" id="deepReportDlg"><div class="dialog deep-dialog" role="dialog" aria-label="論文深度剖析報告"></div></div>
 
 <div id="settings" class="menu" role="dialog" aria-label="阅读设置"></div>
 <div id="popover" class="popover" role="tooltip"></div>
@@ -122,6 +130,7 @@
 <script src="/web/js/common/desktop-bridge.js"></script>
 <script src="/web/js/common/i18n.js"></script>
 <script src="/web/js/common/util.js"></script>
+<script src="/web/js/common/dropdown.js"></script>
 <script src="/web/js/common/library-nav.js"></script>
 <script src="/web/js/common/presence.js"></script>
 <script src="/web/js/common/confirm.js"></script>
@@ -133,6 +142,9 @@
 <script src="/web/js/reader/store.js"></script>
 <script src="/web/js/reader/annotation-history.js"></script>
 <script src="/web/js/reader/ink.js"></script>
+<script src="/web/js/reader/sticker-geometry.js"></script>
+<script src="/web/js/reader/sticker-style.js"></script>
+<script src="/web/js/reader/stickers.js"></script>
 <script src="/web/js/reader/render.js"></script>
 <script src="/web/js/reader/sentences.js"></script>
 <script src="/web/js/reader/margin.js"></script>
@@ -148,6 +160,8 @@
 <script src="/web/js/reader/mindmap-view.js"></script>
 <script src="/web/js/reader/planner.js"></script>
 <script src="/web/js/reader/side-resize.js"></script>
+<script src="/web/vendor/note-libraries.js"></script>
+<script src="/web/js/reader/paper-note-editor.js"></script>
 <script src="/web/js/reader/notespanel.js"></script>
 <script src="/web/js/reader/chat-effort.js"></script>
 <script src="/web/js/reader/chat-images.js"></script>

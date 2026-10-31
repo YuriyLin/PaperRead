@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const { test } = require('node:test');
+test('sticker history restores one complete edit and redo through the durable commit path', () => {
+  const listeners={};
+  const element={ addEventListener(type,fn) { listeners[type]=fn; }, setAttribute(){}, classList:{toggle(){},remove(){}}, replaceChildren(){}, style:{}, querySelector(){return {setAttribute(){}}}, getBoundingClientRect(){return {left:0,top:0}}, clientWidth:500,scrollHeight:600,scrollTop:0 };
+  let warning='';
+  const PR={state:{reader:{ink:{},stickers:{}}}, $$:()=>[], debounce:f=>f, on(){}, t:s=>s, toast:s=>{warning=s}, commit(op){if(op.op==='sticker') this.state.reader.stickers[op.sticker.id]=op.sticker; else if(op.op==='sticker_del') delete this.state.reader.stickers[op.id];}};
+  const document={getElementById(){return element}, addEventListener(){}, createElementNS(){return {setAttribute(){},dataset:{}}}};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../easyread/web/js/reader/ink.js'),'utf8'),{window:{PR,addEventListener(){}},document,ResizeObserver:class{observe(){}},Date,Math,Number});
+  const before={id:'s1',x:10}, after={id:'s1',x:30}; PR.state.reader.stickers.s1=after;
+  PR.recordStickerHistory('s1',before,after);
+  assert.equal(PR.inkHistory(false),true); assert.equal(PR.state.reader.stickers.s1.x,10);
+  assert.equal(PR.inkHistory(false),false); assert.equal(PR.inkHistory(true),true); assert.equal(PR.state.reader.stickers.s1.x,30);
+  const colored={...after,strokeColor:'#336699',strokeWidth:3};
+  PR.state.reader.stickers.s1=colored; PR.recordStickerHistory('s1',after,colored);
+  assert.equal(PR.inkHistory(false),true); assert.equal(PR.state.reader.stickers.s1.strokeColor,undefined);
+  assert.equal(PR.inkHistory(true),true); assert.equal(PR.state.reader.stickers.s1.strokeWidth,3);
+  PR.state.reader.stickers.s1={id:'s1',x:50};
+  assert.equal(PR.inkHistory(false),true); assert.equal(PR.state.reader.stickers.s1.x,50); assert.ok(warning);
+});

@@ -75,13 +75,21 @@
   PR.on("reader", (op) => { if (op && op.op === "progress") return; if (!busy()) refreshNotes(); });
 
   const seen = new Set();
+  PR.updateTitle = function () {
+    const m = (S.paper && S.paper.meta) || {};
+    const titleVal = m.short_zh || m.title_zh || m.title_en || PR.t("论文");
+    document.title = (PR.titleText ? PR.titleText(titleVal) : titleVal) + " · PaperRead";
+    const bar = PR.$(".bar-title");
+    if (bar) bar.innerHTML = PR.titleHtml(titleVal || "");
+  };
+
   PR.on("remote", (changed) => {
     if (changed.includes("job")) PR.renderJobState();
     const after = () => {
-      if (changed.includes("paper") || changed.includes("reader")) {
+      if (changed.includes("paper") || changed.includes("reader") || changed.includes("item")) {
         PR.rerenderKeepingPlace();
-        const m = S.paper.meta || {};
-        PR.$(".bar-title").innerHTML = PR.titleHtml(m.short_zh || m.title_zh || m.title_en || "");
+        PR.updateTitle();
+        if (changed.includes("item") && PR.renderPaperHead) PR.renderPaperHead();
       } else if (changed.includes("job")) {
         const pend = PR.$(".pending-pages .pending, .page-cap");
         if (pend || (S.job || {}).state === "confirm") PR.rerenderKeepingPlace();
@@ -122,9 +130,7 @@
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";
     else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
-    const m = S.paper.meta || {};
-    document.title = (PR.titleText ? PR.titleText(m.short_zh || m.title_zh || m.title_en || PR.t("论文")) : (m.short_zh || m.title_zh || m.title_en || PR.t("论文"))) + " · PaperRead";
-    PR.$(".bar-title").innerHTML = PR.titleHtml(m.short_zh || m.title_zh || m.title_en || "");
+    PR.updateTitle();
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));
     PR.renderPaper();
@@ -164,5 +170,24 @@
     }
     PR.watchProgress && PR.watchProgress();
   }
+
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      const bus = new BroadcastChannel("paperread-tabs-bus");
+      bus.addEventListener("message", (e) => {
+        if (e.data?.type === "pr:paper-updated" && e.data.pid === PR.pid) {
+          if (S.paper && S.paper.meta) {
+            if (e.data.title_zh) S.paper.meta.title_zh = e.data.title_zh;
+            if (e.data.short_zh) S.paper.meta.short_zh = e.data.short_zh;
+            if (e.data.title_en) S.paper.meta.title_en = e.data.title_en;
+            if (e.data.meta_override && S.item) S.item.meta_override = e.data.meta_override;
+            PR.updateTitle();
+            if (PR.renderPaperHead) PR.renderPaperHead();
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
   boot();
 })(window.PR);

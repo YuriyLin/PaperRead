@@ -31,7 +31,17 @@
   ["click", "auxclick", "contextmenu"].forEach((name) => document.addEventListener(name, prepareReaderLink, true));
   L.patch = async function (id, fields) {
     const it = L.byId(id);
-    if (it) { Object.assign(it, fields.meta_override ? {} : fields); L.render(); }  // 先改界面，再存盘
+    if (it) {
+      if (fields.meta_override) {
+        it.meta_override = Object.assign({}, it.meta_override || {}, fields.meta_override);
+        if (fields.meta_override.title_zh) it.title_zh = fields.meta_override.title_zh;
+        if (fields.meta_override.short_zh) it.short_zh = fields.meta_override.short_zh;
+        if (fields.meta_override.title_en) it.title_en = fields.meta_override.title_en;
+      } else {
+        Object.assign(it, fields);
+      }
+      L.render();
+    }  // 先改界面，再存盘
     try { await PR.api("/api/p/" + id + "/item", { method: "POST", body: fields }); }
     catch (e) { PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) })); }
     await L.load();
@@ -257,10 +267,10 @@
     const r = e.target.closest(".row");
     if (r) L.select(r.dataset.id);
   });
-  /* 点列表空白处、侧栏、标题栏空白：收起右侧详情 */
+  /* 点列表空白处、侧栏空白：收起右侧详情（排除工具列、排序選單與標題列） */
   document.addEventListener("click", (e) => {
-    if (!L.selected || e.target.closest(".row, .srow[data-leaf], #detail, .dialog-backdrop, .menu, #toast, .topbar button, .topbar input, select")) return;
-    if (e.target.closest(".main, .side, .topbar")) L.select(null);
+    if (!L.selected || e.target.closest(".row, .srow[data-leaf], #detail, .dialog-backdrop, .menu, #toast, .topbar, .list-head, select, label, button, input")) return;
+    if (e.target.closest("#list, .side")) L.select(null);
   });
   PR.$("#list").addEventListener("dblclick", (e) => { const r = e.target.closest(".row"); if (r) L.openReader(r.dataset.id); });
   PR.$("#list").addEventListener("contextmenu", (e) => {
@@ -304,4 +314,22 @@
     } catch (e) { /* 没有就等下面取 */ }
     L.load();
   });
+  if (typeof BroadcastChannel !== "undefined") {
+    try {
+      const bus = new BroadcastChannel("paperread-tabs-bus");
+      bus.addEventListener("message", (e) => {
+        if (e.data?.type === "pr:paper-updated" && e.data.pid) {
+          const it = L.byId(e.data.pid);
+          if (it) {
+            if (e.data.title_zh) it.title_zh = e.data.title_zh;
+            if (e.data.short_zh) it.short_zh = e.data.short_zh;
+            if (e.data.title_en) it.title_en = e.data.title_en;
+            if (e.data.meta_override) it.meta_override = e.data.meta_override;
+            L.render();
+            if (L.selected === e.data.pid && PR.renderDetail) PR.renderDetail();
+          }
+        }
+      });
+    } catch (_) {}
+  }
 })(window.PR);

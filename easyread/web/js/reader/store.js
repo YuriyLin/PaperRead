@@ -23,6 +23,7 @@
     reader.notes = reader.notes || {};
     reader.ai_annotations = reader.ai_annotations || {};
     reader.ink = reader.ink || {};
+    reader.stickers = reader.stickers || {};
     reader.progress = reader.progress || {};
     for (const op of ops) {
       const at = op.at || PR.nowIso();
@@ -53,6 +54,13 @@
         const cur = id && reader.ink[id];
         if (id && (!cur || at >= (cur.updated || ""))) reader.ink[id] = op.op === "ink"
           ? { ...stroke, updated: at }
+          : { ...(cur || { id }), deleted: true, updated: at };
+      } else if (op.op === "sticker" || op.op === "sticker_del") {
+        const sticker = op.op === "sticker" ? op.sticker : { id: op.id };
+        const id = sticker && String(sticker.id || "");
+        const cur = id && reader.stickers[id];
+        if (id && (!cur || at >= (cur.updated || ""))) reader.stickers[id] = op.op === "sticker"
+          ? { ...sticker, updated: at }
           : { ...(cur || { id }), deleted: true, updated: at };
       } else if (op.op === "paper_note") {
         const cur = reader.paper_note || {};
@@ -86,6 +94,12 @@
       const current = S.reader.ink && S.reader.ink[id];
       if (current && (current.updated || "") > op.at) return;
       outbox = outbox.filter(o => !(o.op === op.op && (op.op === "ink" ? o.stroke.id : o.id) === id));
+    }
+    if (op.op === "sticker" || op.op === "sticker_del") {
+      const id = op.op === "sticker" ? op.sticker.id : op.id;
+      const current = S.reader.stickers && S.reader.stickers[id];
+      if (current && (current.updated || "") > op.at) return;
+      outbox = outbox.filter(o => !(o.op === op.op && (op.op === "sticker" ? o.sticker.id : o.id) === id));
     }
     if (op.op === "edit") outbox = outbox.filter((o) => !(o.op === "edit" && o.block === op.block));
     if (op.op === "progress" || op.op === "paper_note") outbox = outbox.filter((o) => o.op !== op.op);
@@ -168,7 +182,7 @@
     if (embedded) {
       const d = JSON.parse(embedded.textContent);
       mode = "static";
-      Object.assign(S, { paper: d.paper, discussion: d.discussion || { entries: [] }, layout: d.layout || {}, images: d.images || {}, item: d.item || {}, chat: d.chat || null, demo: d.demo || null });
+      Object.assign(S, { paper: d.paper, discussion: d.discussion || { entries: [] }, layout: d.layout || {}, images: d.images || {}, item: d.item || {}, chat: d.chat || null, demo: d.demo || null, stickerAssets: d.stickerAssets || [] });
       serverReader = d.reader || {};
       PR.pid = PR.pid || (S.paper.meta.source_sha256 || "paper").slice(0, 12);
     } else {
@@ -182,6 +196,9 @@
     }
     const ov = (S.item || {}).meta_override || {};
     for (const [k, v] of Object.entries(ov)) if (v) S.paper.meta[k] = v;
+    if (ov.title_zh && !ov.short_zh) {
+      S.paper.meta.short_zh = PR.deriveShortTitle ? PR.deriveShortTitle(ov.title_zh, true) : ov.title_zh;
+    }
     outboxKey = "pr-outbox-" + PR.pid + (mode === "static" ? "-static" : "");
     PR.paperKey = PR.pid;
     outbox = PR.ls.get(outboxKey, []);
@@ -206,7 +223,7 @@
       return;
     }
     const changed = [];
-    for (const name of ["paper", "discussion", "layout", "reader", "job"]) if (v[name] && v[name] !== S.versions[name]) changed.push(name);
+    for (const name of ["paper", "discussion", "layout", "reader", "job", "item"]) if (v[name] && v[name] !== S.versions[name]) changed.push(name);
     if (!changed.length) return;
     for (const name of changed) {
       if (name === "reader" && (flushing || outbox.length)) continue; // 自己正在写，等写完
@@ -214,7 +231,13 @@
       S.versions[name] = d.version;
       if (name === "reader") { serverReader = d.data; rebuildReader(); } else S[name] = d.data || {};
     }
-    if (changed.includes("paper")) { const ov = (S.item || {}).meta_override || {}; for (const [k, val] of Object.entries(ov)) if (val) S.paper.meta[k] = val; }
+    if (changed.includes("paper") || changed.includes("item")) {
+      const ov = (S.item || {}).meta_override || {};
+      for (const [k, val] of Object.entries(ov)) if (val) S.paper.meta[k] = val;
+      if (ov.title_zh && !ov.short_zh) {
+        S.paper.meta.short_zh = PR.deriveShortTitle ? PR.deriveShortTitle(ov.title_zh, true) : ov.title_zh;
+      }
+    }
     PR.emit("remote", changed);
   }
   PR.poll = poll;
@@ -257,6 +280,9 @@
     for (const stroke of Object.values(S.reader.ink || {})) ops.push(stroke.deleted
       ? { op: "ink_del", id: stroke.id, at: stroke.updated }
       : { op: "ink", stroke, at: stroke.updated });
+    for (const sticker of Object.values(S.reader.stickers || {})) ops.push(sticker.deleted
+      ? { op: "sticker_del", id: sticker.id, at: sticker.updated }
+      : { op: "sticker", sticker, at: sticker.updated });
     if ((S.reader.paper_note || {}).body) ops.push({ op: "paper_note", body: S.reader.paper_note.body, at: S.reader.paper_note.at });
     return { paper: PR.paperKey, exported: PR.nowIso(), ops };
   };

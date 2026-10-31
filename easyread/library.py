@@ -39,7 +39,10 @@ class Library:
         paper = ws.load("paper") or {}
         meta = dict(paper.get("meta", {}))
         item = ws.load("item") or {}
-        meta.update({k: v for k, v in (item.get("meta_override") or {}).items() if v or k == "doi"})
+        ov = item.get("meta_override") or {}
+        meta.update({k: v for k, v in ov.items() if v or k == "doi"})
+        if "title_zh" in ov and "short_zh" not in ov:
+            meta["short_zh"] = _derive_short(meta.get("title_zh", ""))
         reader = ws.load("reader") or {}
         disc = ws.load("discussion") or {}
         job = ws.load("job") or {}
@@ -259,6 +262,26 @@ def migrate_folder(src: Path, lib: Library) -> Workspace:
     write_json_atomic(ws.reader_path, reader)
     return ws
 
+
+
+def _derive_short(title: str, is_zh: bool = True) -> str:
+    """由完整标题提取适合标签与顶栏展示的短标题。"""
+    if not title:
+        return ""
+    max_len = 16 if is_zh else 36
+    for sep in ("：", ": "):  # i18n-ok: punctuation parsing
+        if sep in title:
+            first = title.split(sep, 1)[0].strip()
+            if first and len(first) <= max_len:
+                return first
+    for sep in ("？", "?", "——", " - "):  # i18n-ok: punctuation parsing
+        if sep in title:
+            parts = [p.strip() for p in title.split(sep) if p.strip()]
+            if len(parts) > 1 and len(parts[1]) <= max_len:
+                return parts[1]
+            if parts and len(parts[0]) <= max_len:
+                return parts[0]
+    return title if len(title) <= max_len else (title[:max_len - 1] + "…")
 
 
 def _link(meta: dict) -> str:

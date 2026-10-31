@@ -509,13 +509,19 @@ class Handler(BaseHTTPRequestHandler):
             if action == "smart-annotate":
                 scope = str(body.get("scope") or "all")
                 mode = str(body.get("mode") or "auto")
+                intensity = str(body.get("intensity") or "standard")
                 if scope not in ("all", "section"):
                     raise ValueError(tr("智慧標註範圍不正確"))
                 if mode not in ("auto", "suggest", "purpose"):
                     raise ValueError(tr("智慧標註模式不正確"))
+                if intensity not in ("concise", "standard", "detailed"):
+                    raise ValueError(tr("智慧標註強度不正確"))
+                meta = (ws.load("paper") or {}).get("meta") or {}
+                title = str(meta.get("title_zh") or meta.get("title_en") or tr("未命名論文"))[:300]
                 return self._json(200, app.jobs.submit_small(
                     "smart-annotate", ws.id, scope=scope, section_id=str(body.get("section_id") or ""),
-                    mode=mode, purpose=str(body.get("purpose") or "")[:500], model=str(body.get("model") or ""),
+                    mode=mode, intensity=intensity, purpose=str(body.get("purpose") or "")[:500],
+                    model=str(body.get("model") or ""), title=title,
                 ))
             if action == "smart-annotate-cancel":
                 return self._json(200, {"cancelled": app.jobs.cancel_small(str(body.get("job") or ""))})

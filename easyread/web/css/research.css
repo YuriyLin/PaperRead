@@ -204,3 +204,32 @@ html[data-theme="dark"] .map-container me-parent me-epd,
   opacity: 1 !important;
   transform: scale(1.15);
 }
+
+/* Deep Analysis in Research Panel */
+.rp-deep-report { position:relative; min-height:110px; max-height:260px; overflow-y:auto; padding:10px 12px; border:1px solid var(--rule); border-radius:10px; background:var(--bg); font-size:12px; line-height:1.6; }
+.rp-deep-preview { font-size:12px; line-height:1.55; color:var(--ink-2); }
+.rp-deep-preview h2 { font-size:13px; font-weight:600; margin:10px 0 4px; color:var(--ink); }
+.rp-deep-preview p { margin:4px 0; }
+.rp-deep-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:8px; }
+#deepReportDlg .dialog.deep-dialog { width:90vw; max-width:960px; height:88vh; max-height:900px; display:flex; flex-direction:column; padding:0; border-radius:14px; overflow:hidden; background:var(--bg); border:1px solid var(--rule); box-shadow:0 12px 48px rgba(0,0,0,0.22); }
+.deep-modal-head { display:flex; align-items:center; justify-content:space-between; gap:10px; height:48px; padding:0 16px; border-bottom:1px solid var(--rule); background:var(--surface); flex:none; }
+.deep-modal-title { display:flex; align-items:baseline; gap:10px; min-width:0; overflow:hidden; }
+.deep-modal-title b { font-size:13.5px; font-weight:600; color:var(--ink); flex:none; }
+.deep-modal-title span { font-size:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.deep-modal-actions { display:flex; align-items:center; gap:6px; flex:none; }
+.deep-modal-body { flex:1; min-height:0; overflow-y:auto; padding:20px 24px; font-size:14px; line-height:1.75; color:var(--ink); }
+.deep-modal-body h2 { font-size:17px; margin:20px 0 10px; color:var(--ink); border-bottom:1px solid var(--rule); padding-bottom:6px; }
+.deep-modal-body h3 { font-size:15px; margin:14px 0 6px; color:var(--ink-2); }
+.deep-modal-body ul, .deep-modal-body ol { padding-left:20px; margin:8px 0; }
+.deep-modal-body li { margin-bottom:6px; }
+html[data-theme="dark"] #deepReportDlg .dialog.deep-dialog,
+:root[data-theme="dark"] #deepReportDlg .dialog.deep-dialog {
+  background: var(--bg);
+  border-color: var(--rule-2);
+  box-shadow: 0 16px 64px rgba(0, 0, 0, 0.75);
+}
+html[data-theme="dark"] .deep-modal-head,
+:root[data-theme="dark"] .deep-modal-head {
+  background: var(--surface);
+  border-bottom-color: var(--rule);
+}
