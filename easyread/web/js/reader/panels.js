@@ -104,6 +104,36 @@
   PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
   PR.$('[data-act="research"]').innerHTML = PR.icon("book", "sm") + "<span>" + PR.t("研究") + "</span>";
   /* 设置里关掉的功能：顶栏按钮也藏起来 */
+  PR.updateKeyTitles = function () {
+    const isEn = PR.lang === "en";
+    const fmt = (base, k) => (k ? (isEn ? base + " (" + k + ")" : base + "（" + k + "）") : base); // i18n-ok
+    const set = (sel, base, k) => {
+      const el = PR.$(sel);
+      if (el) el.title = fmt(base, k);
+    };
+
+    set('[data-act="drawer"]', PR.t("目錄"), PR.keyOf("toc"));
+    set('[data-act="pages"]', PR.t("PDF 原頁，跟隨閱讀位置"), PR.keyOf("pages"));
+    set("#inkToggle", PR.t("手寫註記"), PR.keyOf("inkToggle"));
+    set("#stickerToggle", PR.t("貼紙素材庫"), PR.keyOf("stickerToggle"));
+    set("[data-ink-erase]", PR.t("橡皮擦"), PR.keyOf("inkEraser"));
+    set('[data-act="notes"]', PR.t("筆記面板"), PR.keyOf("notes"));
+    set('[data-act="chat"]', PR.t("邊讀邊問 AI"), PR.keyOf("chat"));
+    set('[data-act="research"]', PR.t("研究"), PR.keyOf("research"));
+
+    const ku = PR.keyOf("fontUp"), kd = PR.keyOf("fontDown");
+    const fontK = [ku, kd].filter(Boolean).join(isEn ? " / " : "、"); // i18n-ok
+    const fontAdj = fontK ? fontK + " " + PR.t("調字號") : "";
+    const elSettings = PR.$('[data-act="settings"]');
+    if (elSettings) {
+      elSettings.title = fontAdj ? (isEn ? PR.t("字號、版心、字體") + " (" + fontAdj + ")" : PR.t("字號、版心、字體") + "（" + fontAdj + "）") : PR.t("字號、版心、字體"); // i18n-ok
+    }
+
+    set('[data-pv="prev"]', PR.t("上一頁"), PR.keyOf("pagePrev"));
+    set('[data-pv="next"]', PR.t("下一頁"), PR.keyOf("pageNext"));
+    set('[data-pv="close"]', PR.t("關閉"), PR.keyOf("pages"));
+  };
+
   PR.applyFeatures = function () {
     const set = (sel, on) => { const el = PR.$(sel); if (el) el.style.display = on ? "" : "none"; };
     set('[data-act="pages"]', PR.feature("pages"));
@@ -113,9 +143,10 @@
     if (!PR.feature("chat") && PR.side === "chat") PR.openSide(null);
     if (PR.store.mode !== "server" && PR.side === "research") PR.openSide(null);
   };
-  PR.on("ui-changed", () => { PR.applyFeatures(); PR.hideBlockbar && PR.hideBlockbar(); PR.renderMargin && PR.renderMargin(); });
+  PR.on("ui-changed", () => { PR.applyFeatures(); PR.updateKeyTitles && PR.updateKeyTitles(); PR.hideBlockbar && PR.hideBlockbar(); PR.renderMargin && PR.renderMargin(); });
   // chat.js is initialized later; main.js applies visibility after all modules load.
   PR.$("#bar").addEventListener("click", (e) => {
+    if (!e.target.closest("#stickerToggle, #stickerPanel")) PR.closeStickerPanel?.();
     const v = e.target.closest("[data-view]");
     if (v) return PR.setView(v.dataset.view);
     if (e.target.closest("[data-order-menu]")) return PR.toggleOrderMenu();
@@ -157,6 +188,7 @@
     if (which) tab = which;
     const open = force != null ? force : !body.classList.contains("drawer-open");
     body.classList.toggle("drawer-open", open);
+    if (open) PR.closeStickerPanel?.();
     if (open) PR.renderDrawer();
   };
   PR.$("#scrim").onclick = () => PR.toggleDrawer(false);

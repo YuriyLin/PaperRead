@@ -9,7 +9,7 @@
   const helpBtn = PR.$("#helpBtn");
   if (helpBtn) {
     helpBtn.innerHTML = PR.icon("question");
-    helpBtn.title = PR.t("帮助与快捷键（?）");
+    helpBtn.title = PR.t("幫助與快捷鍵（?）");
     helpBtn.onclick = () => PR.openHelp();
   }
   PR.$("#settingsBtn").innerHTML = PR.icon("settings");

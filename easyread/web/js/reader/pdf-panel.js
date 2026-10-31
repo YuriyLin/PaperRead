@@ -11,6 +11,7 @@
   /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。 */
   PR.side = null;
   PR.openSide = function (name) {
+    if (name) PR.closeStickerPanel?.();
     if (PR.side === "notes" && name !== "notes" && PR.finishPanelNote) PR.finishPanelNote();
     PR.side = name;
     body.classList.toggle("pv-open", name === "pages");

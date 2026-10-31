@@ -10,6 +10,7 @@
       pages: () => PR.togglePages(), notes: () => PR.toggleNotesPanel(),
       research: () => PR.store.mode === "server" && PR.toggleResearch(),
       inkToggle: () => PR.toggleInk && PR.toggleInk(), inkEraser: () => PR.toggleInkEraser && PR.toggleInkEraser(),
+      stickerToggle: () => PR.toggleStickerPanel && PR.toggleStickerPanel(),
       chat: () => { const b = (PR.currentBlock && PR.currentBlock()) || PR.readingBlock(); PR.blockById[b] ? PR.chatAsk({ anchor: b }) : PR.toggleChat(); },
       pagePrev: () => PR.pageStep(-1), pageNext: () => PR.pageStep(1),
     }[id];

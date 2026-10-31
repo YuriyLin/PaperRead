@@ -30,7 +30,7 @@
 
 <header class="topbar" id="bar">
   <a class="btn brand-back" id="backBtn" href="/" title="回文献库"></a>
-  <button class="btn icon" data-act="drawer" title="目录（T）"></button>
+  <button class="btn icon" data-act="drawer" title="目錄（T）"></button>
   <div class="bar-titles">
     <span class="bar-title"></span>
     <span class="bar-section"></span>
@@ -43,13 +43,13 @@
     <button data-view="both"></button>
     <button class="order-caret" data-order-menu aria-haspopup="menu" aria-expanded="false"></button>
   </div>
-  <button class="btn" data-act="pages" title="PDF 原页，跟随阅读位置（O）"></button>
-  <button class="btn ink-toggle" id="inkToggle" aria-pressed="false" title="手寫註記"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.8 3.2l3 3-8.7 8.7-3.8.8.8-3.8zM3.5 17h13"></path></svg><span>手寫</span></button>
-  <button class="btn" id="stickerToggle" type="button" aria-expanded="false" aria-controls="stickerPanel"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h12v9l-4 4H4zM12 16.5v-4h4"></path></svg><span>貼紙</span></button>
-  <button class="btn" data-act="notes" title="笔记面板（M）"></button>
-  <button class="btn" data-act="chat" title="边读边问 AI（A）"></button>
+  <button class="btn" data-act="pages" title="PDF 原頁，跟隨閱讀位置（O）"></button>
+  <button class="btn ink-toggle" id="inkToggle" aria-pressed="false" title="手寫註記（W）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M13.8 3.2l3 3-8.7 8.7-3.8.8.8-3.8zM3.5 17h13"></path></svg><span>手寫</span></button>
+  <button class="btn" id="stickerToggle" type="button" aria-expanded="false" aria-controls="stickerPanel" title="貼紙素材庫（S）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 3.5h12v9l-4 4H4zM12 16.5v-4h4"></path></svg><span>貼紙</span></button>
+  <button class="btn" data-act="notes" title="筆記面板（M）"></button>
+  <button class="btn" data-act="chat" title="邊讀邊問 AI（A）"></button>
   <button class="btn" title="研究（R）" data-act="research"></button>
-  <button class="btn" data-act="settings" title="字号、版心、字体（=、- 调字号）">Aa</button>
+  <button class="btn" data-act="settings" title="字號、版心、字體（=、- 調字號）">Aa</button>
   <button class="save-state" data-act="about" title="保存状态"><i></i><span>…</span></button>
 </header>
 
@@ -83,7 +83,7 @@
     <label><span>筆寬</span><input type="range" data-ink-width min="1" max="12" step="1" value="2" aria-label="筆寬"></label>
   </details>
   <span class="ink-tool-divider" aria-hidden="true"></span>
-  <div class="ink-width ink-eraser"><button type="button" class="ink-action" data-ink-erase aria-pressed="false" aria-expanded="false" aria-controls="eraserSize" title="橡皮擦"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.1 4.1l8.8 8.8-3.5 3.5H6.8l-3.1-3.1zM3.7 13.4h9.1"></path></svg><span>橡皮擦</span></button><label id="eraserSize" data-eraser-size hidden><span>橡皮擦大小</span><input type="range" data-eraser-width min="8" max="80" step="2" value="24" aria-label="橡皮擦大小"></label></div>
+  <div class="ink-width ink-eraser"><button type="button" class="ink-action" data-ink-erase aria-pressed="false" aria-expanded="false" aria-controls="eraserSize" title="橡皮擦（X）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.1 4.1l8.8 8.8-3.5 3.5H6.8l-3.1-3.1zM3.7 13.4h9.1"></path></svg><span>橡皮擦</span></button><label id="eraserSize" data-eraser-size hidden><span>橡皮擦大小</span><input type="range" data-eraser-width min="8" max="80" step="2" value="24" aria-label="橡皮擦大小"></label></div>
   <button type="button" class="ink-action" data-ink-lasso aria-pressed="false" title="套索選取"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5.5c2.8-2.8 8.5-2.7 10.2.4 1.5 2.7-.8 6.6-4.7 7.5-3.8.9-7.2-1.2-6.6-4.6.4-2.6 3.7-3.3 5.5-1.8 1.4 1.2.5 3.2-1.1 3.1M8.3 10.2l-2.7 4.3"></path></svg><span>套索選取</span></button>
   <button type="button" class="ink-action" data-ink-text aria-pressed="false" title="插入文字方塊"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5V3h14v2M10 3v14M7 17h6"></path></svg><span>插入文字方塊</span></button>
   <button type="button" class="ink-action" data-ink-undo title="復原（Ctrl/⌘ + Z）"><svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5L3.5 8.5 7 12M4 8.5h7a4.5 4.5 0 1 1 0 9"></path></svg><span>復原</span></button>
@@ -95,13 +95,13 @@
 <div id="stickerTools" role="toolbar" aria-label="貼紙工具" hidden></div>
 <section id="pageview" class="side-panel" aria-label="PDF 原页">
   <div class="pv-head">
-    <button class="btn icon" data-pv="prev" title="上一页（[）">‹</button>
+    <button class="btn icon" data-pv="prev" title="上一頁（[）">‹</button>
     <span class="pv-label"></span>
-    <button class="btn icon" data-pv="next" title="下一页（]）">›</button>
+    <button class="btn icon" data-pv="next" title="下一頁（]）">›</button>
     <span class="grow"></span>
     <label class="pv-follow" title="左右双向跟随阅读位置"><input type="checkbox" checked> 跟随</label>
     <a class="btn sm" data-pv="pdf" target="_blank" rel="noopener">PDF</a>
-    <button class="btn icon" data-pv="close" title="关闭（O）">×</button>
+    <button class="btn icon" data-pv="close" title="關閉（O）">×</button>
   </div>
   <div class="pv-zoom" role="group" aria-label="PDF 缩放">
     <button class="btn icon" data-pv-zoom="out" title="缩小 PDF">−</button>

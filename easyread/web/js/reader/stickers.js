@@ -200,6 +200,24 @@
     PR.renderInk();
   }
   PR.setStickerMode = setMode;
+  PR.closeStickerPanel = function () {
+    if (panel && !panel.hidden) {
+      panel.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    }
+  };
+  PR.toggleStickerPanel = function () {
+    if (!panel) return;
+    if (panel.hidden) {
+      panel.hidden = false;
+      toggle.setAttribute("aria-expanded", "true");
+      PR.setLassoMode && PR.setLassoMode(false);
+      setMode(true);
+      renderPanel();
+    } else {
+      PR.closeStickerPanel();
+    }
+  };
   PR.setLassoMode = on => {
     if (on) setMode(true);
     PR.lassoMode=!!on; if (!on) lasso=null;
@@ -207,8 +225,8 @@
     document.querySelector("[data-ink-lasso]")?.setAttribute("aria-pressed",String(!!on));
     PR.renderInk();
   };
-  document.getElementById("inkToggle").addEventListener("click", () => { if (document.getElementById("inkToggle").getAttribute("aria-pressed") !== "true") setMode(false); });
-  toggle.addEventListener("click", () => { panel.hidden = !panel.hidden; toggle.setAttribute("aria-expanded", String(!panel.hidden)); if (!panel.hidden) { PR.setLassoMode(false); setMode(true); renderPanel(); } });
+  document.getElementById("inkToggle").addEventListener("click", () => { if (document.getElementById("inkToggle").getAttribute("aria-pressed") !== "true") { setMode(false); PR.closeStickerPanel(); } });
+  toggle.addEventListener("click", () => { PR.toggleStickerPanel(); });
   panel.addEventListener("dblclick", e => {
     const b = e.target.closest("[data-asset]");
     if (b && b.dataset.asset) {
@@ -248,7 +266,13 @@
     const next = e.key === "Home" ? 0 : e.key === "End" ? options.length - 1 : e.key === "ArrowDown" ? (index + 1) % options.length : (index <= 0 ? options.length - 1 : index - 1);
     options[next]?.focus();
   });
-  document.addEventListener("pointerdown", e => { const dropdown=panel.querySelector(".sticker-category[open]"); if (dropdown && !dropdown.contains(e.target)) dropdown.open=false; });
+  document.addEventListener("pointerdown", e => {
+    const dropdown = panel.querySelector(".sticker-category[open]");
+    if (dropdown && !dropdown.contains(e.target)) dropdown.open = false;
+    if (!panel.hidden && !e.target.closest("#stickerPanel, #stickerToggle")) {
+      PR.closeStickerPanel();
+    }
+  });
   panel.addEventListener("dragstart", e => { const b=e.target.closest("[data-asset]"); if (b) e.dataTransfer.setData("application/x-paperread-sticker", b.dataset.asset); });
   let touchDrag = null;
   panel.addEventListener("pointerdown", e => {

@@ -20,6 +20,7 @@
   PR.KEY_ACTIONS = [
     ["research", PR.t("研究"), "r", PR.t("面板")],
     ["inkToggle", PR.t("切換手寫"), "w", PR.t("手寫工具")], ["inkEraser", PR.t("切換橡皮擦"), "x", PR.t("手寫工具")],
+    ["stickerToggle", PR.t("貼紙素材庫"), "s", PR.t("手寫工具")],
     ["next", PR.t("下一段"), "j", PR.t("阅读")], ["prev", PR.t("上一段"), "k", PR.t("阅读")],
     ["mode", PR.t("单语 / 双语"), "b", PR.t("阅读")], ["toc", PR.t("目录"), "t", PR.t("阅读")],
     ["fontUp", PR.t("字号变大"), "=", PR.t("阅读")], ["fontDown", PR.t("字号变小"), "-", PR.t("阅读")], ["fontReset", PR.t("恢复默认字号"), "0", PR.t("阅读")],
@@ -33,7 +34,7 @@
   const DEF_KEYS = Object.fromEntries(PR.KEY_ACTIONS.map(([id, , k]) => [id, k]));
   const DEF_FEATURES = Object.fromEntries(PR.FEATURES.map(([id, , on]) => [id, on]));
   const avoidInkKeyConflicts = keys => {
-    for (const id of ["inkToggle", "inkEraser"]) {
+    for (const id of ["inkToggle", "inkEraser", "stickerToggle"]) {
       if (keys[id] && Object.entries(keys).some(([other, key]) => other !== id && key === keys[id])) keys[id] = "";
     }
     return keys;

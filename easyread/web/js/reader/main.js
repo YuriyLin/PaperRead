@@ -53,6 +53,8 @@
       if (selectionKey === "n" || selectionKey === "q") { e.preventDefault(); return PR.selectionAction(selectionKey === "n" ? "note" : "question"); }
     }
     if (k === "escape") {
+      const sp = document.getElementById("stickerPanel");
+      if (sp && !sp.hidden) { PR.closeStickerPanel?.(); return; }
       if (PR.$("#settings").classList.contains("open") || PR.$("#popover").classList.contains("open") || body.classList.contains("drawer-open")) {
         PR.toggleDrawer(false); PR.hidePopover(); PR.$("#settings").classList.remove("open");
       } else if (PR.currentBlock()) PR.setCurrent(null);
@@ -89,6 +91,7 @@
       if (changed.includes("paper") || changed.includes("reader") || changed.includes("item")) {
         PR.rerenderKeepingPlace();
         PR.updateTitle();
+    PR.updateKeyTitles && PR.updateKeyTitles();
         if (changed.includes("item") && PR.renderPaperHead) PR.renderPaperHead();
       } else if (changed.includes("job")) {
         const pend = PR.$(".pending-pages .pending, .page-cap");

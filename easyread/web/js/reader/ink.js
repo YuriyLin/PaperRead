@@ -228,7 +228,7 @@
   document.getElementById("inkToggle")?.addEventListener("click", () => {
     active = !active; tools.hidden = !active; layer.classList.toggle("active", active);
     document.getElementById("inkToggle").setAttribute("aria-pressed", String(active));
-    if (!active) { finish(); setEraser(false); PR.setLassoMode?.(false); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); }
+    if (!active) { finish(); setEraser(false); PR.setLassoMode?.(false); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); PR.closeStickerPanel?.(); }
   });
   PR.toggleInk = () => document.getElementById("inkToggle")?.click();
   PR.toggleInkEraser = () => {
@@ -253,10 +253,10 @@
   }
   tools.addEventListener("click", e => {
     const button = e.target.closest("button"); if (!button) return;
-    if (button.dataset.inkColor) { PR.setStickerMode?.(false); setColor(button.dataset.inkColor, button); }
-    if (button.hasAttribute("data-ink-erase")) { PR.setStickerMode?.(false); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); setEraser(true); showEraserSize(true); }
-    if (button.hasAttribute("data-ink-lasso")) { setEraser(false); textMode=false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed","false"); PR.setLassoMode?.(!PR.lassoMode); button.setAttribute("aria-pressed",String(!!PR.lassoMode)); }
-    if (button.hasAttribute("data-ink-text")) { PR.setLassoMode?.(false); PR.setStickerMode?.(false); setEraser(false); textMode = !textMode; button.setAttribute("aria-pressed", String(textMode)); }
+    if (button.dataset.inkColor) { PR.setStickerMode?.(false); PR.closeStickerPanel?.(); setColor(button.dataset.inkColor, button); }
+    if (button.hasAttribute("data-ink-erase")) { PR.setStickerMode?.(false); PR.closeStickerPanel?.(); textMode = false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed", "false"); setEraser(true); showEraserSize(true); }
+    if (button.hasAttribute("data-ink-lasso")) { setEraser(false); PR.closeStickerPanel?.(); textMode=false; tools.querySelector("[data-ink-text]")?.setAttribute("aria-pressed","false"); PR.setLassoMode?.(!PR.lassoMode); button.setAttribute("aria-pressed",String(!!PR.lassoMode)); }
+    if (button.hasAttribute("data-ink-text")) { PR.setLassoMode?.(false); PR.setStickerMode?.(false); PR.closeStickerPanel?.(); setEraser(false); textMode = !textMode; button.setAttribute("aria-pressed", String(textMode)); }
     if (button.hasAttribute("data-ink-hide")) { hidden = !hidden; button.setAttribute("aria-pressed", String(hidden)); const label = button.querySelector("[data-ink-hide-label]"); if (label) label.textContent = hidden ? PR.t("顯示筆跡") : PR.t("隱藏筆跡"); render(); }
     if (button.hasAttribute("data-ink-undo")) PR.inkHistory(false);
     if (button.hasAttribute("data-ink-redo")) PR.inkHistory(true);
