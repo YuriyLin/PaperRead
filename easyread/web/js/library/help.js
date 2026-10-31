@@ -8,6 +8,7 @@
     const inkKeys = PR.keysOn ? ["inkToggle", "inkEraser"].filter(id => PR.keyOf(id)).map(id => K(PR.keyOf(id), id === "inkToggle" ? PR.t("切換手寫") : PR.t("切換橡皮擦"))).join("") : "";
     dlg.querySelector(".dialog").innerHTML =
       '<div class="help-head">' + PR.logo("hero sm") + "<div><h2>PaperRead</h2><div class=\"hint\">" + PR.t("版本 {v} · 本地运行，论文和笔记只存在你的电脑上", { v: PR.esc(PR.lib.version || "") }) + "</div></div></div>" +
+      (PR.updatePanel ? PR.updatePanel() : "") +
       '<div class="help-cols"><div><h4>' + PR.t("文献库") + '</h4><table class="keys">' +
       K("/", PR.t("搜索")) + K("J K", PR.t("上下移动")) + K("Enter", PR.t("打开阅读")) + K("S", PR.t("星标")) + K("Ctrl+V", PR.t("粘贴链接直接导入")) + K("?", PR.t("这个帮助")) +
       "</table><h4>" + PR.t("导入") + "</h4><p class=\"hint\">" + PR.t("拖 PDF 进窗口；或填 arXiv 编号、DOI、论文标题、论文网页（arXiv、OpenReview、ACL、NeurIPS、bioRxiv、PMC、期刊页面）或 PDF 直链。找不到公开 PDF 的，下载后拖进来。长论文可以只译正文。") + "</p>" +

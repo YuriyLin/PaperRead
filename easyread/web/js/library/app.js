@@ -6,6 +6,12 @@
   PR.applyTheme(prefs.theme);
 
   PR.$("#importBtn").innerHTML = PR.icon("plus", "sm") + "<span>" + PR.t("导入论文") + "</span>";
+  const helpBtn = PR.$("#helpBtn");
+  if (helpBtn) {
+    helpBtn.innerHTML = PR.icon("question");
+    helpBtn.title = PR.t("帮助与快捷键（?）");
+    helpBtn.onclick = () => PR.openHelp();
+  }
   PR.$("#settingsBtn").innerHTML = PR.icon("settings");
   PR.$(".search .si").outerHTML = PR.icon("search");
   PR.$("#sort").value = L.sort;

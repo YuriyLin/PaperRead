@@ -288,8 +288,18 @@ body.resizing { cursor: col-resize; user-select: none; }
 .up-foot { align-items: center; }
 .up-foot .hint { margin: 0 auto 0 0; }
 .up-err { color: var(--danger, #c0392b); }
-.help-update { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; }
-.help-update .check { margin: 0; }
+.help-update { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 12px 0 16px; padding: 12px 16px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface-2); }
+.help-update .check { margin: 0; font-size: 13px; color: var(--ink-2); }
+.hu-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hu-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.hu-dot.new { background: #27ae60; }
+.hu-dot.fail { background: var(--danger, #c0392b); }
+.hu-dot.busy { background: var(--accent); opacity: .7; animation: pulse 1s infinite alternate; }
+.hu-text { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.hu-text b { font-size: 13.5px; color: var(--ink); }
+.hu-fail { color: var(--danger, #c0392b) !important; }
+#helpBtn.has-update { position: relative; }
+#helpBtn.has-update::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: #e0a84f; }
 @media (max-width: 760px) { .update-chip { display: inline-flex; } }
 .update-chip[hidden] { display: none !important; }
 
