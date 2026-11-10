@@ -15,7 +15,7 @@
   const imageDraft = PR.createChatImages(st, panel, render, () => focusInput());
   const imagesHtml = imageDraft.html;
   const fileDraft = PR.createChatDocuments(st, panel, render);
-  function resetAttachments() { resetAttachments(); fileDraft.reset(); }
+  function resetAttachments() { imageDraft.reset(); fileDraft.reset(); }
 
   PR.canChat = () => PR.store.mode === "server";
   /* 在线演示 / 离线版：带着对话记录时可以看，不能问 */

@@ -42,6 +42,7 @@ function render(blocks) {
     on() {},
     fitWide() {},
   };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/common/markup.js"), "utf8"), { window: { PR } });
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/render.js"), "utf8"), {
     window: { PR },
     document: {
