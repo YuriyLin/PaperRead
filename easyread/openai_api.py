@@ -21,7 +21,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Iterator
 
-from . import __version__, http, usage
+from . import __version__, api_diagnostics, http, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 
@@ -99,10 +99,11 @@ def _open(o: dict, body: dict, stream: bool):
     for _ in range(3):
         req = urllib.request.Request(_base(o) + path, data=json.dumps(body).encode(), headers=_headers(o, stream))
         try:
-            return http.urlopen(req, timeout=int(o.get("timeout") or 600))
+            return api_diagnostics.capture(http.urlopen(req, timeout=int(o.get("timeout") or 600)), o)
         except urllib.error.HTTPError as e:
             detail = e.read(300).decode("utf-8", "replace")
             e.close()
+            api_diagnostics.http_error(e, o, detail)
             drop = next((k for k in ("temperature", "stream_options") if k in detail and k in body), None)
             if e.code == 400 and drop:
                 body = {k: v for k, v in body.items() if k != drop}
@@ -117,7 +118,7 @@ def _http_error(e: urllib.error.HTTPError) -> EngineError:
 
 # ---------- 一次拿到整段（翻译用） ----------
 def complete(o: dict, prompt: str, images: list[Path], cancel=None, meter=None, json_mode: bool = False) -> str:
-    body = _body(o, prompt, images, False, None if kind(o) == "responses" else 0.2, json_mode)
+    body = _body(o, prompt, images, False, 0.2 if kind(o) == "chat" and o.get("preset") != "ollama" else None, json_mode)
     res = None
     attempts = max(1, min(4, int(o.get("request_attempts", 4))))
     for attempt in range(attempts):  # 限流、服务端错误、网络抖动：等一会儿再试
@@ -279,18 +280,24 @@ def _events(r, cancel) -> Iterator[dict | None]:
             if not (ev is _PARTIAL and is_data):  # 还不完整又来了 data 行：一条事件拆成了多行，接着攒
                 data.clear()
                 if ev is _DONE:
+                    api_diagnostics.observe(r, None)
                     yield None
                     return
                 if ev is not _EMPTY:
-                    yield _check_event(ev)
+                    item = _check_event(ev)
+                    api_diagnostics.observe(r, item)
+                    yield item
         if is_data:
             data.append(line.partition(":")[2].removeprefix(" "))
     if data:
         ev = _payload(data)
         if ev is _DONE:
+            api_diagnostics.observe(r, None)
             yield None
         elif ev is not _EMPTY:
-            yield _check_event(ev)
+            item = _check_event(ev)
+            api_diagnostics.observe(r, item)
+            yield item
 
 
 def _check_event(ev) -> dict:

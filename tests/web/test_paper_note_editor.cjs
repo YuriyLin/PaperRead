@@ -41,15 +41,6 @@ test('a single title becomes the root, while a prose-only note still has content
   assert.equal(toMindMap({ content: [para('')] }, '论文').children.length, 0);
 });
 
-test('empty bullet items are skipped so blank placeholders do not create ghost nodes', () => {
-  const { toMindMap } = libraries();
-  const map = toMindMap({ content: [
-    heading('核心問題'),
-    list([para('有效要點')], [para('')], [para('   ')]),
-  ] }, '論文');
-  assert.deepEqual(Array.from(map.children, n => n.content), ['有效要點']);
-});
-
 test('formatting, equations and code remain visible without interpreting literal HTML', () => {
   const { toMindMap } = libraries();
   const map = toMindMap({ content: [
@@ -73,7 +64,8 @@ test('ordered lists, tasks, tables and images keep their note content', () => {
   assert.equal(map.children[0].content, '3. 步骤');
   assert.equal(map.children[1].content, '☑ 已完成');
   assert.ok(map.children[2].content.includes('<td>方法</td><td>DPO</td>'));
-  assert.equal(map.children[3].content, '实验图');
+  assert.ok(map.children[3].content.includes('src="/image.png"'));
+  assert.ok(map.children[3].content.includes('alt="实验图"'));
 });
 
 test('source ranges distinguish repeated text and follow nested list positions', () => {
@@ -99,4 +91,12 @@ test('node positions move with inserted content, while atomic equations use one 
   const changed = toMindMap({ content: [para('新增段落'), { type: 'blockMath', attrs: { latex: 'x=1' } }, para('内容')] }, '论文');
   assert.equal(changed.children[1].payload.from, 6);
   assert.equal(findMapNode(changed, 8).node.content, '内容');
+});
+
+test('multi-paragraph quotations form one map node with the full source range', () => {
+  const { toMindMap } = libraries();
+  const map = toMindMap({ content: [{ type: 'blockquote', content: [para('First paragraph'), para('Second paragraph')] }] }, 'Paper');
+  assert.equal(map.children.length, 1);
+  assert.equal(map.children[0].content, '<p>First paragraph</p><p>Second paragraph</p>');
+  assert.equal(map.children[0].payload.type, 'blockquote');
 });

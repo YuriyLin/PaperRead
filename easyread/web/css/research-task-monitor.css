@@ -81,3 +81,110 @@
 @media (prefers-reduced-motion: reduce) {
   .pr-task-entry-dot.is-running,.pr-task-indicator.is-running { animation: none; }
 }
+
+.pr-task-details {
+  margin: 12px 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.pr-task-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pr-task-row:last-child {
+  margin-bottom: 0;
+}
+.pr-task-label {
+  color: var(--ink-2);
+  font-weight: 600;
+  min-width: 76px;
+  flex-shrink: 0;
+}
+.pr-task-val {
+  color: var(--ink);
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.pr-task-val.pr-status-completed { color: var(--ok, #16a34a); font-weight: 600; }
+.pr-task-val.pr-status-failed { color: var(--danger, #dc2626); font-weight: 600; }
+.pr-task-val.pr-status-partial { color: #d97706; font-weight: 600; }
+.pr-task-val.pr-status-running { color: var(--accent); font-weight: 600; }
+.pr-task-preserved-hint {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--rule);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.pr-task-entry-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.pr-task-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 8px;
+  padding-bottom: 4px;
+}
+.pr-task-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 600 12.5px/1.2 var(--ui);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.pr-task-tab:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.pr-task-tab.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.pr-task-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-3);
+}
+.pr-task-tab-dot.is-running {
+  background: var(--accent);
+  animation: pr-task-pulse 1.6s ease-in-out infinite;
+}
+.pr-task-tab-dot.is-completed {
+  background: var(--ok, #16a34a);
+}
+.pr-task-tab-dot.is-failed {
+  background: var(--danger, #dc2626);
+}
+.pr-task-tab-badge {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.85;
+  padding-left: 2px;
+}

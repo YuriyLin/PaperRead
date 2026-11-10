@@ -70,6 +70,7 @@ window.PR = window.PR || {};
 
   PR.esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  PR.escAttr = (s) => PR.esc(s).replace(/'/g, "&#39;");
 
   /* 和 Python store.text_hash 一致：FNV-1a 32 位，按 UTF-16 码元 */
   PR.hashText = function (s) {
@@ -208,6 +209,7 @@ window.PR = window.PR || {};
     link: "M8.5 11.5a3 3 0 0 0 4.2 0l2.6-2.6a3 3 0 0 0-4.2-4.2l-1 1M11.5 8.5a3 3 0 0 0-4.2 0l-2.6 2.6a3 3 0 0 0 4.2 4.2l1-1",
     sparkle: "M10 3v4M10 13v4M3 10h4M13 10h4M5.5 5.5l2 2M12.5 12.5l2 2M14.5 5.5l-2 2M7.5 12.5l-2 2",
     question: "M7.5 7.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8M10 14.5v.01M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
+    paperclip: "M17.9 9.2l-7.7 7.7a5 5 0 0 1-7.1-7.1l7.1-7.1a3.3 3.3 0 0 1 4.7 4.7l-7.2 7.1a1.7 1.7 0 0 1-2.4-2.4l7.1-7.1",
   };
   PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
   PR.logo = (cls) => '<img class="mark' + (cls ? " " + cls : "") + '" src="/web/paperread-mark.png" width="26" height="26" alt="">';

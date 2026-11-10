@@ -1,10 +1,9 @@
 """Technical deep audit / X-Ray analysis for library papers."""
 from __future__ import annotations
 
-import re
-import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from .. import chat_models, config, engines, usage
 from ..i18n import tr
@@ -12,6 +11,14 @@ from ..store import write_json_atomic
 from . import tasks, obsidian_export
 
 MAX_TEXT_CHARS = 48000
+
+
+def _safe_report(report, phase: str, done: int, total: int, message: str, **kwargs):
+    try:
+        report(phase, done, total, message, **kwargs)
+    except TypeError:
+        report(phase, done, total, message)
+
 
 AUDIT_PROMPT_SYSTEM = """你是一位具備頂尖同行評審（Senior Peer Reviewer / Area Chair）標準的學術技術審計員。
 你的任務是對以下論文進行客觀、深度、技術性的全面審查與剖析。
@@ -49,22 +56,82 @@ AUDIT_PROMPT_SYSTEM = """你是一位具備頂尖同行評審（Senior Peer Revi
 - 未解的核心挑戰與未來延伸方向。
 """
 
+BUCKET_KEYWORDS = {
+    "intro_bg": ("abstract", "introduction", "background", "related work", "overview", "motivation", "緒論", "引言", "背景", "相關工作", "概述"),
+    "method_formula": ("method", "approach", "architecture", "formulation", "model", "proposed", "framework", "方法", "架構", "模型", "演算法", "公式", "推導"),
+    "experiments_ablation": ("experiment", "result", "ablation", "benchmark", "evaluation", "setup", "baseline", "實驗", "結果", "消融", "評估", "基準"),
+    "limitations_conclusion": ("limitation", "discussion", "conclusion", "future work", "broader impact", "局限", "討論", "結論", "未來工作", "影響"),
+    "appendix": ("appendix", "supplement", "supplementary", "proof", "附錄", "補充資料", "證明"),
+}
 
-def extract_paper_text(ws, max_chars: int = MAX_TEXT_CHARS) -> tuple[dict, str]:
-    paper = ws.load("paper") or {}
-    meta = paper.get("meta") or {}
-    blocks = paper.get("blocks") or []
+
+def analyze_paper_sections(blocks: list[dict[str, Any]]) -> dict[str, Any]:
+    """Bucket paper blocks into semantic categories so long papers preserve later sections."""
+    buckets: dict[str, list[dict[str, Any]]] = {
+        "intro_bg": [],
+        "method_formula": [],
+        "experiments_ablation": [],
+        "limitations_conclusion": [],
+        "appendix": [],
+        "other": [],
+    }
+    current_bucket = "intro_bg"
+    found_sections = set()
+    max_page = 1
+
+    for block in blocks:
+        page = int(block.get("page") or 1)
+        if page > max_page:
+            max_page = page
+
+        kind = block.get("type") or "paragraph"
+        if kind == "references":
+            continue
+
+        if kind == "heading":
+            h_text = " ".join(str(block.get(k) or "").lower() for k in ("en", "zh", "num"))
+            matched = False
+            for bucket_name, kws in BUCKET_KEYWORDS.items():
+                if any(kw in h_text for kw in kws):
+                    current_bucket = bucket_name
+                    found_sections.add(bucket_name)
+                    matched = True
+                    break
+            if not matched:
+                current_bucket = "other"
+
+        buckets[current_bucket].append(block)
+
+    section_labels = {
+        "intro_bg": "摘要與引言",
+        "method_formula": "方法與公式",
+        "experiments_ablation": "實驗與消融",
+        "limitations_conclusion": "限制與討論",
+        "appendix": "附錄與補充",
+    }
+    covered = [section_labels[k] for k in ("intro_bg", "method_formula", "experiments_ablation", "limitations_conclusion") if k in found_sections]
+    uncovered = [section_labels[k] for k in ("intro_bg", "method_formula", "experiments_ablation", "limitations_conclusion") if k not in found_sections]
+    if "appendix" in found_sections:
+        covered.append(section_labels["appendix"])
+    else:
+        uncovered.append("附錄部分表格與補充")
+
+    if not covered:
+        covered = ["全文段落（無明確章節結構）"]
+
+    data_scope = f"全文 1–{max_page} 頁（涵蓋：{'、'.join(covered)}）"
+    return {
+        "covered_sections": covered,
+        "uncovered_sections": uncovered,
+        "data_scope": data_scope,
+        "max_page": max_page,
+        "buckets": buckets,
+    }
+
+
+def _format_blocks(blocks: list[dict[str, Any]], max_chars: int | None = None) -> str:
     lines = []
-
-    title = meta.get("title_zh") or meta.get("title_en") or ws.id
-    authors = meta.get("authors") or ""
-    abstract = meta.get("abstract") or ""
-    lines.append(f"論文標題：{title}")
-    if authors:
-        lines.append(f"作者：{authors}")
-    if abstract:
-        lines.append(f"摘要：\n{abstract}\n")
-
+    total = 0
     section = "未標示章節"
     for block in blocks:
         kind = block.get("type") or "paragraph"
@@ -83,12 +150,77 @@ def extract_paper_text(ws, max_chars: int = MAX_TEXT_CHARS) -> tuple[dict, str]:
             content.extend(" | ".join(map(str, row)) for row in (block.get("head") or []) + (block.get("rows") or []))
         val = "\n".join(p for p in content if p)
         if val:
-            lines.append(f"[{block.get('id') or '?'} p.{block.get('page') or '?'}] {val}")
+            entry = f"[{block.get('id') or '?'} p.{block.get('page') or '?'}] {val}"
+            lines.append(entry)
+            total += len(entry)
+            if max_chars is not None and total >= max_chars:
+                lines.append("...（本章節超過字數配額已節錄）...")
+                break
+    return "\n".join(lines)
 
-    full = "\n".join(lines)
-    if len(full) > max_chars:
-        full = full[:max_chars] + "\n\n...（正文超過字數上限已節錄）..."
-    return meta, full
+
+def extract_paper_text(ws, max_chars: int = MAX_TEXT_CHARS) -> tuple[dict, str]:
+    """Extract paper text. If total text fits within max_chars, include all blocks in order;
+    if it exceeds max_chars, allocate proportional budgets across sections to prevent losing later chapters."""
+    paper = ws.load("paper") or {}
+    meta = paper.get("meta") or {}
+    blocks = paper.get("blocks") or []
+
+    if not blocks:
+        return meta, ""
+
+    title = meta.get("title_zh") or meta.get("title_en") or ws.id
+    authors = meta.get("authors") or ""
+    abstract = meta.get("abstract") or ""
+    header_lines = [f"論文標題：{title}"]
+    if authors:
+        header_lines.append(f"作者：{authors}")
+    if abstract:
+        header_lines.append(f"摘要：\n{abstract}\n")
+    header_text = "\n".join(header_lines)
+
+    full_body = _format_blocks(blocks, max_chars=None)
+    full_untruncated = f"{header_text}\n{full_body}".strip()
+    if len(full_untruncated) <= max_chars:
+        return meta, full_untruncated
+
+    remaining_chars = max(1000, max_chars - len(header_text))
+    analysis = analyze_paper_sections(blocks)
+    buckets = analysis["buckets"]
+
+    budgets = {
+        "intro_bg": int(remaining_chars * 0.20),
+        "method_formula": int(remaining_chars * 0.35),
+        "experiments_ablation": int(remaining_chars * 0.35),
+        "limitations_conclusion": int(remaining_chars * 0.10),
+    }
+
+    bucket_texts = []
+    has_buckets = sum(1 for k in budgets if len(buckets.get(k) or []) > 0) >= 2
+    if has_buckets:
+        for k, budget in budgets.items():
+            b_blocks = buckets.get(k) or []
+            if b_blocks:
+                b_text = _format_blocks(b_blocks, budget)
+                if b_text.strip():
+                    bucket_texts.append(b_text)
+        if buckets.get("other"):
+            other_text = _format_blocks(buckets["other"], int(remaining_chars * 0.10))
+            if other_text.strip():
+                bucket_texts.append(other_text)
+        if buckets.get("appendix"):
+            app_text = _format_blocks(buckets["appendix"], int(remaining_chars * 0.08))
+            if app_text.strip():
+                bucket_texts.append(app_text)
+        body_text = "\n\n".join(bucket_texts)
+        return meta, f"{header_text}\n\n{body_text}"
+
+    # Fallback when paper has no recognizable section headings: keep head + middle + tail
+    head_budget = int(remaining_chars * 0.45)
+    tail_budget = remaining_chars - head_budget
+    head_part = full_body[:head_budget]
+    tail_part = full_body[-tail_budget:] if tail_budget > 0 else ""
+    return meta, f"{header_text}\n{head_part}\n\n...（中間段落因超過字數上限已節錄）...\n\n{tail_part}"
 
 
 def get_report(ws) -> dict | None:
@@ -145,14 +277,31 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
     if not ws:
         raise ValueError(tr("找不到指定的論文：{id}", id=pid))
     scope = tasks.scope_id(app.lib.root)
+    previous_report = get_report(ws)
 
     def run(cancel, report):
-        report("read", 1, 4, tr("正在讀取論文原文與章節結構…"))
+        paper = ws.load("paper") or {}
+        blocks = paper.get("blocks") or []
+        if not blocks:
+            raise ValueError(tr("論文尚未完成原文整理，無法進行深度剖析。"))
+
+        analysis = analyze_paper_sections(blocks)
+        data_scope = analysis["data_scope"]
+
+        _safe_report(report, "read", 1, 4, tr("正在讀取論文原文與章節結構…"),
+                     stage_label="讀取全文",
+                     data_scope=data_scope,
+                     preserved_previous=previous_report)
+
         meta, text = extract_paper_text(ws)
         if not text.strip():
             raise ValueError(tr("論文尚未完成原文整理，無法進行深度剖析。"))
 
-        report("audit", 2, 4, tr("正在進行深度技術審計與微型推導…"))
+        _safe_report(report, "audit", 2, 4, tr("正在進行深度技術審計與微型推導…"),
+                     stage_label="深度技術審計",
+                     data_scope=data_scope,
+                     preserved_previous=previous_report)
+
         cfg = config.load()
         model_cfg, selected = chat_models.engine_cfg(cfg, model or (cfg.get("chat") or {}).get("default"))
         meter = usage.Meter(model_cfg.get("engine", ""))
@@ -163,7 +312,11 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
 
         answer = engines.run(engines.for_translation(model_cfg), prompt, app.lib.root, [], cancel, meter).strip()
 
-        report("save", 3, 4, tr("正在儲存深度剖析報告…"))
+        _safe_report(report, "save", 3, 4, tr("正在儲存深度剖析報告…"),
+                     stage_label="生成剖析報告",
+                     data_scope=data_scope,
+                     preserved_previous=previous_report)
+
         now_iso = datetime.now(timezone.utc).isoformat()
         result_data = {
             "paper_id": ws.id,
@@ -176,11 +329,15 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
         }
         write_json_atomic(ws.root / "report.json", result_data)
 
-        report("done", 4, 4, tr("深度剖析報告已完成！"))
+        _safe_report(report, "done", 4, 4, tr("深度剖析報告已完成！"),
+                     stage_label="剖析完成",
+                     data_scope=data_scope,
+                     result_state="completed",
+                     next_actions=["view"])
         return {"paper_id": pid, "result": result_data}
 
     task = tasks.submit("deep-analysis", run, retry_failed=True, scope=scope,
-                        key=pid, paper_id=pid)
+                        key=pid, paper_id=pid, preserved_previous=previous_report)
     return task
 
 

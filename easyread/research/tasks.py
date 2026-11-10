@@ -62,12 +62,15 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
         _TASKS[identity] = task
         _CANCEL[identity] = cancel
 
-    def report(phase: str, done: int, total: int, message: str):
+    def report(phase: str, done: int, total: int, message: str, **kwargs):
         with _LOCK:
             if task["state"] in ("cancelling", "cancelled"):
                 return
             task.update(phase=phase, done=max(0, int(done or 0)), total=max(0, int(total or 0)),
-                        message=str(message or "")[:240], updated=time.time())
+                        message=str(message or "")[:240], updated=time.time(),
+                        **{k: v for k, v in kwargs.items() if k in (
+                            "stage_label", "data_scope", "result_state", "error_reason", "preserved_previous", "next_actions"
+                        )})
             snapshot = _public(task)
         _notify(on_update, snapshot)
 
@@ -80,17 +83,25 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
             result = runner(cancel, report)
             with _LOCK:
                 if cancel.is_set():
-                    task.update(state="cancelled", phase="cancelled", message=tr("工作已取消"))
+                    task.update(state="cancelled", phase="cancelled", result_state="cancelled", message=tr("工作已取消"))
                 else:
-                    task.update(state="completed", phase="completed", message=tr("工作完成"), result=result)
+                    task.update(state="completed", phase="completed", result_state="completed",
+                                stage_label=task.get("stage_label") or tr("工作完成"),
+                                message=tr("工作完成"), result=result,
+                                next_actions=["view"])
                 task["updated"] = time.time()
                 snapshot = _public(task)
             _notify(on_update, snapshot)
         except Exception as error:  # noqa: BLE001
             with _LOCK:
-                task.update(state="cancelled" if cancel.is_set() else "failed",
-                            phase="cancelled" if cancel.is_set() else "failed",
-                            message=tr("工作已取消") if cancel.is_set() else str(error)[:500], updated=time.time())
+                if cancel.is_set():
+                    task.update(state="cancelled", phase="cancelled", result_state="cancelled", message=tr("工作已取消"))
+                else:
+                    task.update(state="failed", phase="failed", result_state="failed",
+                                error_reason=str(error)[:500],
+                                message=str(error)[:500],
+                                next_actions=["retry", "settings"],
+                                updated=time.time())
                 snapshot = _public(task)
             _notify(on_update, snapshot)
         finally:
@@ -120,7 +131,7 @@ def register_external(identity: str, kind: str, *, scope: str = "", key: str = "
         return _public(task)
 
 
-def update_external(identity: str, *, state: str | None = None, phase: str | None = None, done: int | None = None, total: int | None = None, message: str | None = None, result: any = None) -> dict | None:
+def update_external(identity: str, *, state: str | None = None, phase: str | None = None, done: int | None = None, total: int | None = None, message: str | None = None, result: any = None, **kwargs) -> dict | None:
     with _LOCK:
         task = _TASKS.get(identity)
         if not task:
@@ -137,6 +148,9 @@ def update_external(identity: str, *, state: str | None = None, phase: str | Non
             task["message"] = str(message)[:240]
         if result is not None:
             task["result"] = result
+        for k in ("stage_label", "data_scope", "result_state", "error_reason", "preserved_previous", "next_actions"):
+            if k in kwargs and kwargs[k] is not None:
+                task[k] = kwargs[k]
         task["updated"] = time.time()
         return _public(task)
 

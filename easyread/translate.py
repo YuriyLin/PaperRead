@@ -9,7 +9,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import blank_pages, consistency, engines, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms
+from . import batch_repair, blank_pages, codeblocks, consistency, engines, footnotes, front_context, langs, netcheck, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, timing, xrefs
 from .checks import block_problems, tex_problems
 from .repair_guard import retains_content
 from .figures import normalize_figure, prepare_figures
@@ -73,15 +73,18 @@ def scope_pages(ws: Workspace, scope: str | None) -> list[int] | None:
 
 
 def _next_head(ws: Workspace, n: int, whole: bool = False) -> str:
-    """下一页开头的抽取文字。whole：整页都给（不能看图的引擎在分段交界处，续文可能排在表格、图注后面）。"""
-    p = ws.root / "extract" / f"page-{n:03d}.txt"
-    if not p.exists():
+    """下一页开头的抽取文字（粗体斜体、内部链接、脚注标记和正文一样标出）。whole：整页都给（不能看图的引擎在分段交界处，续文可能排在表格、图注后面）。"""
+    if not (ws.root / "extract" / f"page-{n:03d}.txt").exists():
         return ""
-    text = p.read_text(encoding="utf-8")
-    return text if whole else text[:1500]
+    text = prompts.page_text(ws, n)
+    if whole:
+        return text
+    head = text[:1500]
+    cut = re.search(r"\[[^\[\]\n]*(?:\]\([^)\n]*)?$", head)  # don't hand the model half a link
+    return head[:cut.start()] if cut else head
 
 
-def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
+def _normalize(data: dict, pages: list[int], taken: set[str], extract_dir=None) -> dict:
     """补页码、去掉和已有块撞车的 id、丢掉明显无效的块。"""
     if isinstance(data, list):
         data = {"blocks": data}
@@ -89,6 +92,7 @@ def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
     for b in data.get("blocks") or []:
         if not isinstance(b, dict) or not b.get("type"):
             continue
+        codeblocks.normalize(b)
         b.setdefault("page", pages[0])
         try:
             b["page"] = int(b["page"])
@@ -107,7 +111,15 @@ def _normalize(data: dict, pages: list[int], taken: set[str]) -> dict:
             for field in ("image_en", "image_zh", "box"):
                 b.pop(field, None)
         blocks.append(b)
+    if extract_dir:
+        codeblocks.restore_sql_lines(blocks, extract_dir)
     data["blocks"] = blocks
+    # 标题、作者和参考文献条目不按 Markdown 显示：模型照抄过去的内部链接、脚注标记去掉
+    for k, v in (data.get("meta") or {}).items():
+        data["meta"][k] = xrefs.plain(v)
+    for r in data.get("references") or []:
+        if isinstance(r, dict):
+            r["text"] = xrefs.plain(r.get("text"))
     return data
 
 
@@ -142,7 +154,8 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
         fill_zh(ws, {}, batch, set())
         return
     marked, ends = sentences.mark_items(blocks, items)  # 英文先按句插好 ‖，译文照着插，记句子对齐
-    text = engines.run(cfg, prompts_en.fill(ws, batch, marked), ws.root, None, cancel, meter, json_mode=True)
+    with timing.stage(meter, "translate"):
+        text = engines.run(cfg, prompts_en.fill(ws, batch, marked), ws.root, None, cancel, meter, json_mode=True)
     data = engines.parse_json(text)
     if not isinstance(data, dict) or not isinstance(data.get("zh"), dict):
         raise engines.EngineError(tr("模型输出的格式不对（缺 zh）"))
@@ -150,15 +163,17 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
     if problems:
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter, json_mode=True))
-            if (isinstance(fixed, dict) and isinstance(fixed.get("zh"), dict)
-                    and data["zh"].keys() <= fixed["zh"].keys()
-                    and retains_content(data, fixed)
-                    and len(_fill_problems(fixed["zh"])) < len(problems)):
-                data = fixed
+            with timing.stage(meter, "repair"):
+                data = batch_repair.repair(
+                    data,
+                    "zh",
+                    problems,
+                    lambda prompt: engines.run(cfg, prompt, ws.root, None, cancel, meter, json_mode=True),
+                    lambda d: _fill_problems(d.get("zh", {})),
+                )
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
-    with _merge_lock:
+    with timing.merge_lock(meter, _merge_lock):
         _unify_terms(ws, data, batch, {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in items.items()})
         missing = fill_zh(ws, data, batch, set(items), sentences.unmark_fill(data["zh"], ends))
         _save_checks(ws, data.get("checks"), batch)
@@ -179,27 +194,34 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
         prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
     else:
         prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_context.build(ws.root, batch[0]) if front else "")
-    text = engines.run(cfg, prompt, ws.root, images, cancel, meter, json_mode=True)
+    with timing.stage(meter, "translate"):
+        text = engines.run(cfg, prompt, ws.root, images, cancel, meter, json_mode=True)
     try:
         data = engines.parse_json(text)
     except engines.EngineError:
         (ws.root / "extract" / f"failed-{batch[0]:03d}.txt").write_text(text, encoding="utf-8")
         raise
-    data = _normalize(data, batch, _taken(ws, batch))
-    problems = _problems(data)
+    data = _normalize(data, batch, _taken(ws, batch), ws.root / "extract")
+    expected_notes = footnotes.expected(ws, data["blocks"])
+    problems = _problems(data) + footnotes.problems(data["blocks"], expected_notes, read)
     if problems:  # 给一次修的机会
         say(tr("第 {page} 页起有 {n} 处公式或格式问题，正在让模型修正", page=batch[0], n=len(problems)))
         try:
-            fixed = engines.parse_json(engines.run(cfg, prompts.repair(prompts.dump(data), problems, langs.of_paper(ws.load("paper").get("meta"))), ws.root, None, cancel, meter, json_mode=True))
-            fixed = _normalize(fixed, batch, _taken(ws, batch))
-            if fixed["blocks"] and retains_content(data, fixed) and len(_problems(fixed)) < len(problems):
-                data = fixed
+            with timing.stage(meter, "repair"):
+                data = batch_repair.repair(
+                    data,
+                    "blocks",
+                    problems,
+                    lambda prompt: engines.run(cfg, prompt, ws.root, None, cancel, meter, json_mode=True),
+                    lambda candidate: _problems(candidate) + footnotes.problems(candidate.get("blocks", []), expected_notes, read),
+                    normalize=lambda d: _normalize(d, batch, _taken(ws, batch), ws.root / "extract"),
+                )
         except engines.EngineError as e:
             journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
     if not data["blocks"] and not data.get("references"):  # 整页都是参考文献时只有 references，没有新块，也算译完
         raise engines.EngineError(tr("模型没有整理出任何内容") if read else tr("模型没有译出任何内容"))
-    with _merge_lock:
-        data = _normalize(data, batch, _taken(ws, batch))  # 并发时别的批可能刚占用了同名 id
+    with timing.merge_lock(meter, _merge_lock):
+        data = _normalize(data, batch, _taken(ws, batch), ws.root / "extract")  # 并发时别的批可能刚占用了同名 id
         missing = page_check.missing_pages(ws, batch, data)  # 有的页有内容、有的页整页漏了：漏的页不算译完
         keep = [n for n in batch if n not in missing]
         # Figures remain placeholders; inspect the source PDF instead of cropping.
@@ -277,7 +299,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
     if cancel.is_set():
         raise engines.Cancelled()
     if blank:
-        with _merge_lock:
+        with timing.merge_lock(meter, _merge_lock):
             merge_blocks(ws, {"blocks": []}, done=blank)
         pages = [n for n in pages if n not in blank]
     if not pages:

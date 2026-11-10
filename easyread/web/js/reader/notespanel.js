@@ -15,13 +15,19 @@
     else editing = null;
   };
 
-  PR.openPaperNotes = function () {
+  PR.finishPanelNote = function () {
     if (editing) stopEditing();
+  };
+
+  PR.openPaperNote = function () {
+    PR.finishPanelNote();
     tab = "paper";
     PR.ls && PR.ls.set && PR.ls.set("easyread-np-tab", "paper");
-    PR.toggleNotesPanel(true);
+    PR.openSide("notes");
     PR.renderNotesPanel();
   };
+
+  PR.openPaperNotes = PR.openPaperNote;
 
   function sectionOf(id) {
     let cur = null;
@@ -537,6 +543,7 @@
 
   async function waitSmartJob(job) {
     smartJob = job;
+    if (PR.researchTaskMonitor?.track) PR.researchTaskMonitor.track({ ...job, paper_id: PR.pid }, false);
     updateSmartNotesIndicator(true);
     PR.renderNotesPanel();
     let lastDone = job.done || 0;
@@ -545,6 +552,7 @@
         const found = (await PR.api("/api/jobs?pid=" + encodeURIComponent(PR.pid))).jobs.find((item) => item.id === job.id);
         if (!found) return;
         smartJob = found;
+        if (PR.researchTaskMonitor?.track) PR.researchTaskMonitor.track({ ...found, paper_id: PR.pid }, false);
         if ((found.done || 0) > lastDone) {
           lastDone = found.done;
           await PR.poll();

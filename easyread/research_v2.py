@@ -347,8 +347,10 @@ def _keyword_scan(app, keyword: dict, *, only_paper: str = "", cancel=None) -> d
         joined = "\n".join(en + "\n" + zh for _, en, zh in texts)
         content = sha256(("\0".join(sorted(needles)).casefold() + "\n" + joined).encode("utf-8")).hexdigest()
         report["scanned"] += 1
-        if planning_store.keyword_scan_state(root, keyword["id"], ws.id) == content:
-            report["matched"] += 1
+        prev_hash, prev_count = planning_store.keyword_scan_state(root, keyword["id"], ws.id)
+        if prev_hash == content:
+            if prev_count > 0:
+                report["matched"] += 1
             continue
         hits = []
         for block, en_raw, zh_raw in texts:
@@ -1808,7 +1810,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             planning_store.keyword_link(root, keyword["id"], pid, source="manual", anchor=str(body.get("anchor") or ""), page=body.get("page"), quote=str(body.get("quote") or ""))
         scan_now = bool(body.get("scan_now"))
         report = _keyword_scan(app, keyword) if scan_now else {"matched": 0, "no_text": [], "scanned": 0}
-        res = {"keyword": keyword, "scanned": report.get("scanned", report.get("matched", 0)), "no_text": report.get("no_text", [])}
+        res = {"keyword": keyword, "scanned": report.get("scanned", 0), "matched": report.get("matched", 0), "no_text": report.get("no_text", [])}
         if not scan_now:
             res["scan_needed"] = True
         return res
@@ -1816,7 +1818,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         keyword, changed = planning_store.keyword_update(root, str(body.get("keyword_id") or ""), body.get("name", ""), body.get("match_text", ""))
         scan_now = bool(body.get("scan_now"))
         report = _keyword_scan(app, keyword) if (scan_now or changed) else {"matched": 0, "no_text": [], "scanned": 0}
-        return {"keyword": keyword, "scanned": report.get("scanned", report.get("matched", 0)), "no_text": report.get("no_text", [])}
+        return {"keyword": keyword, "scanned": report.get("scanned", 0), "matched": report.get("matched", 0), "no_text": report.get("no_text", [])}
     if endpoint == "/keywords/exclude":
         keyword_id, paper_id = str(body.get("keyword_id") or ""), str(body.get("paper_id") or "")
         if not app.lib.ws(paper_id):
@@ -1845,10 +1847,12 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         def run(cancel, report):
             kw_list = [all_kw[keyword_id]] if keyword_id else list(all_kw.values())
             total_matched = 0
+            total_scanned = 0
             for kw in kw_list:
                 res = _keyword_scan(app, kw, cancel=cancel)
                 total_matched += res.get("matched", 0)
-            return {"matched": total_matched}
+                total_scanned += res.get("scanned", 0)
+            return {"matched": total_matched, "scanned": total_scanned}
         task = tasks.submit("keyword-scan", run, retry_failed=True, scope=tasks.scope_id(root))
         return {"task": task}
     if endpoint.startswith("/keywords/scan/tasks/") and endpoint.endswith("/cancel"):

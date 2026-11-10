@@ -40,11 +40,16 @@ class DataReadError(ValueError):
 
 
 def read_json(path: Path, default=None):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return default
+    for attempt in range(10):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return default
+        except PermissionError:  # Windows：另一個執行緒正用 write_json_atomic 替換這個檔案，稍等重試
+            if attempt == 9:
+                raise
+            time.sleep(0.02 * (attempt + 1))
 
 
 def write_json_atomic(path: Path, data) -> None:

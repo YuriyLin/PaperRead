@@ -4,28 +4,26 @@
   const panel = PR.$("#notespanel"), libraries = PR.noteLibraries;
   let rich = null, map = null, observer = null, richSource = "", formula = null, unmountToolbar = null;
   let mode = "rich", split = PR.ls.get("easyread-note-split", 58), firstMap = true;
-  let mapBody = null, selectingFromMap = false;
+  let mapBody = null, selectingFromMap = false, mapFolded = true;
+  const ICON_EXPAND_ALL = '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="2" fill="currentColor"/><circle cx="16" cy="4" r="1.5" fill="currentColor"/><circle cx="16" cy="10" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><path d="M6 10h4m0 0V4h4.5m-4.5 6v6h4.5m-4.5-6h4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_COLLAPSE_MAIN = '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="2" fill="currentColor"/><circle cx="12" cy="5" r="1.5" fill="currentColor"/><circle cx="12" cy="15" r="1.5" fill="currentColor"/><path d="M6 10h3a1 1 0 0 0 1-1V5h1m-1 5a1 1 0 0 1 1 1v4h1M17 5h-3m3 10h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  function setTreeFold(node, foldMainOnly) {
+    if (!node) return;
+    function walk(n, depth) {
+      const hasChildren = Array.isArray(n.children) && n.children.length > 0;
+      const shouldFold = foldMainOnly && depth >= 1 && hasChildren ? 1 : 0;
+      n.payload = { ...(n.payload || {}), fold: shouldFold };
+      if (hasChildren) n.children.forEach(c => walk(c, depth + 1));
+    }
+    walk(node, 0);
+  }
   let mapVisible = PR.ls.get("easyread-note-map-visible", true);
+  let expanded = false, layout = PR.ls.get("easyread-note-layout", "side"), focus = "both";
+  const wide = window.matchMedia("(min-width: 900px)");
+  const horizontal = () => expanded && layout === "side" && wide.matches;
   const workspace = () => panel.querySelector(".pn-workspace");
   const label = text => PR.esc(text);
-
-  const ICON_EXPAND_ALL =
-    '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true">' +
-    '<circle cx="4" cy="10" r="2" fill="currentColor"/>' +
-    '<circle cx="16" cy="4" r="1.5" fill="currentColor"/>' +
-    '<circle cx="16" cy="10" r="1.5" fill="currentColor"/>' +
-    '<circle cx="16" cy="16" r="1.5" fill="currentColor"/>' +
-    '<path d="M6 10h4m0 0V4h4.5m-4.5 6v6h4.5m-4.5-6h4.5"/>' +
-    '</svg>';
-
-  const ICON_COLLAPSE_MAIN =
-    '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true">' +
-    '<circle cx="4" cy="10" r="2" fill="currentColor"/>' +
-    '<circle cx="12" cy="5" r="1.5" fill="currentColor"/>' +
-    '<circle cx="12" cy="15" r="1.5" fill="currentColor"/>' +
-    '<path d="M6 10h3a1 1 0 0 0 1-1V5h1m-1 5a1 1 0 0 1 1 1v4h1"/>' +
-    '<path d="M17 5h-3m3 10h-3"/>' +
-    '</svg>';
 
   function setMode(next) {
     mode = next;
@@ -50,11 +48,46 @@
     workspace().querySelector(".pn-divider").setAttribute("aria-valuenow", String(Math.round(split)));
   }
 
+  function setLayout() {
+    const el = workspace();
+    if (!el) return;
+    panel.classList.toggle("pn-expanded", expanded);
+    el.classList.toggle("pn-side", horizontal());
+    el.classList.toggle("pn-map-only", expanded && focus === "map");
+    el.querySelector(".pn-writing").hidden = expanded && focus === "map";
+    const displayBar = panel.querySelector(".pn-display-bar");
+    const expandButton = panel.querySelector("[data-note-expand]");
+    displayBar.hidden = !expanded;
+    panel.querySelector(".pn-view-controls").hidden = !expanded;
+    (expanded ? displayBar : el.querySelector(".pn-writing > .pn-bar")).appendChild(expandButton);
+    const expandLabel = expanded ? PR.t("退出全屏") : PR.t("全屏工作区");
+    expandButton.setAttribute("aria-pressed", String(expanded));
+    expandButton.setAttribute("aria-label", expandLabel);
+    expandButton.title = expandLabel;
+    expandButton.querySelector("span").textContent = expandLabel;
+    expandButton.querySelector("span").hidden = !expanded;
+    panel.querySelectorAll("[data-note-layout]").forEach(button => {
+      button.classList.toggle("on", button.dataset.noteLayout === layout);
+      button.setAttribute("aria-pressed", String(button.dataset.noteLayout === layout));
+    });
+    panel.querySelectorAll("[data-note-focus]").forEach(button => {
+      button.classList.toggle("on", button.dataset.noteFocus === focus);
+      button.setAttribute("aria-pressed", String(button.dataset.noteFocus === focus));
+    });
+    const divider = el.querySelector(".pn-divider");
+    divider.setAttribute("aria-orientation", horizontal() ? "vertical" : "horizontal");
+    const hint = horizontal() ? PR.t("调整笔记与思维导图的宽度") : PR.t("调整笔记与思维导图的高度");
+    divider.setAttribute("aria-label", hint); divider.title = hint;
+    setMapVisible(mapVisible);
+  }
+  wide.addEventListener("change", setLayout);
+
   function setMapVisible(visible) {
     mapVisible = visible;
+    visible = expanded ? focus !== "note" : visible;
     const el = workspace(), button = el.querySelector("[data-note-map-toggle]");
     el.classList.toggle("pn-map-hidden", !visible);
-    el.querySelector(".pn-divider").hidden = !visible;
+    el.querySelector(".pn-divider").hidden = !visible || (expanded && focus === "map");
     el.querySelector(".pn-mindmap").hidden = !visible;
     button.setAttribute("aria-expanded", String(visible));
     button.setAttribute("aria-pressed", String(visible));
@@ -65,41 +98,8 @@
     if (visible && map) updateMap();
   }
 
-  function foldBranches(node, depth = 0) {
-    if (!node) return;
-    if (depth >= 1 && node.children && node.children.length > 0) {
-      node.payload = { ...(node.payload || {}), fold: 1 };
-    }
-    for (const child of node.children || []) {
-      foldBranches(child, depth + 1);
-    }
-  }
-
-  function setFoldAll(node, fold) {
-    if (!node) return;
-    if (node.children && node.children.length > 0) {
-      node.payload = { ...(node.payload || {}), fold: fold ? 1 : 0 };
-    }
-    for (const child of node.children || []) {
-      setFoldAll(child, fold);
-    }
-  }
-
-  function buildRootData(shouldFoldToMain = false) {
-    const body = PR.$("#paperNote")?.value || "";
-    const doc = body === richSource ? rich.getJSON() : rich.markdown.parse(body);
-    const meta = PR.state.paper.meta || {};
-    const root = libraries.toMindMap(doc, meta.short_zh || meta.title_zh || meta.title_en || PR.t("论文笔记"));
-    if (shouldFoldToMain) foldBranches(root, 0);
-    return {
-      body,
-      empty: !body.trim(),
-      root,
-    };
-  }
-
   async function revealSelection() {
-    if (!mapVisible || !map || !rich || !rich.isFocused || mode !== "rich" || selectingFromMap || PR.$("#paperNote").value !== mapBody) return;
+    if (workspace().querySelector(".pn-mindmap").hidden || !map || !rich || rich.view.composing || !rich.isFocused || mode !== "rich" || selectingFromMap || PR.$("#paperNote").value !== mapBody) return;
     const current = map, match = libraries.findMapNode(current.state.data, rich.state.selection.from);
     if (!match) return;
     for (const ancestor of match.ancestors) if (ancestor.payload?.fold) await current.toggleNode(ancestor);
@@ -108,32 +108,30 @@
     if (current === map) await current.ensureVisible(match.node);
   }
 
-  async function updateMap(forceFoldToMain = false) {
-    if (!mapVisible || !rich || !map) return;
-    const current = map;
-    const isFirst = firstMap;
-    const { body, empty, root } = buildRootData(forceFoldToMain || isFirst);
-    const emptyHint = workspace()?.querySelector(".pn-map-empty");
-    if (emptyHint) emptyHint.hidden = !empty;
+  async function updateMap() {
+    if (!rich || !map || workspace().querySelector(".pn-mindmap").hidden || rich.view.composing) return;
+    const body = PR.$("#paperNote").value, current = map;
+    const doc = body === richSource ? rich.getJSON() : rich.markdown.parse(body);
+    const meta = PR.state.paper.meta || {};
+    const root = libraries.toMindMap(doc, meta.short_zh || meta.title_zh || meta.title_en || PR.t("论文笔记"));
+    setTreeFold(root, mapFolded);
+    const empty = !body.trim();
+    workspace().querySelector(".pn-map-empty").hidden = !empty;
     await current.setData(root);
-    if (current !== map || !mapVisible) return;
+    if (current !== map || workspace().querySelector(".pn-mindmap").hidden) return;
     mapBody = body;
-    if (isFirst && !empty) {
-      firstMap = false;
-      setTimeout(() => current.fit(1.0), 40);
-    }
+    if (firstMap && !empty) { firstMap = false; await current.fit(); }
     if (empty) firstMap = true;
     if (rich.isFocused) revealSelection();
   }
   const updateSoon = PR.debounce(updateMap, 120);
 
-  async function exportMap(targetMap = map, bgContainer = null) {
+  async function exportMap() {
     updateSoon.cancel();
-    if (targetMap === map) await updateMap();
-    if (!targetMap) return;
+    await updateMap();
     await document.fonts.ready;
-    const svg = targetMap.svg.node(), copy = svg.cloneNode(true), fonts = new Set();
-    const properties = "color display font-family font-size font-style font-weight line-height letter-spacing text-align text-decoration white-space vertical-align position top right bottom left width height min-width max-width box-sizing margin-top margin-right margin-bottom margin-left padding-top padding-right padding-bottom padding-left border-top border-right border-bottom border-left border-radius background-color fill fill-opacity stroke stroke-width stroke-opacity stroke-dasharray stroke-linecap stroke-linejoin opacity overflow".split(" ");
+    const svg = map.svg.node(), copy = svg.cloneNode(true), fonts = new Set();
+    const properties = "color display font-family font-size font-style font-weight line-height letter-spacing text-align text-decoration white-space vertical-align position top right bottom left width height min-width max-width box-sizing margin-top margin-right margin-bottom margin-left padding-top padding-right padding-bottom padding-left border-top border-right border-bottom border-left border-radius background-color fill fill-opacity stroke stroke-width stroke-opacity stroke-dasharray stroke-linecap stroke-linejoin opacity overflow object-fit object-position".split(" ");
     const originals = [svg, ...svg.querySelectorAll("*")], copies = [copy, ...copy.querySelectorAll("*")];
     originals.forEach((node, i) => {
       const style = getComputedStyle(node), target = copies[i];
@@ -159,7 +157,7 @@
     copy.querySelectorAll("style, .markmap-highlight").forEach(node => node.remove());
     const ns = "http://www.w3.org/2000/svg", group = copy.querySelector("g");
     group.removeAttribute("transform");
-    const bounds = targetMap.g.node().getBBox(), padding = 20;
+    const bounds = map.g.node().getBBox(), padding = 20;
     const width = Math.ceil(bounds.width + padding * 2), height = Math.ceil(bounds.height + padding * 2);
     const x = bounds.x - padding, y = bounds.y - padding;
     copy.setAttribute("xmlns", ns);
@@ -169,114 +167,27 @@
     if (fontRules.length) {
       const style = document.createElementNS(ns, "style"); style.textContent = fontRules.join("\n"); copy.prepend(style);
     }
-    const hostEl = bgContainer || workspace()?.querySelector(".pn-mindmap") || document.body;
     const background = document.createElementNS(ns, "rect");
-    for (const [key, value] of Object.entries({ x, y, width, height, fill: getComputedStyle(hostEl).backgroundColor })) background.setAttribute(key, value);
+    for (const [key, value] of Object.entries({ x, y, width, height, fill: getComputedStyle(workspace().querySelector(".pn-mindmap")).backgroundColor })) background.setAttribute(key, value);
     copy.insertBefore(background, group);
-    const meta = PR.state.paper.meta || {}, stem = (meta.short_zh || meta.title_zh || meta.title_en || PR.t("论文笔记")).replace(/[\\/:*?"<>|]/g, "");
+    const meta = PR.state.paper.meta || {}, stem = (meta.title_zh || meta.title_en || meta.short_zh || PR.t("论文笔记")).replace(/[\\/:*?"<>|]/g, "");
     const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(copy)], { type: "image/svg+xml;charset=utf-8" }));
-    const link = PR.el("a", { href: url, download: stem + PR.t("-思维导图.svg") });
+    const link = PR.el("a", { href: url, download: stem + ".svg" });
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  function selectNote(node, targetMap = map) {
+  function selectNote(node) {
     const range = node.payload;
     if (range?.from == null) return;
     selectingFromMap = true;
+    if (expanded && focus === "map") { focus = "both"; setLayout(); }
     setMode("rich");
     const source = rich.state.doc.nodeAt(range.from);
     if (source?.isAtom || source?.type.name === "table") rich.chain().focus().setNodeSelection(range.from).scrollIntoView().run();
     else rich.chain().focus().setTextSelection({ from: range.from + 1, to: range.to - 1 }).scrollIntoView().run();
     selectingFromMap = false;
-    targetMap?.setHighlight(node);
-    if (targetMap !== map && map) map.setHighlight(node);
-  }
-
-  async function openMapModal() {
-    if (!rich) return;
-    const backdrop = PR.$("#mindmapDlg");
-    const dialog = backdrop?.querySelector(".dialog");
-    if (!backdrop || !dialog) return;
-    const { empty, root } = buildRootData(true);
-    const meta = PR.state.paper.meta || {};
-    const title = meta.title_zh || meta.title_en || PR.t("论文笔记");
-    const titleDisp = PR.titleHtml ? PR.titleHtml(title) : PR.esc(title);
-    const isDark = () => document.documentElement.dataset.theme === "dark";
-
-    dialog.innerHTML =
-      '<div class="mm-modal-head">' +
-        '<div class="mm-modal-title"><b>' + PR.t("论文笔记") + ' · Markmap</b><span class="mm-modal-sub">' + titleDisp + '</span></div>' +
-        '<div class="mm-modal-actions">' +
-          '<button type="button" class="btn icon sm" data-mm-note="expand-all" title="' + PR.t("全部展開") + '" aria-label="' + PR.t("全部展開") + '">' + ICON_EXPAND_ALL + '</button>' +
-          '<button type="button" class="btn icon sm" data-mm-note="collapse-main" title="' + PR.t("收合至主分支") + '" aria-label="' + PR.t("收合至主分支") + '">' + ICON_COLLAPSE_MAIN + '</button>' +
-          '<button type="button" class="btn sm line" data-mm-note="export" title="' + label(PR.t("导出 SVG")) + '">' + PR.t("导出") + '</button>' +
-          '<button type="button" class="btn sm line" data-mm-note="fit">' + PR.t("适合窗口") + '</button>' +
-          '<button type="button" class="btn icon sm" data-mm-note="out" aria-label="' + label(PR.t("缩小思维导图")) + '">−</button>' +
-          '<button type="button" class="btn icon sm" data-mm-note="in" aria-label="' + label(PR.t("放大思维导图")) + '">+</button>' +
-          '<button type="button" class="btn icon sm theme-btn" data-mm-note="theme" title="' + (isDark() ? PR.t("换成浅色") : PR.t("换成深色")) + '">' +
-            (PR.icon ? PR.icon(isDark() ? "sun" : "moon", "sm") : "") +
-          '</button>' +
-          '<button type="button" class="btn icon sm" data-mm-note="close" title="' + label(PR.t("关闭")) + '" aria-label="' + label(PR.t("关闭")) + '">×</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="mm-modal-body pn-modal-map" id="mmModalStage">' +
-        '<svg class="pn-map-svg markmap" role="img" tabindex="0" aria-label="' + label(PR.t("思维导图：拖动平移、滚轮缩放，点击圆点展开或收起")) + '"></svg>' +
-        '<p class="pn-map-empty"' + (empty ? "" : " hidden") + '>' + PR.t("写下笔记，思维导图会自动出现在这里。") + '</p>' +
-      '</div>';
-
-    backdrop.classList.add("open");
-    const stage = dialog.querySelector("#mmModalStage");
-    const svgEl = stage.querySelector("svg");
-    const modalMap = libraries.Markmap.create(svgEl, { duration: 150, maxWidth: 280, paddingX: 14, spacingVertical: 10, maxInitialScale: 1.0 });
-    await modalMap.setData(JSON.parse(JSON.stringify(root)));
-    if (!empty) setTimeout(() => modalMap.fit(1.0), 40);
-    const modalObserver = new ResizeObserver(() => { if (!empty) modalMap.fit(1.0); });
-    modalObserver.observe(stage);
-
-    const close = () => {
-      backdrop.classList.remove("open");
-      modalObserver.disconnect();
-      modalMap.destroy();
-      dialog.innerHTML = "";
-      document.removeEventListener("keydown", onKeyDown);
-    };
-    const onKeyDown = e => { if (e.key === "Escape") close(); };
-    document.addEventListener("keydown", onKeyDown);
-
-    backdrop.onclick = async e => {
-      if (e.target === backdrop || e.target.closest('[data-mm-note="close"]')) { close(); return; }
-      const act = e.target.closest("[data-mm-note]")?.dataset.mmNote;
-      if (act === "fit") { modalMap.fit(1.0); return; }
-      if (act === "in" || act === "out") { modalMap.rescale(act === "in" ? 1.25 : 0.8); return; }
-      if (act === "export") { exportMap(modalMap, stage); return; }
-      if (act === "expand-all") {
-        setFoldAll(modalMap.state.data, 0);
-        await modalMap.renderData();
-        modalMap.fit(1.0);
-        return;
-      }
-      if (act === "collapse-main") {
-        foldBranches(modalMap.state.data, 0);
-        await modalMap.renderData();
-        modalMap.fit(1.0);
-        return;
-      }
-      if (act === "theme") {
-        if (typeof PR.toggleTheme === "function") PR.toggleTheme();
-        else document.documentElement.dataset.theme = isDark() ? "light" : "dark";
-        const btn = dialog.querySelector('[data-mm-note="theme"]');
-        if (btn && PR.icon) {
-          btn.innerHTML = PR.icon(isDark() ? "sun" : "moon", "sm");
-          btn.title = isDark() ? PR.t("换成浅色") : PR.t("换成深色");
-        }
-        return;
-      }
-      const node = e.target.closest(".markmap-node");
-      if (node && !e.target.closest("circle")) {
-        selectNote(modalMap.svg.select(() => node).datum(), modalMap);
-      }
-    };
+    map.setHighlight(node);
   }
 
   function openFormula(latex = "", pos = null, display = false) {
@@ -292,52 +203,82 @@
   PR.paperNoteEditor = {
     html(body) {
       const modes = [["rich", PR.t("预览")], ["source", "Markdown"]];
-      return '<div class="pn-workspace"><section class="pn-writing" aria-label="' + label(PR.t("论文笔记编辑器")) + '">' +
+      return '<div class="pn-display-bar"><div class="pn-view-controls" hidden><div class="seg" role="group" aria-label="' + label(PR.t("工作区布局")) + '">' + [["side", PR.t("左右")], ["stack", PR.t("上下")]].map(([key, text]) => '<button data-note-layout="' + key + '">' + text + '</button>').join("") + '</div><div class="seg" role="group" aria-label="' + label(PR.t("显示内容")) + '">' + [["both", PR.t("笔记与导图")], ["note", PR.t("仅笔记")], ["map", PR.t("仅导图")]].map(([key, text]) => '<button data-note-focus="' + key + '">' + text + '</button>').join("") + '</div></div><button class="btn sm" data-note-expand aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span>' + PR.t("全屏工作区") + '</span></button></div><div class="pn-workspace"><section class="pn-writing" aria-label="' + label(PR.t("论文笔记编辑器")) + '">' +
         '<div class="pn-bar"><div class="seg" role="group" aria-label="' + label(PR.t("笔记显示方式")) + '">' + modes.map(([key, text]) => '<button data-note-mode="' + key + '">' + text + '</button>').join("") + '</div><span class="grow"></span><button class="btn sm" data-note-map-toggle aria-controls="pnMindmap">Markmap</button></div>' +
         '<div class="pn-format"></div>' +
         '<form class="pn-formula" hidden><input class="input" data-note-latex aria-label="' + label(PR.t("LaTeX 公式")) + '" placeholder="E = mc^2"><label><input type="checkbox" data-note-display> ' + PR.t("独立公式") + '</label><button class="btn sm accent" type="submit">' + PR.t("应用") + '</button><button class="btn sm" type="button" data-note-math-cancel>' + PR.t("取消") + '</button></form>' +
-        '<div class="pn-content"><div class="pn-rich-pane" spellcheck="false"><div class="pn-rich" spellcheck="false"></div></div><div class="pn-source" hidden><textarea id="paperNote" spellcheck="false" aria-label="' + label(PR.t("论文笔记 Markdown")) + '">' + PR.esc(body) + '</textarea></div></div></section>' +
+        '<div class="pn-content"><div class="pn-rich-pane"><div class="pn-rich"></div></div><div class="pn-source" hidden><textarea id="paperNote" spellcheck="false" aria-label="' + label(PR.t("论文笔记 Markdown")) + '">' + PR.esc(body) + '</textarea></div></div></section>' +
         '<div class="pn-divider" role="separator" tabindex="0" aria-label="' + label(PR.t("调整笔记与思维导图的高度")) + '" aria-orientation="horizontal" aria-valuemin="25" aria-valuemax="80" aria-controls="pnMindmap" title="' + label(PR.t("拖动调整高度，方向键微调，双击恢复")) + '"></div>' +
-        '<section id="pnMindmap" class="pn-mindmap" aria-label="' + label(PR.t("思维导图")) + '"><div class="pn-bar"><b>Markmap</b><span class="pn-sync">' + PR.t("随笔记同步") + '</span><span class="grow"></span>' +
-        '<button type="button" class="btn icon sm" data-note-map-act="expand-all" title="' + PR.t("全部展開") + '" aria-label="' + PR.t("全部展開") + '">' + ICON_EXPAND_ALL + '</button>' +
-        '<button type="button" class="btn icon sm" data-note-map-act="collapse-main" title="' + PR.t("收合至主分支") + '" aria-label="' + PR.t("收合至主分支") + '">' + ICON_COLLAPSE_MAIN + '</button>' +
-        '<button class="btn sm" data-note-map-modal title="' + label(PR.t("詳細檢視")) + '">' + PR.t("詳細檢視") + '</button><button class="btn sm" data-note-map-export title="' + label(PR.t("导出 SVG")) + '">' + PR.t("导出") + '</button><button class="btn sm" data-note-zoom="fit">' + PR.t("适合窗口") + '</button><button class="btn sm" data-note-zoom="out" aria-label="' + label(PR.t("缩小思维导图")) + '">−</button><button class="btn sm" data-note-zoom="in" aria-label="' + label(PR.t("放大思维导图")) + '">+</button></div>' +
+        '<section id="pnMindmap" class="pn-mindmap" aria-label="' + label(PR.t("思维导图")) + '"><div class="pn-bar"><b>Markmap</b><span class="grow"></span><button class="btn sm" popovertarget="pnExportMenu">' + PR.t("导出") + ' ▾</button><div id="pnExportMenu" class="pn-export-menu" popover><button class="btn sm" data-note-xmind>XMind (.xmind)</button><button class="btn sm" data-note-map-export>SVG (.svg)</button></div><button class="btn icon sm" type="button" data-note-fold="expand" title="' + label(PR.t("全部展開")) + '" aria-label="' + label(PR.t("全部展開")) + '">' + ICON_EXPAND_ALL + '</button><button class="btn icon sm" type="button" data-note-fold="collapse" title="' + label(PR.t("收合至主分支")) + '" aria-label="' + label(PR.t("收合至主分支")) + '">' + ICON_COLLAPSE_MAIN + '</button><button class="btn sm" data-note-zoom="fit">' + PR.t("适合窗口") + '</button><button class="btn sm" data-note-zoom="out" aria-label="' + label(PR.t("缩小思维导图")) + '">−</button><button class="btn sm" data-note-zoom="in" aria-label="' + label(PR.t("放大思维导图")) + '">+</button></div>' +
         '<div class="pn-map"><svg class="pn-map-svg" role="img" tabindex="0" aria-label="' + label(PR.t("思维导图：拖动平移、滚轮缩放，点击圆点展开或收起")) + '"></svg><p class="pn-map-empty">' + PR.t("写下笔记，思维导图会自动出现在这里。") + '</p></div></section></div>';
     },
     mount(body) {
-      richSource = body; firstMap = true; mapBody = null;
+      richSource = body; firstMap = true; mapBody = null; mapFolded = true;
+      workspace().style.setProperty("--note-zoom", PR.ls.get("easyread-note-zoom", 100) / 100);
       rich = libraries.createEditor({
         element: workspace().querySelector(".pn-rich"), content: body,
         onChange(text) {
           richSource = text;
-          const ta = PR.$("#paperNote");
-          if (ta) {
-            ta.value = text;
-            ta.dispatchEvent(new Event("input", { bubbles: true }));
-          }
-          updateSoon();
+          const ta = PR.$("#paperNote"); ta.value = text;
+          ta.dispatchEvent(new Event("input", { bubbles: true }));
         },
         onSelection: revealSelection,
         onMathClick: (node, pos, display) => openFormula(node.attrs.latex, pos, display),
       });
       unmountToolbar = libraries.mountNoteToolbar(workspace().querySelector(".pn-format"), rich, () => openFormula());
-      workspace().querySelectorAll(".pn-rich, .pn-rich-pane, .pn-prose, .ProseMirror, [contenteditable]").forEach(node => {
-        node.setAttribute("spellcheck", "false");
-        node.setAttribute("autocapitalize", "off");
-        node.setAttribute("autocorrect", "off");
-      });
-      const mapSvg = workspace().querySelector(".pn-map-svg");
-      map = libraries.Markmap.create(mapSvg, { duration: 150, maxWidth: 220, paddingX: 10, spacingVertical: 8, maxInitialScale: 1.0 });
-      setMode(mode); setSplit(split); setMapVisible(mapVisible);
-      updateMap(true);
-      observer = new ResizeObserver(() => { if (mapVisible && map && !firstMap) map.fit(1.0); });
+      map = libraries.Markmap.create(workspace().querySelector(".pn-map-svg"), { duration: 0, maxWidth: 220, paddingX: 10, spacingVertical: 8 });
+      setMode(mode); setSplit(split); setLayout();
+      observer = new ResizeObserver(() => { if (!workspace().querySelector(".pn-mindmap").hidden && map && !firstMap) map.fit(); });
       observer.observe(workspace().querySelector(".pn-map"));
     },
     destroy() {
+      expanded = false; panel.classList.remove("pn-expanded");
       updateSoon.cancel(); observer?.disconnect(); observer = null;
       if (unmountToolbar) { unmountToolbar(); unmountToolbar = null; }
       if (map) { map.destroy(); map = null; }
       if (rich) { rich.destroy(); rich = null; }
+    },
+    insertSources(parts) {
+      setMode("rich");
+      const paragraphs = [];
+      for (const part of parts) {
+        const block = PR.blockById[part.anchor];
+        if (!block) continue;
+        const title = PR.t("第 {page} 页", { page: block.page || 1 });
+        paragraphs.push({ type: "paragraph", content: [
+          { type: "text", text: part.quote + " " },
+          { type: "text", text: title, marks: [{ type: "link", attrs: { href: "#b-" + part.anchor } }] },
+        ] });
+      }
+      if (!paragraphs.length) return;
+      const content = [{ type: "blockquote", content: paragraphs }, { type: "paragraph" }];
+      const { $from } = rich.state.selection;
+      let position = $from.pos;
+      for (let depth = 1; depth <= $from.depth; depth++) {
+        if ($from.node(depth).type.name === "blockquote") { position = $from.after(depth); break; }
+      }
+      rich.chain().focus().insertContentAt(position, content).scrollIntoView().run();
+      PR.finishPanelNote();
+    },
+    revealSource(anchor, index = 0) {
+      expanded = false; setLayout(); setMode("rich");
+      const ranges = [];
+      rich.state.doc.descendants((node, pos) => {
+        if (!node.isText || !node.marks.some(mark => mark.type.name === "link" && mark.attrs.href === "#b-" + anchor)) return;
+        const last = ranges[ranges.length - 1];
+        if (last && last.to === pos) last.to += node.nodeSize;
+        else ranges.push({ from: pos, to: pos + node.nodeSize });
+      });
+      if (!ranges.length) return;
+      rich.chain().focus().setTextSelection(ranges[index % ranges.length]).scrollIntoView().run();
+    },
+    isExpanded: () => expanded,
+    collapse() {
+      if (!expanded) return false;
+      expanded = false;
+      setLayout();
+      panel.querySelector("[data-note-expand]")?.focus();
+      return true;
     },
     getBody: () => rich ? PR.$("#paperNote").value : null,
     update: updateSoon,
@@ -356,26 +297,40 @@
     else chain.insertInlineMath({ latex });
     chain.run(); e.target.hidden = true;
   });
-  panel.addEventListener("click", async e => {
-    if (e.target.closest("[data-note-map-modal]")) { openMapModal(); return; }
-    if (e.target.closest("[data-note-map-export]")) { exportMap(); return; }
-    const actBtn = e.target.closest("[data-note-map-act]");
-    if (actBtn && map) {
-      const act = actBtn.dataset.noteMapAct;
-      if (act === "expand-all") {
-        setFoldAll(map.state.data, 0);
-        await map.renderData();
-        map.fit(1.0);
-        return;
-      }
-      if (act === "collapse-main") {
-        foldBranches(map.state.data, 0);
-        await map.renderData();
-        map.fit(1.0);
-        return;
-      }
+  panel.addEventListener("click", e => {
+    const exportButton = e.target.closest('[popovertarget="pnExportMenu"]');
+    if (exportButton) {
+      const rect = exportButton.getBoundingClientRect(), menu = panel.querySelector("#pnExportMenu");
+      menu.style.top = rect.bottom + 4 + "px";
+      menu.style.left = Math.max(8, rect.right - 150) + "px";
     }
+    const source = e.target.closest('a[href^="#b-"]');
+    if (source) {
+      const id = source.getAttribute("href").slice(3);
+      if (!PR.blockById[id]) return;
+      e.preventDefault(); e.stopPropagation();
+      expanded = false; setLayout();
+      PR.$$("#paper .pn-source-highlight").forEach(el => el.classList.remove("pn-source-highlight"));
+      for (const anchor of (source.dataset.noteSources || id).split(" ")) document.getElementById("b-" + anchor)?.classList.add("pn-source-highlight");
+      PR.jumpTo("b-" + id, { instant: true });
+      return;
+    }
+    if (e.target.closest("[data-note-expand]")) { expanded = !expanded; setLayout(); return; }
+    const layoutButton = e.target.closest("[data-note-layout]");
+    if (layoutButton) { layout = layoutButton.dataset.noteLayout; PR.ls.set("easyread-note-layout", layout); setLayout(); return; }
+    const focusButton = e.target.closest("[data-note-focus]");
+    if (focusButton) { focus = focusButton.dataset.noteFocus; setLayout(); return; }
+    if (e.target.closest("[data-note-xmind], [data-note-map-export]")) panel.querySelector("#pnExportMenu").hidePopover();
+    if (e.target.closest("[data-note-xmind]")) {
+      const body = PR.$("#paperNote").value;
+      const doc = body === richSource ? rich.getJSON() : rich.markdown.parse(body);
+      const meta = PR.state.paper.meta || {};
+      const title = meta.title_zh || meta.title_en || meta.short_zh || PR.t("论文笔记");
+      libraries.exportXmind(libraries.toMindMap(doc, title), title.replace(/[\\/:*?"<>|]/g, "")); return;
+    }
+    if (e.target.closest("[data-note-map-export]")) { exportMap(); return; }
     if (e.target.closest("[data-note-map-toggle]")) {
+      if (expanded) { focus = focus === "note" ? "both" : "note"; setLayout(); return; }
       setMapVisible(!mapVisible);
       PR.ls.set("easyread-note-map-visible", mapVisible);
       return;
@@ -386,22 +341,52 @@
     if (node && !e.target.closest("circle")) { selectNote(map.svg.select(() => node).datum()); return; }
     const modeButton = e.target.closest("[data-note-mode]");
     if (modeButton) { setMode(modeButton.dataset.noteMode); return; }
+    const foldButton = e.target.closest("[data-note-fold]");
+    if (foldButton && map && map.state?.data) {
+      mapFolded = foldButton.dataset.noteFold === "collapse";
+      setTreeFold(map.state.data, mapFolded);
+      map.renderData().then(() => map.fit());
+      return;
+    }
     const zoomButton = e.target.closest("[data-note-zoom]");
     if (zoomButton && map) {
-      if (zoomButton.dataset.noteZoom === "fit") map.fit(1.0);
+      if (zoomButton.dataset.noteZoom === "fit") map.fit();
       else map.rescale(zoomButton.dataset.noteZoom === "in" ? 1.25 : 0.8);
     }
   });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape" || !expanded || !panel.classList.contains("pn-expanded") || e.isComposing) return;
+    const formulaForm = workspace()?.querySelector(".pn-formula");
+    if (formulaForm && !formulaForm.hidden) {
+      e.preventDefault(); e.stopPropagation();
+      formulaForm.hidden = true;
+      rich?.commands.focus();
+      return;
+    }
+    const exportMenu = panel.querySelector("#pnExportMenu");
+    if (exportMenu?.matches?.(":popover-open")) {
+      exportMenu.hidePopover();
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    expanded = false; setLayout();
+    panel.querySelector("[data-note-expand]")?.focus();
+  }, true);
   panel.addEventListener("keydown", e => {
+    if (e.key === "Escape" && expanded && !e.isComposing && !e.defaultPrevented) {
+      e.preventDefault(); e.stopPropagation(); expanded = false; setLayout();
+      panel.querySelector("[data-note-expand]")?.focus(); return;
+    }
     if (e.target.matches(".pn-map-svg")) {
       if (["+", "=", "-", "0"].includes(e.key) && map) {
         e.preventDefault(); e.stopPropagation();
-        if (e.key === "0") map.fit(1.0); else map.rescale(e.key === "-" ? 0.8 : 1.25);
+        if (e.key === "0") map.fit(); else map.rescale(e.key === "-" ? 0.8 : 1.25);
       }
       return;
     }
     if (!e.target.matches(".pn-divider")) return;
-    const next = { ArrowUp: split - 5, ArrowDown: split + 5, Home: 25, End: 80 }[e.key];
+    const next = { [horizontal() ? "ArrowLeft" : "ArrowUp"]: split - 5, [horizontal() ? "ArrowRight" : "ArrowDown"]: split + 5, Home: 25, End: 80 }[e.key];
     if (next == null) return;
     e.preventDefault(); e.stopPropagation(); setSplit(next); PR.ls.set("easyread-note-split", split);
   });
@@ -411,7 +396,7 @@
     e.preventDefault();
     const grip = e.target, el = workspace(), rect = el.getBoundingClientRect();
     grip.focus(); grip.setPointerCapture(e.pointerId); el.classList.add("pn-resizing");
-    const move = ev => setSplit((ev.clientY - rect.top) / rect.height * 100);
+    const move = ev => setSplit(horizontal() ? (ev.clientX - rect.left) / rect.width * 100 : (ev.clientY - rect.top) / rect.height * 100);
     const stop = () => {
       grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", stop); grip.removeEventListener("pointercancel", stop);
       el.classList.remove("pn-resizing"); PR.ls.set("easyread-note-split", split);

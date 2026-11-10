@@ -9,6 +9,7 @@ from pathlib import PurePosixPath
 from urllib.parse import unquote
 
 from .chat_store import get, threads
+from .xrefs import unlink
 from .i18n import tr
 
 
@@ -51,7 +52,8 @@ def export(ws, body):
 
     def images(text):
         # Only rewrite image destinations; keep equations, code and other Markdown intact.
-        return re.sub(r'(!\[[^\]]*\]\()([^\s)]+)(\))', lambda m: m[1] + local_image(m[2]) + m[3], text or "")
+        # Links into the paper ([表 3](#tab:3)) have nowhere to go outside the reader: keep their words.
+        return re.sub(r'(!\[[^\]]*\]\()([^\s)]+)(\))', lambda m: m[1] + local_image(m[2]) + m[3], unlink(text or ""))
 
     lines = ["# " + subject, "", tr("來源論文：") + " ".join(title.split())]
     source = meta.get("url") or meta.get("source_url") or ""

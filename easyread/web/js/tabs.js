@@ -1123,7 +1123,10 @@
       try {
         const response = await fetch(url.href);
         if (!response.ok) throw new Error(t("沒有這篇論文"));
-        return open(response.url);
+        const target = new URL(response.url);
+        const block = url.searchParams.get("block");
+        if (block) target.hash = block;
+        return open(target.href);
       } catch (error) {
         notify(error.message);
         return;
@@ -1133,15 +1136,20 @@
     if (url.origin !== location.origin || !match) return;
     const id = match[1];
 
-    if (!tabs.has(id)) {
+    const existing = tabs.has(id);
+    if (!existing) {
       create(id, url.href, t("正在打開…"));
       // Attempt to auto-categorize based on library categories
       tryAutoGroup(id);
-    } else if (url.hash) {
-      const tab = tabs.get(id);
-      if (tab.frame?.contentWindow) tab.frame.contentWindow.location.hash = url.hash;
     }
     select(id);
+    if (existing && url.hash) {
+      const win = tabs.get(id)?.frame?.contentWindow;
+      if (win) {
+        win.location.hash = url.hash;
+        if (win.PR?.jumpTo) requestAnimationFrame(() => win.PR.jumpTo(url.hash.slice(1), { instant: true }));
+      }
+    }
   }
 
   function tryAutoGroup(paperId) {

@@ -616,7 +616,7 @@
   function renderSummaries() {
     const host = $("[data-view='summaries']"), records = S.summaries || [];
     host.innerHTML = '<div class="rw-section-head"><div><h2>已整理摘要</h2><p>整理結果會獨立保存；論文移出候選清單後，摘要仍會保留。</p></div></div>' + /* i18n-dom: shared DOM translator localizes rendered UI text. */
-      (records.length ? '<div class="rw-results">' + records.map((record) => '<article class="rw-card rw-paper"><h3>' + titleHtml(record.paper.title || "未命名論文") + '</h3><div class="meta">' + esc([record.paper.authors, record.paper.year, record.paper.venue].filter(Boolean).join(" · ")) + '</div><span class="rw-chip">已整理摘要</span><div class="rw-source"><span>' + PR.t("整理模型：") + '</span>' + esc(record.summary_model || "未提供") + (record.updated ? ' · ' + esc(record.updated) : '') + '</div><div class="actions rw-candidate-actions">' + btn("查看摘要", "view-summary", "accent", 'data-key="' + escAttr(record.paper_key) + '"') + '<details class="rw-candidate-more"><summary class="btn sm line">' + PR.t("更多") + '</summary><div class="menu-list">' + btn("下載", "download-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + btn("匯入 Obsidian", "export-summary-vault", "line", 'data-key="' + escAttr(record.paper_key) + '"') + btn("移到回收站", "trash-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + '</div></details></div></article>').join("") + '</div>' : '<div class="rw-empty">' + PR.t("目前還沒有摘要。加入候選論文後會在背景自動整理摘要。") + '</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      (records.length ? '<div class="rw-results">' + records.map((record) => '<article class="rw-card rw-paper"><h3>' + titleHtml(record.paper.title || "未命名論文") + '</h3><div class="meta">' + esc([record.paper.authors, record.paper.year, record.paper.venue].filter(Boolean).join(" · ")) + '</div><span class="rw-chip">已整理摘要</span><div class="rw-source"><span>' + PR.t("整理模型：") + '</span>' + esc(record.summary_model || "未提供") + (record.updated ? ' · ' + esc(record.updated) : '') + '</div><div class="actions rw-candidate-actions">' + btn("查看摘要", "view-summary", "accent", 'data-key="' + escAttr(record.paper_key) + '"') + '<details class="rw-candidate-more"><summary class="btn sm line">' + PR.t("更多") + '</summary><div class="menu-list">' + btn("下載", "download-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + btn(PR.t("匯入 Obsidian"), "export-summary-vault", "line", 'data-key="' + escAttr(record.paper_key) + '"') + btn("移到回收站", "trash-summary", "line", 'data-key="' + escAttr(record.paper_key) + '"') + '</div></details></div></article>').join("") + '</div>' : '<div class="rw-empty">' + PR.t("目前還沒有摘要。加入候選論文後會在背景自動整理摘要。") + '</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
   const compareDimensionOptions = ["研究問題", "核心方法", "資料集", "評估指標", "實驗條件", "成本", "限制"]; // i18n-ok: 比較維度是送給後端的固定識別值。
   function renderComparisonSetup() {
@@ -1280,7 +1280,7 @@
     finally { S.summaryBusy = false; if (button) { button.disabled = false; button.textContent = "整理摘要"; } } /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
   function showSummary(record) {
-    const content = '<div class="rw-source">' + PR.t("根據候選論文的來源摘要整理") + (record.summary_model ? ' · ' + esc(record.summary_model) : '') + (record.updated || record.summary_updated ? ' · ' + esc(record.updated || record.summary_updated) : '') + '</div><article class="markdown rw-summary">' + PR.mdBlocks(record.summary_markdown || "") + '</article><div class="rw-dialog-foot"><button class="btn line" data-download-summary>下載</button><button class="btn line" data-export-summary-vault>匯入 Obsidian</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    const content = '<div class="rw-source">' + PR.t("根據候選論文的來源摘要整理") + (record.summary_model ? ' · ' + esc(record.summary_model) : '') + (record.updated || record.summary_updated ? ' · ' + esc(record.updated || record.summary_updated) : '') + '</div><article class="markdown rw-summary">' + PR.mdBlocks(record.summary_markdown || "") + '</article><div class="rw-dialog-foot"><button class="btn line" data-download-summary>下載</button><button class="btn line" data-export-summary-vault>' + PR.t("匯入 Obsidian") + '</button></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     S.summaryText = record.summary_markdown || "";
     openModal(PR.t("論文摘要整理"), content, async () => {}, "關閉"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const download = $("[data-download-summary]", $("#rw-modal"));
@@ -1311,6 +1311,24 @@
     const paper = record?.paper || {};
     return shortExportStem(paper.title_en || paper.title || paper.title_zh, "PaperRead");
   }
+  function formatComparisonMarkdown(rawContent, sources) {
+    if (!rawContent) return "";
+    const sourceList = Array.isArray(sources) ? sources : [];
+    const citeRegex = /\[P(\d+)\s*(?:\|\s*(?:第?\s*(\d+)\s*頁)?\s*)?\|\s*([a-zA-Z0-9_\-]+)(?:\s*\|\s*([^\]]+))?\]/g;
+    const formatted = String(rawContent).replace(citeRegex, (match, pNum, page, blockId, quote) => {
+      const idx = parseInt(pNum, 10) - 1;
+      const paper = sourceList[idx] || {};
+      const paperId = paper.sha256 || paper.id || "";
+      const pageLabel = page ? PR.t("第 {page} 頁", { page }) : "";
+      const locLabel = [pageLabel, blockId ? "#" + blockId : ""].filter(Boolean).join(" ");
+      const quoteAttr = quote ? escAttr(quote.trim()) : "";
+      if (paperId && blockId) {
+        return '<a class="rw-evidence-jump" href="/read/' + escAttr(paperId) + '#b-' + escAttr(blockId) + '" target="_blank" title="' + quoteAttr + '">[P' + pNum + ' · ' + (locLabel || blockId) + ' ↗]</a>';
+      }
+      return match;
+    });
+    return PR.mdBlocks ? PR.mdBlocks(formatted) : esc(formatted);
+  }
   function showComparisonRecord(proposal) {
     S.compareProposal = proposal || null;
     if (!proposal) return PR.toast(PR.t("找不到比較結果。"));
@@ -1330,7 +1348,7 @@
       (proposal.status === "pending" ? btn(PR.t("接受並存入 Obsidian"), "compare-accept", "accent") + btn(PR.t("捨棄草稿"), "compare-reject", "line") : '') +
       '</div>';
     const body = '<div class="rw-source">' + PR.t("狀態：{status}；請先核對各篇論文的原文證據與評估條件。", { status }) + '</div>' +
-      '<article class="markdown rw-summary">' + PR.mdBlocks(proposal.content || "") + '</article>' +
+      '<article class="markdown rw-summary">' + formatComparisonMarkdown(proposal.content || "", proposal.sources || proposal.evidence || []) + '</article>' +
       (sources ? '<section class="rw-evidence"><h3>' + PR.t("證據來源") + '</h3><ul>' + sources + '</ul>' + linkReminder + '</section>' : linkReminder) + actions;
     openModal(proposal.title || PR.t("論文比較"), body, async () => {}, "關閉", { headerClose: true }); // i18n-ok: openModal uses this control sentinel.
   }

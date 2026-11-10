@@ -803,7 +803,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/core 3.32.1
+@tiptap/core 3.32.0
 
 MIT License
 
@@ -830,7 +830,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-blockquote 3.32.1
+@tiptap/extension-blockquote 3.32.0
 
 MIT License
 
@@ -857,7 +857,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-bold 3.32.1
+@tiptap/extension-bold 3.32.0
 
 MIT License
 
@@ -884,7 +884,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-code 3.32.1
+@tiptap/extension-code 3.32.0
 
 MIT License
 
@@ -911,7 +911,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-code-block 3.32.1
+@tiptap/extension-code-block 3.32.0
 
 MIT License
 
@@ -938,7 +938,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-document 3.32.1
+@tiptap/extension-document 3.32.0
 
 MIT License
 
@@ -965,7 +965,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-hard-break 3.32.1
+@tiptap/extension-hard-break 3.32.0
 
 MIT License
 
@@ -992,7 +992,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-heading 3.32.1
+@tiptap/extension-heading 3.32.0
 
 MIT License
 
@@ -1019,7 +1019,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-highlight 3.32.1
+@tiptap/extension-highlight 3.32.0
 
 MIT License
 
@@ -1046,7 +1046,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-horizontal-rule 3.32.1
+@tiptap/extension-horizontal-rule 3.32.0
 
 MIT License
 
@@ -1073,7 +1073,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-image 3.32.1
+@tiptap/extension-image 3.32.0
 
 MIT License
 
@@ -1100,7 +1100,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-italic 3.32.1
+@tiptap/extension-italic 3.32.0
 
 MIT License
 
@@ -1127,7 +1127,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-link 3.32.1
+@tiptap/extension-link 3.32.0
 
 MIT License
 
@@ -1154,7 +1154,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-list 3.32.1
+@tiptap/extension-list 3.32.0
 
 MIT License
 
@@ -1181,7 +1181,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-mathematics 3.32.1
+@tiptap/extension-mathematics 3.32.0
 
 MIT License
 
@@ -1208,7 +1208,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-paragraph 3.32.1
+@tiptap/extension-paragraph 3.32.0
 
 MIT License
 
@@ -1235,7 +1235,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-strike 3.32.1
+@tiptap/extension-strike 3.32.0
 
 MIT License
 
@@ -1262,7 +1262,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-table 3.32.1
+@tiptap/extension-table 3.32.0
 
 MIT License
 
@@ -1289,7 +1289,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-text 3.32.1
+@tiptap/extension-text 3.32.0
 
 MIT License
 
@@ -1316,7 +1316,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extension-underline 3.32.1
+@tiptap/extension-underline 3.32.0
 
 MIT License
 
@@ -1343,7 +1343,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/extensions 3.32.1
+@tiptap/extensions 3.32.0
 
 MIT License
 
@@ -1370,7 +1370,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/markdown 3.32.1
+@tiptap/markdown 3.32.0
 
 MIT License
 
@@ -1397,7 +1397,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/pm 3.32.1
+@tiptap/pm 3.32.0
 
 MIT License
 
@@ -1424,7 +1424,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/react 3.32.1
+@tiptap/react 3.32.0
 
 MIT License
 
@@ -1451,7 +1451,7 @@ SOFTWARE.
 
 ---
 
-@tiptap/starter-kit 3.32.1
+@tiptap/starter-kit 3.32.0
 
 MIT License
 
@@ -2221,6 +2221,32 @@ SOFTWARE.
 
 ---
 
+fflate 0.8.3
+
+MIT License
+
+Copyright (c) 2026 Arjun Barrett
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
 get-nonce 1.0.1
 
 MIT License
@@ -2894,7 +2920,7 @@ SOFTWARE.
 
 ---
 
-tabbable 6.5.1
+tabbable 6.5.0
 
 The MIT License (MIT)
 

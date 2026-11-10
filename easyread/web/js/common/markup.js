@@ -3,7 +3,16 @@
 (function (PR) {
   "use strict";
   // 先识别代码和完整公式，避免分段、Markdown 和表格的 | 拆坏 TeX。
-  const TOKENS = /(?<!\\)(`+)([\s\S]*?)\1|(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$|(?<![\\$])\$(?!\$)((?:\\\$|[^$])+?)(?<!\\)\$(?!\$)|(?<!\\)\\\[([\s\S]+?)(?<!\\)\\\]|(?<!\\)\\\(([\s\S]+?)(?<!\\)\\\)|(?<!\\)\[((?:\\.|[^\]\\\n])+)\]\(((?:[^\s()<>]|\([^\s()<>]*\))+)\)/g;  // i18n-ok regex, not UI text
+  // For numeric openers, a dollar introducing another price or following prose is not a close.
+  const TOKENS = new RegExp([
+    /(?<!\\)(`+)([\s\S]*?)\1/.source,  // i18n-ok
+    /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$/.source,
+    /(?<![\\$])\$(?!\$)((?![0-9])(?:\\\$|[^$])+?|[0-9](?:\\\$|[^$])*?(?<![\s，。；、：（(\u3400-\u9fff])(?=\$(?![0-9])))(?<!\\)\$(?!\$)/.source,
+    /(?<!\\)\\\[([\s\S]+?)(?<!\\)\\\]/.source,
+    /(?<!\\)\\\(([\s\S]+?)(?<!\\)\\\)/.source,
+        // 链接文字不以 [ 开头：[[A](#cite:…), [B](#cite:…)] 外层的方括号是正文，不是第一个链接的一部分。
+    /(?<!\\)\[((?:\\.|[^\[\]\\\n])+)\]\(((?:[^\s()<>]|\([^\s()<>]*\))+)\)/.source,
+  ].join("|"), "g");
   const mathCache = new Map();
 
   function tokens(text, blocks) {
@@ -23,7 +32,18 @@
     return { text: masked, values, inline: new RegExp(prefix + "(\\d+)I\uE001", "g"), blocks: new RegExp(prefix + "(\\d+)B\uE001", "g") };
   }
 
-  function tokenHtml(t, block) {
+  const INTERNAL = /^#(fig|tab|eq|sec|alg|lst):(.+)$/;
+  function tokenHtml(t, block, opts) {
+    if (t.link && t.link.startsWith("#")) {
+      opts = opts || {};
+      if (t.link.startsWith("#cite:")) {
+        const ref = opts.cite !== false && PR.citeTarget(t.link.slice(6));
+        return ref ? '<a class="cite" data-ref="' + PR.esc(ref) + '">' + PR.esc(t.text) + "</a>" : PR.esc(t.text);
+      }
+      const m = t.link.match(INTERNAL);
+      const target = m && opts.xref !== false && PR.xindex && PR.xindex[m[1]] && PR.xindex[m[1]][m[2]];
+      return target ? '<a class="xref" data-kind="' + m[1] + '" data-key="' + PR.esc(m[2]) + '">' + PR.esc(t.text) + "</a>" : PR.esc(t.text);
+    }
     if (t.link) {
       if (!/^(https?:\/\/|mailto:)/i.test(t.link) || /[\x00-\x20\x7f]/.test(t.link)) return PR.esc(t.raw);
       try {
@@ -37,9 +57,11 @@
     return block ? '<div class="eq">' + html + "</div>" : html;
   }
 
-  function restore(s, saved, raw) {
-    return s.replace(saved.inline, (m, i) => raw ? saved.values[i].raw : tokenHtml(saved.values[i], false));
+  function restore(s, saved, raw, opts) {
+    return s.replace(saved.inline, (m, i) => raw ? saved.values[i].raw : tokenHtml(saved.values[i], false, opts));
   }
+
+  PR.unlink = (text) => String(text || "").replace(/(?<!\\)\[((?:\\.|[^\]\\\n])+)\]\(#[^)\s]*\)/g, (m, words) => words.replace(/\\([\[\]\\])/g, "$1"));
 
   PR.tex = function (tex, display) {
     const key = (display ? "D" : "I") + tex;
@@ -99,13 +121,24 @@
       .trim();
   };
 
+  const superscriptNumber = /^[⁰¹²³⁴⁵⁶⁷⁸⁹]{1,3}/;
+  function noteNumber(b) {
+    if (b.type !== "para") return "";
+    if (b.role === "footnote" && /^\d{1,3}$/.test(String(b.num))) return String(b.num);
+    // Older papers used ids such as fn3-1 (the suffix is a sequence, not the note number).
+    if (!/^fn(?:\d|[-_])/.test(b.id) && b.role !== "footnote") return "";
+    const text = String(b.en || b.zh || "").trimStart();
+    return text.match(superscriptNumber)?.[0].normalize("NFKC") ||
+      text.match(/^\$\^\{?(\d{1,3})\}?\$/)?.[1] || text.match(/^(\d{1,3})(?!\d)/)?.[1] || "";
+  }
   PR.buildFootnoteIndex = function (blocks) {
     const index = { pages: new Map(), all: new Map() };
     const add = (map, key, id) => map.set(key, map.has(key) ? null : id);
     for (const b of blocks || []) {
-      if (b.type !== "para" || b.role !== "footnote" || !/^\d{1,3}$/.test(String(b.num || ""))) continue;
-      add(index.pages, b.page + ":" + b.num, b.id);
-      add(index.all, String(b.num), b.id);
+      const n = noteNumber(b);
+      if (!n) continue;
+      add(index.pages, b.page + ":" + n, b.id);
+      add(index.all, n, b.id);
     }
     PR.footnoteIndex = index;
   };
@@ -115,6 +148,24 @@
     return { footnotePage: b.page };
   };
 
+  const citeParts = (key) => String(key || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .split(/-+/).map((p) => p.replace(/[^a-z0-9+]/g, "")).filter(Boolean);
+  const looseKey = (parts) => (parts.length > 1 && /^\d{4}[a-z]?$/.test(parts[parts.length - 1]) ? parts[0] + "-" + parts[parts.length - 1] : "");
+  PR.buildCiteIndex = function (references) {
+    const exact = new Map(), loose = new Map();
+    for (const r of references || []) {
+      const id = String(r.id), parts = citeParts(id), short = looseKey(parts);
+      exact.set(parts.join("-"), id);
+      if (short) loose.set(short, loose.has(short) ? null : id);
+    }
+    PR.citeIndex = { exact, loose };
+  };
+  PR.citeTarget = function (key) {
+    const ix = PR.citeIndex, parts = citeParts(key);
+    return ix ? ix.exact.get(parts.join("-")) || ix.loose.get(looseKey(parts)) || "" : "";
+  };
+  PR.refLabel = (id) => (/^\d+[a-z]?$/.test(id) || !/\d{4}[a-z]?$|^r[0-9a-f]{8}$/.test(id) ? "[" + id + "]" : "");
+
   function citeLinks(s) {
     return s.replace(/\[(\d+(?:\s*[,，–-]\s*\d+)*)\]/g, (m, inner) => {
       const parts = inner.split(/(\s*[,，–-]\s*)/);
@@ -122,31 +173,6 @@
         ? '<a class="cite" data-ref="' + p + '">' + p + "</a>" : p).join("");
       return "[" + linked + "]";
     });
-  }
-
-  function xref(kind, key, label) {
-    const ix = PR.xindex && PR.xindex[kind];
-    if (!ix || !ix[key]) return label;
-    return '<a class="xref" data-kind="' + kind + '" data-key="' + PR.esc(key) + '">' + label + "</a>";
-  }
-
-  function xrefLinks(s) {
-    // 公式 (9) 和 (10)：把这一串里每个编号都链上
-    s = s.replace(/公式\s*[（(]\d+[）)](?:\s*(?:和|与|及|、|或|,|，)\s*[（(]\d+[）)])*/g,
-      (m) => m.replace(/[（(](\d+)[）)]/g, (mm, n) => xref("eq", n, mm)));
-    s = s.replace(/公式\s*(\d+)(?![\d.）)])/g, (m, n) => xref("eq", n, m));
-    s = s.replace(/表\s*(\d+)/g, (m, n) => xref("tab", n, m));
-    s = s.replace(/图\s*(\d+)/g, (m, n) => xref("fig", n, m));
-    s = s.replace(/第\s*(\d+(?:\.\d+)*)\s*节/g, (m, n) => xref("sec", n, m));
-    s = s.replace(/附录\s*([A-Z])(?![a-zA-Z])/g, (m, n) => xref("sec", n, m));
-    // 英文原文里的
-    s = s.replace(/\b(Equations?)\s+(\d+)(?:\s+(and)\s+(\d+))?/g, (m, w, a, and, b) =>
-      w + " " + xref("eq", a, a) + (b ? " " + and + " " + xref("eq", b, b) : ""));
-    s = s.replace(/\bTable\s+(\d+)/g, (m, n) => xref("tab", n, m));
-    s = s.replace(/\bFigure\s+(\d+)/g, (m, n) => xref("fig", n, m));
-    s = s.replace(/\bSection\s+(\d+(?:\.\d+)*)/g, (m, n) => xref("sec", n, m));
-    s = s.replace(/\bAppendix\s+([A-Z])\b/g, (m, n) => xref("sec", n, m));
-    return s;
   }
 
   /* AI 回答里偶尔会带出段落编号 [p4-5]、[eq7]，换成读者看得懂的“式 7”“第 4 页” */
@@ -158,18 +184,22 @@
     });
   }
 
-  function inline(text, opts) {
-    let s = blockLabel(PR.esc(text).replace(/\\\$/g, "$"));
-    s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
-    s = s.replace(/(?<!\\)\[\^(\d{1,3})\]/g, (raw, n) => {
-      const ix = PR.footnoteIndex, key = opts.footnotePage + ":" + n;
+  const FOOTNOTE = /(?<!\\)\[\^(\d{1,3}|[*∗†‡§¶]{1,3})\]/g;
+  const footnoteNum = (n) => String(n).replace(/∗/g, "*");
+  function footnoteRefs(s, opts) {
+    return s.replace(FOOTNOTE, (raw, mark) => {
+      const n = footnoteNum(mark), ix = PR.footnoteIndex, key = opts.footnotePage + ":" + n;
       const id = ix && (ix.pages.has(key) ? ix.pages.get(key) : ix.all.get(n));
-      const label = "<sup>" + n + "</sup>";
+      const label = "<sup>" + n.replace(/\*/g, "&#42;") + "</sup>";
       return id ? '<a class="footnote-ref" href="#b-' + PR.esc(id) + '" data-footnote="b-' + PR.esc(id) + '">' + label + "</a>" : label;
     });
+  }
+
+  function inline(text, opts) {
+    let s = footnoteRefs(blockLabel(PR.esc(text).replace(/\\\$/g, "$")), opts);
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
     if (opts.cite !== false) s = citeLinks(s);
-    if (opts.xref !== false) s = xrefLinks(s);
     return s.replace(/\n/g, "<br>");
   }
 
@@ -178,15 +208,31 @@
     opts = opts || {};
     text = String(text == null ? "" : text);
     const saved = tokens(text, false);
-    return restore(inline(saved.text, opts), saved);
+    // Some older translations have literal superscripts instead of [^n]. Only use a
+    // same-page note after prose. Keep standalone powers, units, code and full TeX intact.
+    const noteHere = n => PR.footnoteIndex?.pages.get(opts.footnotePage + ":" + n);
+    if (opts.footnotePage != null && PR.footnoteIndex) {
+      const proseEnd = /(?:[.。！？!?，,；;：:][ \t]*|(?:^|[\s(])[A-Za-z]{3,}|[\u3400-\u9fff]{2,})$/;
+      const inProse = (s, i) => proseEnd.test(s.slice(Math.max(0, i - 80), i));
+      saved.text = saved.text.replace(saved.inline, (raw, i, at, str) => {
+        const token = saved.values[i];
+        const n = !token.code && !token.link && !token.display && token.text.match(/^\^(?:\{(\d{1,3})\}|(\d))$/);
+        const num = n && (n[1] || n[2]);
+        return num && noteHere(num) && inProse(str, at) ? "[^" + num + "]" : raw;
+      }).replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, (raw, at, str) => {
+        const num = raw.normalize("NFKC");
+        return noteHere(num) && inProse(str, at) ? "[^" + num + "]" : raw;
+      });
+    }
+    return restore(inline(saved.text, opts), saved, false, opts);
   };
 
   /* 行间公式先拆出来，再按空行分段；已有回答的 \[...\] 也能显示，不需要改记录。 */
   PR.mdBlocks = function (text, opts) {
     const saved = tokens(String(text || "").trim(), true);
-    const html = saved.text.split(saved.blocks).map((part, i) => i % 2 ? tokenHtml(saved.values[part], true) :
+    const html = saved.text.split(saved.blocks).map((part, i) => i % 2 ? tokenHtml(saved.values[part], true, opts) :
       part.split(/\n\s*\n/).map((p) => para(p, opts)).join("")).join("");
-    return restore(html, saved);
+    return restore(html, saved, false, opts);
   };
 
   function isTableDelimiter(line) {

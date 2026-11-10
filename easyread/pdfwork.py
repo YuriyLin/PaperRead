@@ -22,10 +22,10 @@ _LAYOUT_LOCK = threading.RLock()
 
 
 @contextmanager
-def open_pdf(pdf: Path):
+def open_pdf(pdf: Path | bytes):
     """所有 PDFium 调用与资源释放共用一把锁，包括操作不同文档的线程。"""
     import pypdfium2 as pdfium
-    with _PDFIUM_LOCK, closing(pdfium.PdfDocument(str(pdf))) as doc:
+    with _PDFIUM_LOCK, closing(pdfium.PdfDocument(pdf if isinstance(pdf, bytes) else str(pdf))) as doc:
         yield doc
 
 
@@ -171,12 +171,19 @@ def _boxes(chars, idx, a: int, b: int) -> list[list[float]]:
     return boxes
 
 
+_MD_LINK = re.compile(r"\[((?:\.|[^\]\
+])*)\]\([^)\s]*\)")
+
+
 def block_english(block: dict) -> str:
+    """The block's original text as printed: link targets ([words](#tab:3), [words](https://…)) are not on the page."""
     if block.get("type") == "list":
-        return " ".join(it.get("en", "") for it in block.get("items", []))
-    if block.get("type") in ("table", "figure"):
-        return block.get("caption_en", "")
-    return block.get("en", "")
+        text = " ".join(it.get("en", "") for it in block.get("items", []))
+    elif block.get("type") in ("table", "figure"):
+        text = block.get("caption_en", "")
+    else:
+        text = block.get("en", "")
+    return _MD_LINK.sub(lambda m: m.group(1), text or "")
 
 
 def locate(root: Path) -> dict:

@@ -7,7 +7,7 @@ import threading
 import time
 from uuid import uuid4
 
-from . import chat_models, config, langs, translate, usage
+from . import chat_models, config, langs, timing, translate, usage
 from .engines import Cancelled, EngineError
 from .i18n import tr
 from .library import Library
@@ -207,6 +207,7 @@ class Jobs:
             return
 
         meter = usage.Meter(cfg.get("engine") or "")
+        meter.timing = timing.Timeline()
 
         def report(done, total, message):
             if cancel.is_set():
@@ -218,6 +219,8 @@ class Jobs:
             failed = translate.translate_pages(ws, cfg, pages, cancel, report, meter, read)
         finally:  # 取消、出错也把已经花掉的记上
             run = meter.snapshot()
+            if getattr(meter, "timing", None):
+                run["timing"] = meter.timing.snapshot()
             if run["calls"]:
                 ws.update("job", lambda j: j.update(usage=run, usage_total=usage.merge(j.get("usage_total"), run)))
         minutes = max(1, round((time.time() - started) / 60))

@@ -239,6 +239,27 @@ class ResearchV2Test(unittest.TestCase):
         self.assertEqual(del_res2["deleted"], 1)
         self.assertEqual(len(research_v2.get(self.app, research_v2.PREFIX + "/keywords")["keywords"]), 0)
 
+    def test_keyword_rescan_cache_hit_count_with_mixed_papers(self):
+        ws_hit = FakeWorkspace("kw-hit")
+        ws_hit.values["paper"] = {"meta": {}, "blocks": [{"id": "b1", "en": "Diffusion models generate high fidelity images."}]}
+        ws_miss1 = FakeWorkspace("kw-miss-1")
+        ws_miss1.values["paper"] = {"meta": {}, "blocks": [{"id": "b2", "en": "Convolutional networks are used for classification."}]}
+        ws_miss2 = FakeWorkspace("kw-miss-2")
+        ws_miss2.values["paper"] = {"meta": {}, "blocks": [{"id": "b3", "en": "Recurrent neural networks process sequential data."}]}
+        self.lib.workspaces = {ws_hit.id: ws_hit, ws_miss1.id: ws_miss1, ws_miss2.id: ws_miss2}
+
+        # First scan: all 3 papers scanned from scratch, only 1 matched
+        res1 = research_v2.post(self.app, "/keywords", {"scan_now": True, "name": "擴散模型", "match_text": "diffusion models"})
+        self.assertEqual(res1["scanned"], 3)
+        self.assertEqual(res1["matched"], 1)
+        kid = res1["keyword"]["id"]
+
+        # Rescan via scan task: all 3 papers hit cache, matched must remain 1 (not 3!)
+        task = self._wait_task(research_v2.post(self.app, "/keywords/scan/tasks", {"keyword_id": kid})["task"])
+        self.assertEqual(task["state"], "completed")
+        self.assertEqual(task["result"]["scanned"], 3)
+        self.assertEqual(task["result"]["matched"], 1)
+
     def test_plan_validation_and_item_update_keep_status_independent(self):
         ws = FakeWorkspace("library-paper", "unread")
         self.lib.workspaces[ws.id] = ws

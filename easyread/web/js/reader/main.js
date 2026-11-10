@@ -53,8 +53,13 @@
       if (selectionKey === "n" || selectionKey === "q") { e.preventDefault(); return PR.selectionAction(selectionKey === "n" ? "note" : "question"); }
     }
     if (k === "escape") {
+      const deepDlg = document.getElementById("deepReportDlg");
+      if (deepDlg && deepDlg.classList.contains("open")) { deepDlg.classList.remove("open"); return; }
+      const mmDlg = document.getElementById("mindmapDlg");
+      if (mmDlg && mmDlg.classList.contains("open")) { mmDlg.classList.remove("open"); return; }
       const sp = document.getElementById("stickerPanel");
       if (sp && !sp.hidden) { PR.closeStickerPanel?.(); return; }
+      if (PR.paperNoteEditor?.isExpanded?.()) { PR.paperNoteEditor.collapse(); return; }
       if (PR.$("#settings").classList.contains("open") || PR.$("#popover").classList.contains("open") || body.classList.contains("drawer-open")) {
         PR.toggleDrawer(false); PR.hidePopover(); PR.$("#settings").classList.remove("open");
       } else if (PR.currentBlock()) PR.setCurrent(null);

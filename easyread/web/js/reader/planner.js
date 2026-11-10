@@ -173,7 +173,11 @@
     note.className = "rp-map-meta";
     note.textContent = PR.t("依目前論文文字產生 · {model}", { model: data.model || PR.t("快取結果") });
     view.append(note);
-    if (expandBtn) expandBtn.style.display = "";
+    lastGeneratedReport = data;
+    if (expandBtn) {
+      expandBtn.style.display = "";
+      expandBtn.onclick = () => openDeepReportModal(data);
+    }
   }
 
   async function renderDeepAnalysis(box, force = false) {
@@ -317,6 +321,7 @@
       };
     }
     box.onclick = async (event) => {
+      if (event.target.closest("#rp-deep-expand")) { openDeepReportModal(lastGeneratedReport); return; }
       if (event.target.closest("[data-rp-map-retry]")) renderMindmap(box, true);
       if (event.target.closest("[data-rp-deep-retry]")) renderDeepAnalysis(box, true);
       const statusButton = event.target.closest("[data-rp-status]");

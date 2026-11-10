@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
+from . import __version__, answer_styles, figures, chat, chat_models, chat_store, cli_models, config, detect, documents, engines, i18n, langs, notehelp, open_link, paperdata, pdfwork, prefs, settings_api, trash, library_api, translate_api, updates, usage, wsock, jobs_api, presets as api_presets
 from .bulk import api as bulk_api
 from .research import api as research_api
 from . import research_v2
@@ -158,9 +158,11 @@ class Handler(BaseHTTPRequestHandler):
         first = refs[0] if refs else {}
         user = {"content": text, "anchor": body.get("anchor") or first.get("anchor"), "quote": (body.get("quote") or first.get("quote") or "")[:1000],
                 "note": body.get("note"), "refs": refs, "answer_style": style, "chat_options": options, "images": images}
+        user["documents"] = documents.extract(body.get("documents"))
         past = (thread or {}).get("messages", [])
         convo = [{"role": x["role"], "content": x["content"]} for x in past] + [{"role": "user", "content": text}]
         prompt_text = chat.prompt(ws, convo, user["anchor"], user["quote"], ecfg["engine"], refs, answer_style=style)
+        prompt_text += documents.context((past + [user])[-chat.HISTORY:])
         images = chat.receive_images(ws, body.get("images"), ecfg)
         user["images"] = images
         self.send_response(200)
@@ -177,7 +179,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write((json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8"))
             self.wfile.flush()
         try:
-            send({"model": model, "thread": tid, "answer_style": style})
+            send({"model": model, "thread": tid, "answer_style": style,
+                  "documents": [{k: f[k] for k in ("name", "truncated")} for f in user["documents"]]})
             def seen(actual):
                 chat_models.remember(m.get("model", ""), actual)
                 if m.get("engine") in ("claude", "antigravity"):

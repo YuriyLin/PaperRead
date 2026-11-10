@@ -1,5 +1,11 @@
-"""Evidence-aware, background comparison of selected library papers."""
 from __future__ import annotations
+def _safe_report(report, phase: str, done: int, total: int, message: str, **kwargs):
+    try:
+        report(phase, done, total, message, **kwargs)
+    except TypeError:
+        report(phase, done, total, message)
+
+"""Evidence-aware, background comparison of selected library papers."""
 
 import hashlib
 import re
@@ -127,7 +133,9 @@ def _report_prompt(papers: list[dict], cards: list[str], dims: list[str], focus:
             "不得杜撰數字或直接排名不同資料集、指標、訓練／評估設定的結果。缺失寫『未報告』。"
             "請輸出：## 比較範圍、## 論文對照表、## 主要異同與評估條件、## 限制與未解問題、"
             "## 候選研究問題。每個候選問題簡述提出依據，標為待驗證；不要替使用者填寫驗證實驗。"
-            "引用僅在報告末尾集中列『## 參考論文』；本文不要插入 [P1] 等內文引用。"
+            "每個重要主張或對照結論下方，請保留其來源依據標記，例如 [P1 | 頁 4 | block_id | 原文引句]；"
+            "區分作者報告、個人理解與你的推論。不得杜撰數字或直接排名不同資料集與評估設定的結果。缺失寫『未報告』。"
+            "引用在報告末尾集中列『## 參考論文』。"
             "你只能使用提供的資料卡；資料卡不足以判斷時明說。不要輸出 YAML 或一級標題。"
             f"\n比較焦點：{focus or '一般方法比較'}\n維度：{', '.join(dims)}\n\n<cards>\n{data}\n</cards>")
 
@@ -175,6 +183,8 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
     model_cfg, selected = chat_models.engine_cfg(cfg, model or settings().get("model") or (cfg.get("chat") or {}).get("default"))
     fallback_title = _fallback_title([item[0] for item in loaded], dims, focus)
 
+    data_scope = f"共 {len(loaded)} 篇論文全文與個人批註"
+
     def run(cancel, report):
         meter = usage.Meter(model_cfg.get("engine", ""))
         total_chunks = sum(len(chunks) for _, chunks in loaded)
@@ -183,9 +193,10 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
         for paper_no, (paper, chunks) in enumerate(loaded, 1):
             extracted = []
             for chunk_no, chunk in enumerate(chunks, 1):
-                report("extract", done, total_chunks + len(loaded) + 1,
+                _safe_report(report, "extract", done, total_chunks + len(loaded) + 1,
                        tr("整理第 {paper}/{total} 篇論文，片段 {chunk}/{chunks}", paper=paper_no,
-                          total=len(loaded), chunk=chunk_no, chunks=len(chunks)))
+                          total=len(loaded), chunk=chunk_no, chunks=len(chunks)),
+                       stage_label="提取章節事實", data_scope=data_scope)
                 extracted.append(_call(model_cfg, _extract_prompt(paper["title"], dims, chunk), vault, cancel, meter))
                 done += 1
             summary = "\n\n".join(extracted)
@@ -206,7 +217,8 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
             done += 1
             report("paper", done, total_chunks + len(loaded) + 1,
                    tr("已整理 {done}/{total} 篇論文", done=paper_no, total=len(loaded)))
-        report("synthesis", done, total_chunks + len(loaded) + 1, tr("正在產生跨論文比較報告…"))
+        _safe_report(report, "synthesis", done, total_chunks + len(loaded) + 1, tr("正在產生跨論文比較報告…"),
+               stage_label="生成比較報告", data_scope=data_scope)
         body = _call(model_cfg, _report_prompt([item[0] for item in loaded], cards, dims, focus.strip()[:300]),
                      vault, cancel, meter)
         body = re.sub(r"\A---\s*\n.*?\n---\s*\n", "", body, flags=re.S).strip()
@@ -236,7 +248,8 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
             raise ValueError(tr("比較期間 Obsidian Vault 位置已變更，請重新產生報告。"))
         proposal = proposals.from_comparison(title, body, [item for item, _ in loaded],
                                              selected.get("name") or selected.get("id") or "", meter.snapshot())
-        report("review", total_chunks + len(loaded) + 1, total_chunks + len(loaded) + 1, tr("報告已完成，等待審閱。"))
+        _safe_report(report, "review", total_chunks + len(loaded) + 1, total_chunks + len(loaded) + 1, tr("報告已完成，等待審閱。"),
+               stage_label="比較完成", data_scope=data_scope, result_state="completed", next_actions=["view"])
         return {"proposal": proposal, "papers": [item for item, _ in loaded]}
 
     return tasks.submit("comparison", run, retry_failed=True,

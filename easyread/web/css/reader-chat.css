@@ -84,6 +84,19 @@ body.ch-open #chatpanel { transform: none; }
 .ch-pill:hover { color: var(--ink); border-color: var(--ink-3); }
 .ch-pill.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .ch-pill:disabled { opacity: .5; }
+.ch-pill.ch-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  cursor: pointer;
+}
+.ch-pill.ch-pill-icon svg.i {
+  width: 14px;
+  height: 14px;
+}
 .ch-mode-controls { display: inline-flex; align-items: center; gap: 3px; flex: none; }
 .ch-mode-controls .ch-pill { height: 28px; margin-left: 0; max-width: 100%; color: var(--ink-2); cursor: pointer; }
 .ch-mode-controls .ch-pill.on { color: var(--accent); }
@@ -165,3 +178,6 @@ body.ch-open #chatpanel { transform: none; }
 #chatInput::placeholder { color: var(--ink-3); opacity: 1; }
 .ch-attach-status { font-size: 12px; color: var(--ink-3); }
 .ch-attach-status[role="alert"] { color: var(--danger, #b43b3b); }
+
+.ch-document { display:inline-block; max-width:100%; overflow-wrap:anywhere; font-size:.85em; padding:2px 6px; margin:2px; border:1px solid var(--rule); border-radius:6px }
+.ch-document button { border:0; background:transparent; color:inherit; cursor:pointer }
