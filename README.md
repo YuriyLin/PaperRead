@@ -110,3 +110,13 @@ docker compose up -d
 ## 授權與致謝
 
 程式碼採 [MIT License](LICENSE)，並以 [EasyRead](https://github.com/Edwardxlai/easyread) 為基礎。貼紙素材採各自授權：Lucide 為 ISC、部分 Feather 為 MIT、Mega Doodles Pack 為 CC BY-SA 4.0；詳見 [素材說明](data/stickers/README.md)與[授權清單](data/stickers/license-manifest.json)。
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=yuriylin%2Fpaperread&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=yuriylin/paperread&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=yuriylin/paperread&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=yuriylin/paperread&type=date&legend=top-left" />
+ </picture>
+</a>
