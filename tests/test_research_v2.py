@@ -919,7 +919,8 @@ class ResearchV2Test(unittest.TestCase):
                 {"id": "W100", "role": "基礎入門", "reason": "重複項目", "priority": 3},
             ]
         }, ensure_ascii=False)
-        with mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+        with mock.patch.object(research_v2, "_openalex", return_value={"results": []}), \
+             mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
              mock.patch("easyread.engines.for_translation", return_value={}), \
              mock.patch("easyread.engines.run", return_value=model_output):
             result = research_v2.post(self.app, "/reading-path", {
@@ -967,7 +968,8 @@ class ResearchV2Test(unittest.TestCase):
             other = Path(other_dir)
             planning_store.init(other)
             self.assertIsNone(planning_store.latest_reading_path(other))
-        with mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
+        with mock.patch.object(research_v2, "_openalex", return_value={"results": []}), \
+             mock.patch("easyread.chat_models.engine_cfg", return_value=({}, {"name": "test-model"})), \
              mock.patch("easyread.engines.for_translation", return_value={}), \
              mock.patch("easyread.engines.run", return_value="[]"):
             result = research_v2.post(self.app, "/reading-path", {
