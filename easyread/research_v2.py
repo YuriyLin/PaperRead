@@ -70,6 +70,7 @@ def _current_reading_path_task(root: Path) -> dict | None:
     return {**stored, "acknowledged": bool(record.get("acknowledged")), "request": retry_request}
 
 MINDMAP_TASK_CACHE_PREFIX = "mindmap:task:"
+_MINDMAP_TASK_CACHE_LOCK = threading.Lock()
 
 MINDMAP_LANGUAGE_GUIDES = {
     "ko": {
@@ -446,19 +447,20 @@ def _keyword_map_data(app, keyword_ids: list[str], paper_ids: list[str], name: s
 
 def _persist_mindmap_task(root: Path, pid: str, request: dict, task: dict) -> None:
     cache_key = MINDMAP_TASK_CACHE_PREFIX + pid
-    previous, _ = planning_store.cache_get(root, cache_key)
-    same_task = isinstance(previous, dict) and (previous.get("task") or {}).get("id") == task.get("id")
-    clean_task = {key: value for key, value in task.items() if key != "result"}
-    result = task.get("result")
-    if isinstance(result, dict):
-        clean_task["result"] = result
-    clean_task["paper_id"] = pid
-    planning_store.cache_put(root, cache_key, {
-        "task": clean_task,
-        "request": request,
-        "paper_id": pid,
-        "acknowledged": bool(previous.get("acknowledged")) if same_task else False,
-    })
+    with _MINDMAP_TASK_CACHE_LOCK:
+        previous, _ = planning_store.cache_get(root, cache_key)
+        same_task = isinstance(previous, dict) and (previous.get("task") or {}).get("id") == task.get("id")
+        clean_task = {key: value for key, value in task.items() if key != "result"}
+        result = task.get("result")
+        if isinstance(result, dict):
+            clean_task["result"] = result
+        clean_task["paper_id"] = pid
+        planning_store.cache_put(root, cache_key, {
+            "task": clean_task,
+            "request": request,
+            "paper_id": pid,
+            "acknowledged": bool(previous.get("acknowledged")) if same_task else False,
+        })
 
 
 def _current_mindmap_task(root: Path, pid: str | None = None) -> dict | None:
@@ -491,7 +493,16 @@ def _current_mindmap_task(root: Path, pid: str | None = None) -> dict | None:
         stored = {**stored, "state": "interrupted", "phase": "interrupted",
                   "message": tr("心智圖分析已中斷；可保留輸入並手動重新產生。")}
         record = {**record, "task": stored}
-        planning_store.cache_put(root, cache_key, record)
+        with _MINDMAP_TASK_CACHE_LOCK:
+            latest, _ = planning_store.cache_get(root, cache_key)
+            latest = latest if isinstance(latest, dict) else record
+            latest_task = latest.get("task") if isinstance(latest.get("task"), dict) else stored
+            if latest_task.get("state") in ("queued", "running", "cancelling"):
+                latest = {**latest, "task": {**latest_task, "state": "interrupted", "phase": "interrupted",
+                          "message": tr("心智圖分析已中斷；可保留輸入並手動重新產生。")}}
+                planning_store.cache_put(root, cache_key, latest)
+            record = latest
+            stored = record.get("task") if isinstance(record.get("task"), dict) else stored
     retry_request = record.get("request") if stored.get("state") in ("failed", "interrupted") else None
     return {**stored, "paper_id": target_pid, "acknowledged": bool(record.get("acknowledged")), "request": retry_request}
 
@@ -2009,10 +2020,11 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         pid = (task.get("paper_id") if task else None) or (endpoint.strip("/").split("/")[1] if endpoint.startswith("/paper/") else "")
         if pid:
             cache_key = MINDMAP_TASK_CACHE_PREFIX + pid
-            saved, _ = planning_store.cache_get(root, cache_key)
-            if isinstance(saved, dict) and (saved.get("task") or {}).get("id") == identity:
-                saved["acknowledged"] = True
-                planning_store.cache_put(root, cache_key, saved)
+            with _MINDMAP_TASK_CACHE_LOCK:
+                saved, _ = planning_store.cache_get(root, cache_key)
+                if isinstance(saved, dict) and (saved.get("task") or {}).get("id") == identity:
+                    saved["acknowledged"] = True
+                    planning_store.cache_put(root, cache_key, saved)
         tasks.acknowledge(identity, scope=tasks.scope_id(root))
         current = _current_mindmap_task(root, pid)
         return {"task": current or task}
