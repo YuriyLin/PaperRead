@@ -24,6 +24,8 @@ PaperRead 建立於 EasyRead 之上，將找論文、安排閱讀、對照原文
 
 ![閱讀看板](docs/images/researchspace.jpg)
 
+![閱讀路徑](docs/images/route.jpg)
+
 | 功能 | 用途 |
 | --- | --- |
 | 研究探索 | 搜尋主題、會議期刊與相關論文 |
@@ -34,7 +36,7 @@ PaperRead 建立於 EasyRead 之上，將找論文、安排閱讀、對照原文
 
 對照譯文與原頁，在閱讀時保留自己的想法。
 
-![閱讀頁貼紙與標註](docs/images/sticker.jpg)
+![閱讀器手寫註記](docs/images/handwrite.jpg)
 
 | 功能 | 用途 |
 | --- | --- |
@@ -46,6 +48,8 @@ PaperRead 建立於 EasyRead 之上，將找論文、安排閱讀、對照原文
 ### 03 · Analyze & Connect
 
 從單篇理解延伸到跨論文比較，並回到原文核對。
+
+![論文心智圖](docs/images/mindmap.jpg)
 
 | 功能 | 用途 |
 | --- | --- |

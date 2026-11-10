@@ -24,6 +24,8 @@ Find papers, collect candidates, plan reading, and explore connections.
 
 ![Reading board](docs/images/researchspace.jpg)
 
+![Reading path](docs/images/route.jpg)
+
 | Feature | Purpose |
 | --- | --- |
 | Research exploration | Search topics, venues, and related papers |
@@ -34,7 +36,7 @@ Find papers, collect candidates, plan reading, and explore connections.
 
 Read translations alongside the original and capture your thoughts.
 
-![Stickers and annotations in the reader](docs/images/sticker.jpg)
+![Handwritten annotations in the reader](docs/images/handwrite.jpg)
 
 | Feature | Purpose |
 | --- | --- |
@@ -46,6 +48,8 @@ Read translations alongside the original and capture your thoughts.
 ### 03 · Analyze & Connect
 
 Move from individual papers to comparisons, with the source close at hand.
+
+![Paper mind map](docs/images/mindmap.jpg)
 
 | Feature | Purpose |
 | --- | --- |
