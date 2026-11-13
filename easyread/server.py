@@ -17,7 +17,7 @@ from .bulk import api as bulk_api
 from .research import api as research_api
 from . import research_v2
 from . import planning_store
-from .log import log, tail
+from .log import format_log_english, log, tail
 from .jobs import Jobs
 from .library import Library
 from .i18n import tr
@@ -301,7 +301,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/chat/models":
             return self._json(200, chat_models.listing(config.load()))
         if path == "/api/log":
-            return self._json(200, {"text": tail(config.LOG_PATH, 200), "path": str(config.LOG_PATH)})
+            return self._json(200, {"text": format_log_english(tail(config.LOG_PATH, 200)), "path": str(config.LOG_PATH)})
         if path == "/api/jobs":
             return self._json(200, {"jobs": app.jobs.small_status(parse_qs(url.query).get("pid", [None])[0])})
         if path.startswith("/api/p/"):
@@ -341,12 +341,13 @@ class Handler(BaseHTTPRequestHandler):
             if action == "chat":
                 return self._json(200, {"threads": chat_store.threads(ws), **chat_models.listing(config.load()), "limits": usage.latest()})
             if action == "log":
-                return self._json(200, {"text": tail(ws.root / "job.log", 300)})
+                return self._json(200, {"text": format_log_english(tail(ws.root / "job.log", 300))})
             if action == "export":
                 if app.location.status != "idle":
                     raise app.location._error()
                 from .build import build
-                out = build(ws, mobile=parse_qs(url.query).get("mobile") == ["1"])
+                lang = parse_qs(url.query).get("lang", [None])[0] or i18n.choice() or i18n.lang()
+                out = build(ws, mobile=parse_qs(url.query).get("mobile") == ["1"], lang=lang)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
             if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
                 return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})

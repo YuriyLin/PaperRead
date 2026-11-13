@@ -122,7 +122,10 @@
     const host = t.closest(".blk");
     const id = host && host.dataset.id;
     const b = PR.blockById[id];
-    if (t.dataset.t === "page" && b) PR.openPage(b.page, id);
+    if (t.dataset.t === "page" && b) {
+      if (!PR.hasPageImage || PR.hasPageImage(b.page)) PR.openPage(b.page, id);
+      else PR.toast(PR.t("此版本未收錄原頁圖"));
+    }
     if (t.dataset.t === "pin") host.classList.toggle("notes-open");
     if (t.dataset.t === "stale") PR.showStale(t.closest(".zh"));
     if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast(PR.t("正在重试，译好后自动替换")); PR.poll(); });

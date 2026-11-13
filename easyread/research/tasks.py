@@ -56,7 +56,7 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
             _TASKS.pop(old["id"], None)
         identity = str(uuid.uuid4())
         task = {"id": identity, "kind": kind, "key": key, "state": "queued", "phase": "queued", "done": 0,
-                "total": 0, "message": tr("排入背景工作…"), "created": time.time(), "updated": time.time(),
+                "total": 0, "message": tr("排入背景工作…"), "stage_label": tr("排入背景工作…"), "created": time.time(), "updated": time.time(),
                 "scope": scope, "_on_update": on_update, **extra}
         cancel = threading.Event()
         _TASKS[identity] = task
@@ -76,14 +76,16 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
 
     def work():
         with _LOCK:
-            task.update(state="running", phase="starting", message=tr("背景工作開始"), updated=time.time())
+            task.update(state="running", phase="starting", message=tr("背景工作開始"),
+                        stage_label=task.get("stage_label") or tr("背景工作開始"), updated=time.time())
             snapshot = _public(task)
         _notify(on_update, snapshot)
         try:
             result = runner(cancel, report)
             with _LOCK:
                 if cancel.is_set():
-                    task.update(state="cancelled", phase="cancelled", result_state="cancelled", message=tr("工作已取消"))
+                    task.update(state="cancelled", phase="cancelled", result_state="cancelled",
+                                message=tr("工作已取消"), stage_label=tr("工作已取消"))
                 else:
                     task.update(state="completed", phase="completed", result_state="completed",
                                 stage_label=task.get("stage_label") or tr("工作完成"),
@@ -95,7 +97,8 @@ def submit(kind: str, runner, retry_failed: bool = False, *, scope: str = "", on
         except Exception as error:  # noqa: BLE001
             with _LOCK:
                 if cancel.is_set():
-                    task.update(state="cancelled", phase="cancelled", result_state="cancelled", message=tr("工作已取消"))
+                    task.update(state="cancelled", phase="cancelled", result_state="cancelled",
+                                message=tr("工作已取消"), stage_label=tr("工作已取消"))
                 else:
                     task.update(state="failed", phase="failed", result_state="failed",
                                 error_reason=str(error)[:500],
@@ -122,7 +125,7 @@ def register_external(identity: str, kind: str, *, scope: str = "", key: str = "
             _TASKS.pop(old["id"], None)
         task = {
             "id": identity, "kind": kind, "key": key, "state": "queued", "phase": "queued",
-            "done": 0, "total": 0, "message": tr("排入背景工作…"),
+            "done": 0, "total": 0, "message": tr("排入背景工作…"), "stage_label": tr("排入背景工作…"),
             "created": time.time(), "updated": time.time(), "scope": scope, **extra
         }
         _TASKS[identity] = task

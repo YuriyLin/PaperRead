@@ -139,7 +139,10 @@
     if (zoomBtn && zoomBtn.dataset && zoomBtn.dataset.zoomPage) {
       const pageNum = Number(zoomBtn.dataset.zoomPage);
       const src = pageSource(pageNum);
-      if (!src) return;
+      if (!src) {
+        PR.toast && PR.toast(PR.t("此版本未收錄原頁圖"));
+        return;
+      }
       e.preventDefault(); e.stopImmediatePropagation();
       open(zoomBtn, src, PR.t("原文第 {n} 页", { n: pageNum }), true, blockBoxOf(zoomBtn, pageNum));
       return;

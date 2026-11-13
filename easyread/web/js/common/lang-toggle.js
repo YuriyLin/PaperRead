@@ -12,7 +12,8 @@
     try {
       await PR.api("/api/prefs", { method: "POST", body: { ui: { lang: PR.lang === "en" ? "zh-TW" : "en" } } });
       try { if (PR.lib && PR.lib.lastData) sessionStorage.setItem("easyread-lib-snap", JSON.stringify({ t: Date.now(), d: PR.lib.lastData })); } catch (e) { /* 存不下就普通刷新 */ }
-      location.replace(location.href.split("#")[0]);  // 不用 reload：普通跳转才有淡入淡出（library.css 的 @view-transition）
+      const topWin = (window.parent && window.parent !== window && window.parent.easyreadTabs) ? window.parent : window;
+      topWin.location.replace(topWin.location.href.split("#")[0]);  // 不用 reload：普通跳转才有淡入淡出（library.css 的 @view-transition）
     } catch (e) {
       btn.disabled = false;
       PR.toast(PR.t("保存失败：{msg}", { msg: PR.esc(e.message) }));

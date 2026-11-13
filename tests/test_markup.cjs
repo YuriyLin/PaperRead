@@ -177,3 +177,25 @@ test("highlightSnippet renders KaTeX math formulas in excerpts while highlightin
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('&lt;script&gt;'));
 });
+
+test("margin cards contain wide display math and lists without overflowing into paper text", () => {
+  const PR = markup(true);
+  const body = [
+    "第 $i$ 個 Re-CORE 的流程可概念化為：",
+    "",
+    "$$",
+    "\\text{融合}\\bigl(\\text{第 } i-1 \\text{ 層},\\ \\text{第 } i \\text{ 層},\\ \\text{第 } i+1 \\text{ 層}\\bigr) + \\text{上取樣後的跳接特徵} \\rightarrow \\text{卷積區塊} \\rightarrow \\text{第 } i \\text{ 個輸出}",
+    "$$",
+    "",
+    "- 由底層取得較精確的定位資訊；",
+    "- 由深層與更深層取得較豐富的語義與上下文資訊；",
+  ].join("\n");
+  const html = PR.mdBlocks(body);
+  assert.ok(html.includes('<div class="eq"><span class="katex-display">'), "Display math must be wrapped in .eq and .katex-display");
+  assert.ok(html.includes("<ul><li>"), "Bullet list must render inside <ul><li>");
+
+  const readerCss = fs.readFileSync(path.join(__dirname, "../easyread/web/css/reader.css"), "utf8");
+  assert.match(readerCss, /\.card\s+\.body\s*\{[^}]*overflow-x:\s*auto/, ".card .body must constrain horizontal overflow");
+  assert.match(readerCss, /\.card\s+\.body\s+\.eq[^{]*\{[^}]*overflow-x:\s*auto/, ".card .body .eq must scroll horizontally if needed");
+  assert.match(readerCss, /\.card\s+\.katex-display\s*>\s*\.katex[^{]*\{[^}]*white-space:\s*normal/, ".card .katex-display > .katex must allow wrapping between top-level .base chunks");
+});

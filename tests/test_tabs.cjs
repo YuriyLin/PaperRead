@@ -600,3 +600,88 @@ test('cross-window tab attach strips cat: prefix from group chip title', async (
   const label = chip.querySelector('.group-label');
   assert.equal(label.textContent, 'NLP');
 });
+
+test('tabs bar overlay activates when research workspace #rw-modal is opened', async () => {
+  const { context, panes } = createMockEnvironment();
+  const libFrame = panes.children[0];
+  assert.ok(libFrame);
+
+  let rwModalHidden = true;
+  libFrame.contentDocument.querySelector = (sel) => {
+    if (sel === '#rw-modal') return { hidden: rwModalHidden };
+    return null;
+  };
+
+  // Trigger iframe load so bindFrame sets up checkModal
+  libFrame.dispatchEvent('load');
+  assert.equal(context.document.body.classList.contains('modal-open'), false);
+  assert.equal(context.document.body.classList.contains('modal-rw-open'), false);
+
+  // Simulate opening summary or comparison modal in research workspace
+  rwModalHidden = false;
+  context.window.easyreadTabs.select('library');
+  assert.equal(context.document.body.classList.contains('modal-open'), true);
+  assert.equal(context.document.body.classList.contains('modal-rw-open'), true);
+
+  // Simulate closing #rw-modal
+  rwModalHidden = true;
+  context.window.easyreadTabs.select('library');
+  assert.equal(context.document.body.classList.contains('modal-open'), false);
+  assert.equal(context.document.body.classList.contains('modal-rw-open'), false);
+});
+
+test('tab switching preserves pane layout box and triggers instant margin relayout without top:0 stacking', async () => {
+  const tabsCss = fs.readFileSync(path.join(__dirname, '../easyread/web/css/tabs.css'), 'utf8');
+  const frozenMatch = tabsCss.match(/\.paper-pane\.frozen\s*\{([^}]*)\}/);
+  assert.ok(frozenMatch, '.paper-pane.frozen rule should exist');
+  assert.ok(!frozenMatch[1].includes('display: none'), '.paper-pane.frozen must not use display: none which collapses iframe layout to 0x0');
+  assert.ok(frozenMatch[1].includes('visibility: hidden'), '.paper-pane.frozen should hide visibility while preserving layout');
+
+  const { context, panes } = createMockEnvironment();
+  const tabsApi = context.window.easyreadTabs;
+  await tabsApi.open('/read/paper_margin_1');
+  const readerFrame = panes.children.find(f => f.id === 'pane-paper_margin_1');
+  assert.ok(readerFrame);
+
+  const layoutCalls = [];
+  readerFrame.contentWindow.PR = {
+    layoutMargin(opts) {
+      layoutCalls.push(opts);
+    }
+  };
+
+  tabsApi.select('library');
+  tabsApi.select('paper_margin_1');
+  assert.equal(layoutCalls.length, 1);
+  assert.equal(layoutCalls[0]?.instant, true);
+});
+
+test('tab cross-window drop calls restoreMainWindow on desktop shell', async () => {
+  const { context, strip } = createMockEnvironment();
+  const tabsApi = context.window.easyreadTabs;
+
+  let restored = false;
+  context.window.easyreadDesktop = {
+    restoreMainWindow: async () => {
+      restored = true;
+    }
+  };
+
+  const dropEvent = {
+    preventDefault() {},
+    dataTransfer: {
+      getData(type) {
+        if (type === 'application/x-paperread-tab') {
+          return JSON.stringify({
+            sourceWindowId: 'win-sub-window',
+            tabs: [{ id: 'paper_merged_1', url: '/read/paper_merged_1', title: 'Merged Paper' }]
+          });
+        }
+        return '';
+      }
+    }
+  };
+
+  await strip.dispatchEvent('drop', dropEvent);
+  assert.equal(restored, true);
+});

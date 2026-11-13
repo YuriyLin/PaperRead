@@ -33,11 +33,14 @@ body.ch-open #chatpanel { transform: none; }
 .cm-style { margin-left: auto; color: var(--accent); font-size: 11px; white-space: nowrap; }
 .cm.ai .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; }
 .cm.ai .av svg { width: 13px; height: 13px; }
-.cm.ai .body { padding-left: 29px; }
+.cm.ai .body { padding-left: 29px; min-width: 0; max-width: 100%; overflow-wrap: break-word; }
 .cm.ai .body p { margin: 0 0 .7em; }
 .cm.ai .body p:last-child { margin-bottom: 0; }
 .cm.ai .body ol, .cm.ai .body ul { margin: .3em 0 .7em; padding-left: 1.4em; }
-.cm.ai .body .katex-display { margin: .6em 0; overflow-x: auto; overflow-y: hidden; }
+.cm.ai .body .eq, .cm.ai .body .katex-display { margin: .6em 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.cm.ai .body .eq .katex-display { margin: 0; }
+.cm.ai .body pre { max-width: 100%; overflow-x: auto; margin: .6em 0; padding: .65em .85em; background: var(--accent-soft); border-radius: 6px; text-align: left; scrollbar-width: thin; }
+.cm.ai .body pre code { display: block; padding: 0; background: none; white-space: pre; }
 .cm.ai .body .tbl-wrap { margin: .8em 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .cm.ai .body table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; line-height: 1.6; font-family: var(--ui); margin: 0; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
 .cm.ai .body table.tbl th { font-weight: 600; font-family: var(--ui); border-bottom: 1px solid var(--ink-2); background: var(--surface-2); padding: 7px 10px; color: var(--ink); white-space: normal; text-align: left; }

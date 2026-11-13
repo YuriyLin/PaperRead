@@ -52,7 +52,7 @@ def serve(port: int | None = None, open_browser: bool = False, path: str = "/", 
     app.presence = Presence(lambda: app.jobs.busy() or research_tasks.busy(), httpd.shutdown, exit_on_close)
     if not config.temp_library():
         write_json_atomic(config.SERVER_INFO, {"url": url, "pid": os.getpid(), "started": now_iso()})
-    log.info("PaperRead %s 已啟動：%s  文獻庫：%s", __version__, url, app.lib.root)
+    log.info("PaperRead %s started: %s  Library: %s", __version__, url, app.lib.root)
     print(f"PaperRead 已啟動：{url}  文獻庫：{app.lib.root}", flush=True)  # i18n-ok Electron and smoke_backend match this line
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(url + path)).start()

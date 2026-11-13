@@ -13,7 +13,7 @@ from . import batch_repair, blank_pages, codeblocks, consistency, engines, footn
 from .checks import block_problems, tex_problems
 from .repair_guard import retains_content
 from .figures import normalize_figure, prepare_figures
-from .i18n import tr
+from .i18n import lang, tr
 from .log import log
 from .paperdata import add_discussion, fill_zh, merge_blocks, set_block_text
 from .store import Workspace, now_iso
@@ -172,7 +172,8 @@ def _fill_batch(ws: Workspace, cfg: dict, batch: list[int], cancel, say, meter=N
                     lambda d: _fill_problems(d.get("zh", {})),
                 )
         except engines.EngineError as e:
-            journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
+            pg_lbl = f"Pages {batch[0]}–{batch[-1]}" if len(batch) > 1 else f"Page {batch[0]}"
+            journal(ws, f"{pg_lbl} fix failed, original translation kept: {e}")
     with timing.merge_lock(meter, _merge_lock):
         _unify_terms(ws, data, batch, {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in items.items()})
         missing = fill_zh(ws, data, batch, set(items), sentences.unmark_fill(data["zh"], ends))
@@ -217,7 +218,8 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
                     normalize=lambda d: _normalize(d, batch, _taken(ws, batch), ws.root / "extract"),
                 )
         except engines.EngineError as e:
-            journal(ws, tr("第 {pages} 页修正失败，保留原译：{err}", pages=batch, err=e))
+            pg_lbl = f"Pages {batch[0]}–{batch[-1]}" if len(batch) > 1 else f"Page {batch[0]}"
+            journal(ws, f"{pg_lbl} fix failed, original translation kept: {e}")
     if not data["blocks"] and not data.get("references"):  # 整页都是参考文献时只有 references，没有新块，也算译完
         raise engines.EngineError(tr("模型没有整理出任何内容") if read else tr("模型没有译出任何内容"))
     with timing.merge_lock(meter, _merge_lock):
@@ -259,7 +261,7 @@ def _one_references(ws: Workspace, data: dict, batch: list[int]) -> list[str]:
 def _unify_terms(ws: Workspace, data: dict, batch: list[int], en_of: dict | None = None) -> None:
     """这批新报的术语和术语表里已有的译法不同（分段并行时几段各自先定了译法）：译文改成已有的说法。在合并锁里调。"""
     for en, mine, old in terms.unify(ws.load("paper").get("glossary", []), data, en_of):
-        journal(ws, tr("第 {page} 页起术语统一：{en} 的“{mine}”改成已有的“{old}”", page=batch[0], en=en, mine=mine, old=old))
+        journal(ws, f'Terminology unified starting from page {batch[0]}: "{mine}" -> "{old}" for {en}')
 
 
 def _save_checks(ws: Workspace, checks, batch: list[int]) -> None:
@@ -276,7 +278,7 @@ def _save_checks(ws: Workspace, checks, batch: list[int]) -> None:
         try:
             add_discussion(ws, items)
         except ValueError as e:
-            journal(ws, tr("核对提示没存上：{err}", err=e))
+            journal(ws, f"Verification prompt failed to save: {e}")
 
 
 def _batches(pages: list[int], size: int, en_pages: set[int]) -> list[list[int]]:
@@ -332,18 +334,24 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
         old_zh = any(b.get("zh") or b.get("caption_zh") for b in paper.get("blocks", []))  # 1.3 以前译的都是中文
         target = "zh" if old_zh else langs.of_paper(paper.get("meta"), cfg)
         ws.update("paper", lambda p: p.setdefault("meta", {}).setdefault("target", target))
-    journal(ws, (tr("只读原文（不翻译）") if read else "") + tr("开始：{pages} 页，{batches} 批，引擎 {engine}，并发 {workers}", pages=len(pages), batches=len(batches), engine=engines.engine_name(cfg.get("engine")), workers=workers))
+    def en_page_range(b):
+        return f"Pages {b[0]}–{b[-1]}" if len(b) > 1 else f"Page {b[0]}"
+
+    ro_pfx = "[Read-only] " if read else ""
+    journal(ws, f"{ro_pfx}Started: {len(pages)} pages, {len(batches)} batches, engine {engines.engine_name(cfg.get('engine'))}, concurrency {workers}")
 
     def label(batch):
         return tr("第 {a}–{b} 页", a=batch[0], b=batch[-1]) if len(batch) > 1 else tr("第 {page} 页", page=batch[0])
 
     if workers > 1:
-        journal(ws, tr("分 {n} 段同时译：{ranges}", n=workers, ranges=tr("、").join(label(sorted({lane[0][0], lane[-1][-1]})) for lane in lanes)))
+        ranges_str = ", ".join(en_page_range(sorted({lane[0][0], lane[-1][-1]})) for lane in lanes)
+        journal(ws, f"Concurrent translation in {workers} segments: {ranges_str}")
 
     def say(msg=None):
         with lock:
             active = sorted(state["active"])
-            text = msg or (verb + tr("、").join(label(b) for b in active) if active else verb)
+            sep = " " if lang() == "en" else ""
+            text = msg or ((verb + sep + tr("、").join(label(b) for b in active)) if active else verb)
             report(state["done"], len(pages), text)
 
     def work(batch):
@@ -378,7 +386,7 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
                     _one_batch(ws, cfg, todo, total_pages, cancel, say, meter, read)
                 with lock:
                     state["ok"].update(todo)
-                journal(ws, tr("{pages} 完成", pages=label(todo)))
+                journal(ws, f"{en_page_range(todo)} completed")
                 err = None
                 break
             except page_check.MissingPages as e:
@@ -386,18 +394,18 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
                     state["ok"].update(n for n in todo if n not in e.pages)
                 todo = e.pages
                 err = tr("模型漏译了这一页")
-                journal(ws, tr("{pages} 模型整页漏译，单独再译一次", pages=label(todo)))
+                journal(ws, f"{en_page_range(todo)} missed entirely by model, retrying individually")
             except engines.Cancelled:
                 raise
             except Exception as e:  # noqa: BLE001
                 err = str(e) if isinstance(e, engines.EngineError) else f"{type(e).__name__}: {e}"
-                journal(ws, tr("{pages} 第 {n} 次失败：{err}", pages=label(todo), n=attempt + 1, err=err[:500]))
+                journal(ws, f"{en_page_range(todo)} failed (attempt {attempt + 1}): {err[:500]}")
                 log.warning("翻译失败 %s %s: %s", ws.id, todo, err[:300])
                 if cancel.is_set():
                     raise engines.Cancelled()
                 if _QUOTA.search(err) or netcheck.offline(err):
                     state["quota"] = err[:300]
-                    journal(ws, tr("额度用完或连不上，停止翻译剩下的页"))
+                    journal(ws, "Quota exceeded or connection lost, stopping remaining pages")
                     break
         with lock:
             state["active"].discard(tuple(batch))
@@ -424,11 +432,11 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
             report(state["done"], len(pages), tr("正在检查术语一致性"))
             consistency.check(ws, cfg, sorted(state["ok"]), cancel, meter, journal, _merge_lock)
         except engines.Cancelled:
-            journal(ws, tr("术语一致性检查已取消，译文保留"))
+            journal(ws, "Terminology consistency check cancelled, translation kept")
         except Exception as e:  # noqa: BLE001
-            journal(ws, tr("术语一致性检查没做成：{err}", err=str(e)[:300]))
+            journal(ws, f"Terminology consistency check failed: {str(e)[:300]}")
             log.warning("术语一致性检查失败 %s: %s", ws.id, e)
-    journal(ws, tr("结束，{n} 页失败：{pages}", n=len(failed), pages=sorted(failed)) if failed else tr("结束，全部成功"))
+    journal(ws, f"Finished, {len(failed)} pages failed: {sorted(failed)}" if failed else "Finished, all successful")
     return failed
 
 

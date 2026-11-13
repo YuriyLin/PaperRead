@@ -262,7 +262,7 @@
     if (!task) return "";
     if (KW_BUSY.includes(task.state)) return PR.t("原文比對中… {done}/{total}", { done: task.done || 0, total: task.total || 0 }) + ' <button class="btn sm line" data-action="keyword-scan-cancel">' + PR.t("取消") + "</button>";
     if (task.state === "completed") return PR.t("原文比對完成");
-    return esc(task.state === "cancelled" ? PR.t("原文比對已取消") : (task.message || PR.t("原文比對失敗"))) + retry;
+    return esc(task.state === "cancelled" ? PR.t("原文比對已取消") : (task.message ? PR.t(task.message) : PR.t("原文比對失敗"))) + retry;
   }
   function updateKeywordScanStatus() { const el = $("[data-kw-scan-status]"); if (el) el.innerHTML = keywordScanHtml(); }
   async function startKeywordScan(keywordId = "") {
@@ -570,7 +570,7 @@
     const metadata = [w.authors, w.year, w.venue, citations].filter(Boolean).map(esc).join(" · ");
     const targetId = relationTargetId(w);
     const relationBtn = targetId ? btn(PR.t("關聯研究"), "explore-relation", "line", 'data-work="' + escAttr(targetId) + '" data-title="' + escAttr(w.title || "") + '" data-doi="' + escAttr(w.doi || "") + '"') : "";
-    return '<article class="rw-card rw-paper"><h3>' + titleHtml(w.title) + '</h3><div class="meta">' + metadata + '</div><div>' + (w.pdf_url ? '<span class="rw-chip oa">有公開 PDF</span>' : w.is_oa ? '<span class="rw-chip">可公開取用，PDF 未確認</span>' : '<span class="rw-chip">公開 PDF 未確認</span>') + (w.publication_type ? '<span class="rw-chip">書目類型：' + esc(w.publication_type) + '</span>' : "") + (inCandidate ? '<span class="rw-chip">候選論文</span>' : "") + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (w.recommendation_reason ? '<div class="rw-source"><span>' + PR.t("推薦依據：") + '</span> ' + esc(w.recommendation_reason) + '</div>' : "") + '<div class="rw-source"><span>' + PR.t("資料來源：") + '</span> ' + esc((w.sources || [w.source || "OpenAlex"]).join("、")) + ' · ' + esc(S.checkedAt || "") + '</div><div class="actions">' + btn(inCandidate ? "移出候選" : "加入候選", "candidate", inCandidate ? "line" : "accent", 'data-key="' + escAttr(key) + '"') + relationBtn + (w.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(w.url) + '">論文來源</a>' : "") + "</div></article>"; // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    return '<article class="rw-card rw-paper"><h3>' + titleHtml(w.title) + '</h3><div class="meta">' + metadata + '</div><div>' + (w.pdf_url ? '<span class="rw-chip oa">' + PR.t("有公開 PDF") + '</span>' : w.is_oa ? '<span class="rw-chip">' + PR.t("可公開取用，PDF 未確認") + '</span>' : '<span class="rw-chip">' + PR.t("公開 PDF 未確認") + '</span>') + (w.publication_type ? '<span class="rw-chip">' + PR.t("書目類型：") + esc(w.publication_type) + '</span>' : "") + (inCandidate ? '<span class="rw-chip">' + PR.t("候選論文") + '</span>' : "") + '</div><p class="abstract">' + esc(w.abstract || PR.t("來源未提供摘要。")) + '</p>' + (w.recommendation_reason ? '<div class="rw-source"><span>' + PR.t("推薦依據：") + '</span> ' + esc(w.recommendation_reason) + '</div>' : "") + '<div class="rw-source"><span>' + PR.t("資料來源：") + '</span> ' + esc((w.sources || [w.source || "OpenAlex"]).join(PR.lang && PR.lang() === "en" ? ", " : "、")) /* i18n-ok */ + ' · ' + esc(S.checkedAt || "") + '</div><div class="actions">' + btn(inCandidate ? PR.t("移出候選") : PR.t("加入候選"), "candidate", inCandidate ? "line" : "accent", 'data-key="' + escAttr(key) + '"') + relationBtn + (w.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(w.url) + '">' + PR.t("論文來源") + '</a>' : "") + "</div></article>";
   }
   function renderCandidates() {
     const host = $("[data-view='candidates']"), records = S.candidates || [];
@@ -609,7 +609,7 @@
                 : pdfState === "imported" ? PR.t("PDF 已標記匯入，但找不到對應的文獻項目；請重新整理文獻庫確認。")
                   : PR.t("候選論文只有書目資料或來源摘要；加入閱讀看板並取得、整理 PDF 後，才能進行全文比較。");
         const fullTextBadge = '<span class="rw-chip rw-fulltext-state" title="' + escAttr(fullTextHelp) + '">' + esc(fullTextStatus) + '</span>';
-        return '<article class="rw-card rw-paper"><div class="rw-candidate-titleline"><h3>' + titleHtml(w.title || "未命名論文") + '</h3>' + fullTextBadge + '</div><div class="meta">' + esc([w.authors, w.year, w.venue].filter(Boolean).join(" · ")) + '</div><p class="abstract">' + esc(w.abstract || "來源未提供摘要。") + '</p>' + (record.summary_markdown ? '<span class="rw-chip" title="' + escAttr(PR.t("此摘要根據搜尋來源提供的書目摘要整理，並不代表已取得論文全文。")) + '">' + PR.t("已整理來源摘要") + '</span>' : '') + summaryStatus + '<div class="actions rw-candidate-actions">' + summaryControl + (id ? '<a class="btn sm line" href="/read/' + escAttr(id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板"), "queue", "line", 'title="' + escAttr(PR.t("加入閱讀看板並取得 PDF")) + '" data-key="' + escAttr(record.paper_key) + '"')) + '<details class="rw-candidate-more"><summary class="btn sm line">' + PR.t("更多") + '</summary><div class="menu-list">' + moreActions + '</div></details>' + '</div></article>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
+        return '<article class="rw-card rw-paper"><div class="rw-candidate-titleline"><h3>' + titleHtml(w.title || "未命名論文") + '</h3>' + fullTextBadge + '</div><div class="meta">' + esc([w.authors, w.year, w.venue].filter(Boolean).join(" · ")) + '</div><p class="abstract">' + esc(w.abstract || PR.t("來源未提供摘要。")) + '</p>' + (record.summary_markdown ? '<span class="rw-chip" title="' + escAttr(PR.t("此摘要根據搜尋來源提供的書目摘要整理，並不代表已取得論文全文。")) + '">' + PR.t("已整理來源摘要") + '</span>' : '') + summaryStatus + '<div class="actions rw-candidate-actions">' + summaryControl + (id ? '<a class="btn sm line" href="/read/' + escAttr(id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板"), "queue", "line", 'title="' + escAttr(PR.t("加入閱讀看板並取得 PDF")) + '" data-key="' + escAttr(record.paper_key) + '"')) + '<details class="rw-candidate-more"><summary class="btn sm line">' + PR.t("更多") + '</summary><div class="menu-list">' + moreActions + '</div></details>' + '</div></article>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
       }).join("") + '</div>' : '<div class="rw-empty">' + PR.t("候選清單目前是空的。先到研究探索搜尋，再按「加入候選」。") + '</div>'); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
 
@@ -682,7 +682,7 @@
     }).join("");
     const task = S.compareTask;
     const active = task && ["queued", "running", "cancelling"].includes(task.state);
-    const taskMarkup = active ? '<div class="rw-task-state" role="status"><i class="spin"></i><div><b>' + PR.t("正在整理跨論文比較…") + '</b><p>' + esc(task.message || PR.t("正在讀取已整理的全文，請稍候。")) + '</p>' + (task.total ? '<progress max="' + task.total + '" value="' + (task.done || 0) + '"></progress>' : '') + '</div></div>' : task?.state === "failed" ? '<div class="rw-error" role="alert">' + esc(task.message || PR.t("比較工作未完成。")) + ' <button class="btn sm line" data-action="comparisons-refresh">' + PR.t("重試") + '</button></div>' : '';
+    const taskMarkup = active ? '<div class="rw-task-state" role="status"><i class="spin"></i><div><b>' + PR.t("正在整理跨論文比較…") + '</b><p>' + esc(task.message ? PR.t(task.message) : PR.t("正在讀取已整理的全文，請稍候。")) + '</p>' + (task.total ? '<progress max="' + task.total + '" value="' + (task.done || 0) + '"></progress>' : '') + '</div></div>' : task?.state === "failed" ? '<div class="rw-error" role="alert">' + esc(task.message ? PR.t(task.message) : PR.t("比較工作未完成。")) + ' <button class="btn sm line" data-action="comparisons-refresh">' + PR.t("重試") + '</button></div>' : '';
     host.innerHTML = '<div class="rw-section-head"><div><h2>' + PR.t("論文比較") + '</h2><p>' + PR.t("比較只從文獻庫已完成全文整理的論文開始；先設定比較維度，再產生可審閱的結果。") + '</p></div><div class="actions"><button class="btn line" data-action="compare-open-picker">' + PR.t("選擇比較論文") + '</button><button class="btn line" data-action="comparisons-refresh">' + PR.t("重新整理") + '</button></div></div>' + (S.compareSetupOpen ? renderComparisonSetup() : (S.comparePickerOpen ? renderComparisonPicker() : '')) + error + taskMarkup + (cards ? '<div class="rw-results">' + cards + '</div>' : (!active && !S.compareSetupOpen && !S.comparePickerOpen ? '<div class="rw-empty">' + PR.t("目前還沒有比較結果。請按「選擇比較論文」開始。") + '</div>' : ''));
   }
   async function startComparison(button) {
@@ -766,12 +766,14 @@
   function pathDetail(step, index) {
     if (!step) return '<aside class="rw-path-detail rw-empty">' + PR.t("選取一篇論文以檢視完整資訊。") + '</aside>';
     const paper = step.paper || {}, key = step.paper_key || paperKey(paper), candidate = candidateFor(paper), library = alreadyInLibrary(paper);
-    return '<aside class="rw-path-detail"><div class="rw-path-detail-kicker">' + PR.t("閱讀順序 {n}", { n: index + 1 }) + '</div><span class="rw-chip">' + esc(step.role || PR.t("延伸探索")) + '</span><h3>' + titleHtml(paper.title || PR.t("未命名論文")) + '</h3><p class="meta">' + esc([paper.authors, paper.year, paper.venue].filter(Boolean).join(" · ")) + '</p><h4>' + PR.t("推薦理由") + '</h4><p>' + esc(step.reason || PR.t("未提供推薦理由。")) + '</p><h4>' + PR.t("來源摘要") + '</h4><p class="rw-path-abstract">' + esc(paper.abstract || PR.t("來源未提供摘要。")) + '</p><p class="rw-source">' + PR.t("論文來源：{source}", { source: esc(paper.source || "OpenAlex") }) + '</p><div class="rw-path-detail-actions">' + btn(candidate ? PR.t("移出候選") : PR.t("加入候選"), "candidate", candidate ? "line" : "accent", 'data-key="' + escAttr(key) + '" data-paper-index="' + index + '"') + (library ? '<a class="btn sm line" href="/read/' + escAttr(library.id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板"), "queue", "line", 'data-key="' + escAttr(key) + '"')) + (paper.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(paper.url) + '">' + PR.t("論文來源") + '</a>' : '') + '</div><div class="rw-path-reorder"><span>' + PR.t("調整閱讀順序") + '</span><div class="rw-path-order-controls">' + pathOrderButton(key, -1, index === 0) + pathOrderButton(key, 1, index === S.pathResults.length - 1) + '</div></div></aside>';
+    const role = step.role ? PR.t(step.role) : PR.t("延伸探索");
+    return '<aside class="rw-path-detail"><div class="rw-path-detail-kicker">' + PR.t("閱讀順序 {n}", { n: index + 1 }) + '</div><span class="rw-chip">' + esc(role) + '</span><h3>' + titleHtml(paper.title || PR.t("未命名論文")) + '</h3><p class="meta">' + esc([paper.authors, paper.year, paper.venue].filter(Boolean).join(" · ")) + '</p><h4>' + PR.t("推薦理由") + '</h4><p>' + esc(step.reason || PR.t("未提供推薦理由。")) + '</p><h4>' + PR.t("來源摘要") + '</h4><p class="rw-path-abstract">' + esc(paper.abstract || PR.t("來源未提供摘要。")) + '</p><p class="rw-source">' + PR.t("論文來源：{source}", { source: esc(paper.source || "OpenAlex") }) + '</p><div class="rw-path-detail-actions">' + btn(candidate ? PR.t("移出候選") : PR.t("加入候選"), "candidate", candidate ? "line" : "accent", 'data-key="' + escAttr(key) + '" data-paper-index="' + index + '"') + (library ? '<a class="btn sm line" href="/read/' + escAttr(library.id) + '">' + PR.t("開啟閱讀") + '</a>' : btn(PR.t("加入閱讀看板"), "queue", "line", 'data-key="' + escAttr(key) + '"')) + (paper.url ? '<a class="btn sm line" target="_blank" rel="noopener" href="' + escAttr(paper.url) + '">' + PR.t("論文來源") + '</a>' : '') + '</div><div class="rw-path-reorder"><span>' + PR.t("調整閱讀順序") + '</span><div class="rw-path-order-controls">' + pathOrderButton(key, -1, index === 0) + pathOrderButton(key, 1, index === S.pathResults.length - 1) + '</div></div></aside>';
   }
   function pathList() {
     return '<div class="rw-path-list">' + S.pathResults.map((step, index) => {
       const paper = step.paper || {}, key = step.paper_key || paperKey(paper);
-      return '<article class="rw-card rw-path-card' + (key === S.pathSelectedKey ? ' is-selected' : '') + '"><button type="button" class="rw-path-index" data-action="path-select-paper" data-path-key="' + escAttr(key) + '">' + (index + 1) + '</button><div class="rw-path-card-content"><span class="rw-chip">' + esc(step.role || PR.t("延伸探索")) + '</span><h3>' + titleHtml(paper.title || PR.t("未命名論文")) + '</h3><p class="meta">' + esc([paper.year, paper.venue, paper.authors].filter(Boolean).join(" · ")) + '</p><p>' + esc(step.reason || PR.t("未提供推薦理由。")) + '</p><div class="rw-path-card-actions"><div class="actions">' + btn(PR.t("檢視詳情"), "path-select-paper", "line", 'data-path-key="' + escAttr(key) + '"') + '</div><div class="rw-path-order-controls">' + pathOrderButton(key, -1, index === 0) + pathOrderButton(key, 1, index === S.pathResults.length - 1) + '</div></div></div></article>';
+      const role = step.role ? PR.t(step.role) : PR.t("延伸探索");
+      return '<article class="rw-card rw-path-card' + (key === S.pathSelectedKey ? ' is-selected' : '') + '"><button type="button" class="rw-path-index" data-action="path-select-paper" data-path-key="' + escAttr(key) + '">' + (index + 1) + '</button><div class="rw-path-card-content"><span class="rw-chip">' + esc(role) + '</span><h3>' + titleHtml(paper.title || PR.t("未命名論文")) + '</h3><p class="meta">' + esc([paper.year, paper.venue, paper.authors].filter(Boolean).join(" · ")) + '</p><p>' + esc(step.reason || PR.t("未提供推薦理由。")) + '</p><div class="rw-path-card-actions"><div class="actions">' + btn(PR.t("檢視詳情"), "path-select-paper", "line", 'data-path-key="' + escAttr(key) + '"') + '</div><div class="rw-path-order-controls">' + pathOrderButton(key, -1, index === 0) + pathOrderButton(key, 1, index === S.pathResults.length - 1) + '</div></div></div></article>';
     }).join("") + '</div>';
   }
   function renderPath() {
@@ -791,7 +793,7 @@
     const selected = S.pathResults[selectedIndex] || S.pathResults[0];
     const toolbar = '<div class="rw-path-toolbar"><div class="rw-path-view-switch" role="group" aria-label="' + escAttr(PR.t("閱讀路徑顯示方式")) + '"><button type="button" class="btn sm ' + (S.pathView === "map" ? "accent" : "line") + '" data-action="path-view" data-path-view="map" aria-pressed="' + (S.pathView === "map") + '">' + PR.t("地圖") + '</button><button type="button" class="btn sm ' + (S.pathView === "list" ? "accent" : "line") + '" data-action="path-view" data-path-view="list" aria-pressed="' + (S.pathView === "list") + '">' + PR.t("清單") + '</button></div><div class="rw-path-toggle-group"><button type="button" class="btn sm line" data-action="path-toggle-sequence" aria-pressed="' + S.pathShowSequence + '">' + PR.t("閱讀順序") + '</button><button type="button" class="btn sm line" data-action="path-toggle-relations" aria-pressed="' + S.pathShowRelations + '"' + (S.pathRelationsLoading ? " disabled" : "") + '>' + (S.pathRelationsLoading ? PR.t("正在更新引用…") : PR.t("引用關係")) + '</button>' + (S.pathShowRelations ? btn(PR.t("更新引用資料"), "path-refresh-relations", "line") : "") + '</div><div class="rw-path-zoom"><button type="button" class="btn sm line" data-action="path-zoom" data-zoom="out" aria-label="' + escAttr(PR.t("縮小")) + '">−</button><button type="button" class="btn sm line" data-action="path-zoom" data-zoom="in" aria-label="' + escAttr(PR.t("放大")) + '">＋</button><button type="button" class="btn sm line" data-action="path-fit">' + PR.t("符合視窗") + '</button></div></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const meta = '<section class="rw-path-summary"><div><span>' + PR.t("研究主題") + '</span><strong>' + (topic ? titleHtml(topic) : (S.pathStartPaper?.title ? titleHtml(S.pathStartPaper.title) : (incomingTitle ? titleHtml(incomingTitle) : esc(PR.t("未命名主題"))))) + '</strong></div><div><span>' + PR.t("研究目標") + '</span><strong>' + esc(goal) + '</strong></div><button type="button" class="btn sm line" data-action="path-toggle-settings" aria-expanded="' + S.pathConfigOpen + '">' + PR.t("修改設定") + '</button></section>';
-    const map = globalThis.PRPathMap?.render({ steps: S.pathResults, selectedKey: selected.paper_key, showSequence: S.pathShowSequence, showRelations: S.pathShowRelations, relations: S.pathRelations, view: S.pathMapView, esc, titleHtml, libraryFor: (paper) => { const item = alreadyInLibrary(paper); return item ? PR.t(statusLabel(item.status || "unread")) : ""; }, labels: { start: PR.t("起點論文"), paper: PR.t("論文"), mapLabel: PR.t("閱讀路徑地圖"), mapHelp: PR.t("拖曳空白處平移地圖；可使用工具列縮放與符合視窗。") } }) || "";
+    const map = globalThis.PRPathMap?.render({ steps: S.pathResults, selectedKey: selected.paper_key, showSequence: S.pathShowSequence, showRelations: S.pathShowRelations, relations: S.pathRelations, view: S.pathMapView, esc, titleHtml, translate: (s) => PR.t(s), libraryFor: (paper) => { const item = alreadyInLibrary(paper); return item ? PR.t(statusLabel(item.status || "unread")) : ""; }, labels: { start: PR.t("起點論文"), paper: PR.t("論文"), mapLabel: PR.t("閱讀路徑地圖"), mapHelp: PR.t("拖曳空白處平移地圖；可使用工具列縮放與符合視窗。") } }) || "";
     const relationNotice = S.pathShowRelations && S.pathRelationError ? '<div class="rw-path-notice">' + esc(S.pathRelationError) + ' ' + btn(PR.t("重試"), "path-refresh-relations", "line") + '</div>' : (S.pathShowRelations && !S.pathRelationsLoading && !S.pathRelations.length ? '<div class="rw-path-notice">' + PR.t("目前資料未找到圖內引用關係。") + '</div>' : "");
     const savedPathNotice = S.pathIncomingStart ? '<div class="rw-path-notice">' + PR.t("正在顯示上次儲存的閱讀路徑；請依目前起點論文修改設定後重新產生。") + '</div>' : "";
     host.innerHTML = (S.pathConfigOpen ? config : meta) + savedPathNotice + (S.pathSaveError ? '<div class="rw-error">' + esc(S.pathSaveError) + '</div>' : "") + (S.pathError ? '<div class="rw-error">' + esc(S.pathError) + ' ' + btn(PR.t("重試"), "generate-path") + '</div>' : "") + toolbar + '<div class="rw-path-legend"><span><i class="rw-path-legend-sequence"></i>' + PR.t("虛線：建議閱讀順序") + '</span><span><i class="rw-path-legend-citation"></i>' + PR.t("實線：引用者指向被引用論文") + '</span></div>' + relationNotice + (S.pathView === "map" ? '<div class="rw-path-layout">' + map + pathDetail(selected, selectedIndex) + '</div>' : '<div class="rw-path-list-layout">' + pathList() + pathDetail(selected, selectedIndex) + '</div>');
@@ -1164,13 +1166,13 @@
   }
   function queueModal(work) {
     const cats = S.categories.map((c) => '<label class="rw-category-option"><input type="checkbox" name="q-category" value="' + escAttr(c) + '"><span>' + esc(c) + '</span></label>').join("");
-    if (!work) return PR.toast("找不到論文資料，請重新搜尋。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    if (!work) return PR.toast(PR.t("找不到論文資料，請重新搜尋。")); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const categoryPicker = cats ? '<div id="q-categories" class="rw-category-picker" role="group" aria-label="分類（可複選）">' + cats + '</div>' : '<p class="rw-source rw-category-empty">目前尚未建立分類，可直接加入閱讀看板。</p>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const body = '<div class="rw-form-grid"><div class="rw-field wide"><label>分類（可複選）</label>' + categoryPicker + '<small>加入閱讀看板會開始尋找公開 PDF；這與候選清單分開管理。</small></div><div class="rw-field wide"><label class="rw-check"><input id="q-interested" type="checkbox">標記為感興趣</label></div></div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     openModal("加入閱讀看板", body, async (modal) => { /* i18n-dom: shared DOM translator localizes rendered UI text. */
       const category = Array.from($$("input[name=\"q-category\"]:checked", modal)).map((input) => input.value);
       await PR.api(API + "/save-paper", { method: "POST", body: { paper: work, categories: category, interested: $("#q-interested", modal).checked } });
-      PR.toast("已加入待閱讀看板並開始尋找可用 PDF；不會自動整理摘要。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+      PR.toast(PR.t("已加入待閱讀看板並開始尋找可用 PDF；不會自動整理摘要。")); /* i18n-dom: shared DOM translator localizes rendered UI text. */
       const data = await PR.api(API); S.saved = data.saved || S.saved; S.items = data.items || S.items; renderExplore();
     }, "加入並尋找 PDF"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
   }
@@ -1187,10 +1189,10 @@
     input.onchange = async () => {
       const file = input.files && input.files[0]; input.remove(); if (!file) return;
       try {
-        PR.toast("正在加入 PDF 並連結閱讀計畫…", null, 30000); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+        PR.toast(PR.t("正在加入 PDF 並連結閱讀計畫…"), null, 30000); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
         const qs = new URLSearchParams({ paper_key: key, name: file.name });
         const result = await PR.api(API + "/attach-pdf?" + qs, { method: "POST", body: file });
-        const data = await PR.api(API); S.items = data.items || []; S.saved = data.saved || []; PR.toast(result.queued ? "PDF 已加入文獻庫，正在準備原頁與文字。" : "PDF 已加入文獻庫，閱讀計畫已保留。", null, 6000); renderActive(); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+        const data = await PR.api(API); S.items = data.items || []; S.saved = data.saved || []; PR.toast(result.queued ? PR.t("PDF 已加入文獻庫，正在準備原頁與文字。") : PR.t("PDF 已加入文獻庫，閱讀計畫已保留。"), null, 6000); renderActive(); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
       } catch (e) { PR.toast(PR.t("附加 PDF 失敗：{message}", { message: PR.t(e.message) })); }
     };
     input.click();
@@ -1263,7 +1265,7 @@
   async function aiSummary() {
     const record = S.candidates.find((c) => c.paper_key === S.summaryKey);
     const chosen = record ? [record.paper] : [];
-    if (!chosen.length) return PR.toast("請先從候選清單選擇一篇論文。"); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+    if (!chosen.length) return PR.toast(PR.t("請先從候選清單選擇一篇論文。")); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     const button = $("[data-action='candidate-summary'][data-key='" + CSS.escape(S.summaryKey) + "']");
     if (S.summaryBusy) return;
     if (record.summary_markdown && !S.forceSummary) return showSummary(record);
@@ -1415,7 +1417,7 @@
     const modal = $("#rw-modal"), draft = $("#rw-ai-query", modal);
     const start = draft?.selectionStart ?? 0, end = draft?.selectionEnd ?? 0;
     const selected = draft?.value.slice(start, end).trim() || "";
-    if (!selected) return PR.toast("請先在關鍵字草稿中選取要改寫的文字。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+    if (!selected) return PR.toast(PR.t("請先在關鍵字草稿中選取要改寫的文字。")); /* i18n-dom: shared DOM translator localizes rendered UI text. */
     const button = $("[data-action='rewrite-selected']", modal); if (button.disabled) return;
     button.disabled = true; button.textContent = "AI 正在改寫…"; /* i18n-dom: shared DOM translator localizes rendered UI text. */
     $("#rw-rewrite-results", modal).innerHTML = '<div class="rw-source" role="status">正在依選取文字產生建議…</div>'; /* i18n-dom: shared DOM translator localizes rendered UI text. */
@@ -1756,7 +1758,7 @@
             await PR.api(API + "/candidate", { method: "POST", body: { action: record ? "remove" : "add", paper: work } });
             S.candidates = (await PR.api(API)).candidates || [];
           } catch (error) { b.disabled = false; b.textContent = record ? "移出候選" : "加入候選"; throw error; } /* i18n-dom: shared DOM translator localizes rendered UI text. */
-          PR.toast(record ? "已從候選清單移除。" : "已加入候選清單，摘要會在背景自動整理。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+          PR.toast(record ? PR.t("已從候選清單移除。") : PR.t("已加入候選清單，摘要會在背景自動整理。")); /* i18n-dom: shared DOM translator localizes rendered UI text. */
           return renderActive();
         }
         case "remove-candidate": {
@@ -1780,7 +1782,7 @@
           try { await PR.api("/api/trash", { method: "POST", body: { action: "move-summary", type: "summary", name: record.paper_key } }); }
           catch (error) { b.disabled = false; throw error; }
           S.summaries = S.summaries.filter((x) => x.paper_key !== record.paper_key);
-          renderSummaries(); PR.toast("摘要已移到回收站。"); /* i18n-dom: shared DOM translator localizes rendered UI text. */
+          renderSummaries(); PR.toast(PR.t("摘要已移到回收站。")); /* i18n-dom: shared DOM translator localizes rendered UI text. */
           try { const updated = await PR.api(API); S.candidates = updated.candidates || S.candidates; }
           catch (_) { /* The completed move remains reflected in the current view. */ }
           return;
@@ -1865,7 +1867,7 @@
         }
         case "skip": await PR.api(API + "/skip", { method: "POST", body: { paper_key: b.dataset.key } }); S.results = S.results.filter((w) => paperKey(w) !== b.dataset.key); return renderExplore();
         case "attach-pdf": return attachPdf(b.dataset.key);
-        case "retry-pdf": await PR.api(API + "/retry-pdf", { method: "POST", body: { paper_key: b.dataset.key } }); PR.toast("已重新排入 PDF 下載。"); return init(); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+        case "retry-pdf": await PR.api(API + "/retry-pdf", { method: "POST", body: { paper_key: b.dataset.key } }); PR.toast(PR.t("已重新排入 PDF 下載。")); return init(); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
         case "interested": { const task = allTasks().find((x) => x.id === b.dataset.taskId); if (task) { const interested = !task.interested; return patchTask(task, { interested, starred: interested }); } break; }
         case "archive-task": {
           const task = allTasks().find((x) => x.id === b.dataset.taskId);
@@ -2009,7 +2011,7 @@
       const restored = await Promise.allSettled(rollback.map((x) => saveTaskFields(x.item, { status: x.status, manual_order: x.manual_order })));
       try { const data = await PR.api(API); S.items = data.items || S.items; S.saved = data.saved || S.saved; renderBoard(); } catch (_) { /* retain the last rendered board while the service reconnects */ }
       const fullyRestored = restored.every((x) => x.status === "fulfilled");
-      PR.toast(fullyRestored ? "拖曳未能儲存，已還原原排序。" : "拖曳未能儲存；連線恢復後請確認排序。" ); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
+      PR.toast(fullyRestored ? PR.t("拖曳未能儲存，已還原原排序。") : PR.t("拖曳未能儲存；連線恢復後請確認排序。") ); // i18n-ok: 研究工作區依產品規格固定使用繁體中文。
     }
     dragged = null;
   });

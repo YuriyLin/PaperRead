@@ -163,7 +163,7 @@ def check(ws, cfg: dict, pages: list[int], cancel, meter, journal, lock) -> int:
     items, agree = suspects(paper, edited_now(), in_job)
     whole = in_job >= {b.get("page") for b in paper.get("blocks") or [] if b.get("page")}
     if not items:
-        journal(ws, tr("术语一致性检查：没有发现不一致"))
+        journal(ws, "Terminology consistency check: no inconsistencies found")
         return 0
     name = langs.prompt_name(langs.of_paper(paper.get("meta")))
     data = engines.parse_json(engines.run(cfg, prompts.consistency(items, agree, name), ws.root, None, cancel, meter))
@@ -220,6 +220,6 @@ def check(ws, cfg: dict, pages: list[int], cancel, meter, journal, lock) -> int:
             ws.update("paper", regloss)
     page_of = {key: b.get("page") for b in paper.get("blocks") or [] for key, _, _ in _fields(b)}
     for key in done:
-        journal(ws, tr("术语一致性：第 {page} 页 {key} {what}", page=page_of.get(key), key=key, what="、".join(why[key])))  # i18n-ok 顿号
-    journal(ws, tr("术语一致性检查：查了 {n} 段，改了 {m} 段", n=len(items), m=len(done)))
+        journal(ws, f"Terminology consistency: Page {page_of.get(key)} {key} {', '.join(why[key])}")
+    journal(ws, f"Terminology consistency check: checked {len(items)} sections, updated {len(done)} sections")
     return len(done)

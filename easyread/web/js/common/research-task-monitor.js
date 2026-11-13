@@ -80,6 +80,7 @@
     const task = { ...raw };
     if (task.state === "done") task.state = "completed";
     else if (task.state === "error") task.state = "failed";
+    const type = taskType(task);
     if (task.kind === "smart-annotate" && !task.stage_label) {
       if (["queued", "running"].includes(task.state)) {
         task.stage_label = task.total > 0
@@ -87,6 +88,15 @@
           : (task.message || PR.t("正在進行智慧標註分析…"));
       } else if (task.state === "completed") {
         task.stage_label = task.message || PR.t("智慧標註已完成");
+      }
+    }
+    if (task.state === "completed") {
+      if (!task.stage_label || task.stage_label === "工作完成" || task.stage_label === "Task completed") { /* i18n-ok */
+        task.stage_label = taskCompletedTitle(type);
+      }
+    } else if (task.state === "queued") {
+      if (!task.stage_label || task.stage_label === "排入背景工作…" || task.stage_label === "排入背景工作..." || task.stage_label === "排入背景任務…") { /* i18n-ok */
+        task.stage_label = PR.t("排入背景工作…");
       }
     }
     if (task.id && active(task)) state.sessionTaskIds.add(task.id);
@@ -158,8 +168,29 @@
       : task.state === "cancelled" ? PR.t("分析已取消")
       : task.state === "interrupted" ? PR.t("分析已中斷") : PR.t("分析未完成");
 
-    const stageWhat = task.stage_label || task.message || (running ? taskRunningTitle(type) : PR.t("處理中…"));
-    const dataScope = task.data_scope || PR.t("全文整理內容");
+    function formatDataScope(scope) {
+      if (!scope) return PR.t("全文整理內容");
+      const exact = PR.t(scope);
+      if (exact !== scope) return exact;
+      const m = scope.match(/^全文\s*1\s*[–-]\s*(\d+)\s*頁\s*[（(]\s*涵蓋[：:]\s*(.*?)\s*[)）]$/);
+      if (m) {
+        const maxPage = m[1];
+        const rawSections = m[2].split(/[、,]/).map((s) => s.trim()).filter(Boolean);
+        const sep = PR.lang && PR.lang() === "en" ? ", " : "、"; /* i18n-ok */
+        const translatedSections = rawSections.map((s) => PR.t(s));
+        return PR.t("全文 1–{max} 頁（涵蓋：{sections}）", {
+          max: maxPage,
+          sections: translatedSections.join(sep)
+        });
+      }
+      const m2 = scope.match(/^共\s*(\d+)\s*篇論文全文與個人批註$/);
+      if (m2) {
+        return PR.t("共 {n} 篇論文全文與個人批註", { n: m2[1] });
+      }
+      return PR.t(scope);
+    }
+    const stageWhat = task.stage_label ? PR.t(task.stage_label) : (task.message ? PR.t(task.message) : (running ? taskRunningTitle(type) : PR.t("處理中…")));
+    const dataScope = formatDataScope(task.data_scope);
     const resultState = task.result_state || (task.state === "completed" ? "completed" : (task.state === "failed" || task.state === "interrupted") ? "failed" : task.state === "cancelled" ? "cancelled" : (running ? "running" : "unknown"));
     let resultStateText = "";
     let resultClass = "";
@@ -186,7 +217,7 @@
     } else if (task.state === "completed") {
       nextStepText = PR.t("可立即查看詳細分析與原文依據。");
     } else if (task.state === "failed" || task.state === "interrupted") {
-      nextStepText = task.error_reason ? (PR.t("失敗原因：") + task.error_reason) : PR.t("可重試任務或檢查模型設定。");
+      nextStepText = task.error_reason ? (PR.t("失敗原因：") + PR.t(task.error_reason)) : PR.t("可重試任務或檢查模型設定。");
     }
 
     const preservedHint = task.preserved_previous
@@ -331,7 +362,7 @@
     const title = completed ? taskCompletedTitle(type) :
       task.state === "interrupted" ? PR.t("分析已中斷") : PR.t("分析未完成");
     const actionLabel = completed ? PR.t("查看結果") : PR.t("返回重試");
-    PR.toast(esc(title) + (task.message ? " · " + esc(task.message) : ""), {
+    PR.toast(esc(title) + (task.message ? " · " + esc(PR.t(task.message)) : ""), {
       label: actionLabel,
       fn: () => {
         ack(task);
@@ -436,7 +467,7 @@
     if (taskList().some(active)) state.timer = setTimeout(poll, 2000);
   }
   async function init() {
-    if (location.protocol !== "http:") return;
+    if (location.protocol !== "http:" && location.protocol !== "https:") return;
     if (!PR.$("#pr-research-task-modal")) {
       const modal = PR.el("div", { id: "pr-research-task-modal", class: "pr-task-modal", hidden: true, tabindex: "-1" });
       document.body.appendChild(modal);

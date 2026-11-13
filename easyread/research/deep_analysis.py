@@ -20,11 +20,25 @@ def _safe_report(report, phase: str, done: int, total: int, message: str, **kwar
         report(phase, done, total, message)
 
 
-AUDIT_PROMPT_SYSTEM = """你是一位具備頂尖同行評審（Senior Peer Reviewer / Area Chair）標準的學術技術審計員。
+def build_audit_prompt(meta: dict | None, text: str = "", focus: str = "") -> str:
+    from .. import langs, i18n
+    lang_desc = langs.reply_lang(meta)
+    target = (meta or {}).get("target")
+
+    if target == "en" or "英文" in lang_desc or "English" in lang_desc or i18n.lang() == "en":  # i18n-ok
+        lang_rule = "1. Please output the entire report in English. Use standard academic English terminology (e.g., Transformer, Ablation, Zero-shot, Backpropagation)."  # i18n-ok
+    elif target == "zh-TW" or lang_desc == langs.prompt_name("zh-TW"):
+        lang_rule = "1. 全文一律使用繁體中文（臺灣習慣用語），學術專有名詞（如 Transformer、Ablation、Zero-shot、Backpropagation 等）保留標準英文或附括號原文；不可使用簡體字。"  # i18n-ok
+    elif target == "zh" or lang_desc == "中文":  # i18n-ok
+        lang_rule = "1. 全文一律使用中文，學術專有名詞（如 Transformer、Ablation、Zero-shot、Backpropagation 等）保留標準英文或附括號原文。"  # i18n-ok
+    else:
+        lang_rule = f"1. 全文一律使用{lang_desc}回答，學術專有名詞（如 Transformer、Ablation、Zero-shot、Backpropagation 等）保留標準英文或附括號原文。"  # i18n-ok
+
+    base = f"""你是一位具備頂尖同行評審（Senior Peer Reviewer / Area Chair）標準的學術技術審計員。
 你的任務是對以下論文進行客觀、深度、技術性的全面審查與剖析。
 
 【核心原則】
-1. 只輸出繁體中文（臺灣習慣用語），學術專有名詞（如 Transformer、Ablation、Zero-shot、Backpropagation 等）保留標準英文或附括號原文。
+{lang_rule}
 2. 秉持「嚴謹批判、不講客套」的態度，拒絕空泛的讚美或套話；嚴格區分作者聲稱（Claim）與論文實證（Evidence）。若論文缺乏實質證據或推論跳躍，必須直接指明。
 3. 數學公式：行內公式一律使用 $TeX$，獨立行間公式一律使用 $$TeX$$ 並單獨成行。不要使用 \\( \\) 或 \\[ \\]。公式內部保持乾淨，多行推導使用 aligned。
 4. 引用位置：提及原文依據時標註章節名或頁碼（如「第 3.2 節」「第 5 頁表 2」），不要憑空捏造。若正文未提供某項資訊，明確註記「論文未報告」。
@@ -55,6 +69,13 @@ AUDIT_PROMPT_SYSTEM = """你是一位具備頂尖同行評審（Senior Peer Revi
 - 失效模式 (Failure Modes)：在哪些邊界情況、極端分佈 (OOD) 或實際落地環境中，本方法很可能會失效？
 - 未解的核心挑戰與未來延伸方向。
 """
+    prompt = base + (f"\n\n【論文全文內容】\n{text}" if text else "")
+    if focus.strip():
+        prompt += f"\n\n【讀者特別關注的審查重點】\n讀者提出了本次剖析的特別焦點：{focus.strip()}\n請在完成上述 5 大維度分析的同時，在文末增加「## 6. 特別焦點深度回應」，專門針對讀者的焦點進行深度剖析。"
+    return prompt
+
+
+AUDIT_PROMPT_SYSTEM = build_audit_prompt({"target": "zh-TW"})
 
 BUCKET_KEYWORDS = {
     "intro_bg": ("abstract", "introduction", "background", "related work", "overview", "motivation", "緒論", "引言", "背景", "相關工作", "概述"),
@@ -289,7 +310,7 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
         data_scope = analysis["data_scope"]
 
         _safe_report(report, "read", 1, 4, tr("正在讀取論文原文與章節結構…"),
-                     stage_label="讀取全文",
+                     stage_label=tr("讀取全文"),
                      data_scope=data_scope,
                      preserved_previous=previous_report)
 
@@ -298,7 +319,7 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
             raise ValueError(tr("論文尚未完成原文整理，無法進行深度剖析。"))
 
         _safe_report(report, "audit", 2, 4, tr("正在進行深度技術審計與微型推導…"),
-                     stage_label="深度技術審計",
+                     stage_label=tr("深度技術審計"),
                      data_scope=data_scope,
                      preserved_previous=previous_report)
 
@@ -306,14 +327,12 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
         model_cfg, selected = chat_models.engine_cfg(cfg, model or (cfg.get("chat") or {}).get("default"))
         meter = usage.Meter(model_cfg.get("engine", ""))
 
-        prompt = AUDIT_PROMPT_SYSTEM + f"\n\n【論文全文內容】\n{text}"
-        if focus.strip():
-            prompt += f"\n\n【讀者特別關注的審查重點】\n讀者提出了本次剖析的特別焦點：{focus.strip()}\n請在完成上述 5 大維度分析的同時，在文末增加「## 6. 特別焦點深度回應」，專門針對讀者的焦點進行深度剖析。"
+        prompt = build_audit_prompt(meta, text, focus)
 
         answer = engines.run(engines.for_translation(model_cfg), prompt, app.lib.root, [], cancel, meter).strip()
 
         _safe_report(report, "save", 3, 4, tr("正在儲存深度剖析報告…"),
-                     stage_label="生成剖析報告",
+                     stage_label=tr("生成剖析報告"),
                      data_scope=data_scope,
                      preserved_previous=previous_report)
 
@@ -330,7 +349,7 @@ def start_deep_analysis_task(app, pid: str, model: str = "", focus: str = "") ->
         write_json_atomic(ws.root / "report.json", result_data)
 
         _safe_report(report, "done", 4, 4, tr("深度剖析報告已完成！"),
-                     stage_label="剖析完成",
+                     stage_label=tr("剖析完成"),
                      data_scope=data_scope,
                      result_state="completed",
                      next_actions=["view"])

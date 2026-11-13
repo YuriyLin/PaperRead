@@ -155,7 +155,8 @@ class SkipHeadTest(unittest.TestCase):
         paper = self.ws.load("paper")
         self.assertEqual({b["zh"] for b in paper["blocks"]}, {"誤差線"})
         self.assertEqual(paper["glossary"], [{"en": "error bar", "zh": "誤差線"}])
-        self.assertIn("术语统一", (self.ws.root / "job.log").read_text(encoding="utf-8"))
+        log_content = (self.ws.root / "job.log").read_text(encoding="utf-8")
+        self.assertTrue("Terminology unified" in log_content or "术语统一" in log_content)
 
     def test_only_one_references_block(self):
         cfg = {"engine": "openai", "batch_pages": 2, "concurrency": 2, "openai": {"vision": False}}

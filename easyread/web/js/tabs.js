@@ -51,7 +51,7 @@
   function notify(text) {
     const el = document.querySelector("#message");
     if (!el) return;
-    el.textContent = text;
+    el.textContent = t(text);
     el.hidden = false;
     clearTimeout(notify.timer);
     notify.timer = setTimeout(() => { el.hidden = true; }, 5000);
@@ -372,7 +372,7 @@
 
     syncTheme(tab);
     if (tab.checkModal) tab.checkModal();
-    else document.body?.classList?.remove("modal-open", "modal-mindmap-dark");
+    else document.body?.classList?.remove("modal-open", "modal-rw-open", "modal-mindmap-dark");
     const rawTitle = tab.button.querySelector?.(".tab-text")?.textContent || tab.button.textContent || tab.title || "";
     document.title = String(rawTitle).replace(/^☾\s*/, "") + " · PaperRead";
     tab.node.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -381,6 +381,8 @@
       if (tab.lastScrollY && tab.frame.contentWindow.scrollY === 0) {
         tab.frame.contentWindow.scrollTo({ top: tab.lastScrollY, behavior: "auto" });
       }
+      try { tab.frame.contentWindow.PR?.renderMargin?.(); } catch (_) {}
+      try { tab.frame.contentWindow.PR?.layoutMargin?.({ instant: true }); } catch (_) {}
     }
 
     // Expand group if active tab belongs to a collapsed group
@@ -390,6 +392,7 @@
 
     enforceMemoryLimit();
     updateScrollButtons();
+    saveTabsSession();
   }
 
   function selectMultiple(ids, clearExisting = true) {
@@ -446,6 +449,7 @@
       }
       syncGroupPositions();
       updateScrollButtons();
+      saveTabsSession();
 
       if (isDetachedWindow && [...tabs.keys()].filter(k => k !== "library").length === 0) {
         window.close();
@@ -780,6 +784,9 @@
         try {
           localStorage.setItem("easyread-attached-ack-" + data.sourceWindowId, JSON.stringify(ackData));
         } catch (_) {}
+        if (!isDetachedWindow && window.easyreadDesktop?.restoreMainWindow) {
+          window.easyreadDesktop.restoreMainWindow().catch?.(() => {});
+        }
       } catch (_) {}
     });
   }
@@ -1241,14 +1248,18 @@
       const mmOpen = doc.querySelector ? doc.querySelector("#mindmapDlg.dialog-backdrop.open") : null;
       const taskModal = doc.querySelector ? doc.querySelector("#pr-research-task-modal") : null;
       const isTaskModalOpen = taskModal && !taskModal.hidden;
+      const rwModal = doc.querySelector ? doc.querySelector("#rw-modal") : null;
+      const isRwModalOpen = rwModal && !rwModal.hidden;
       const hasModal = !!(
         doc.querySelector?.(".dialog-backdrop.open, .popover.confirm.open") ||
         figViewer ||
         mmOpen ||
-        isTaskModalOpen
+        isTaskModalOpen ||
+        isRwModalOpen
       );
       const isDark = (doc.documentElement?.dataset?.theme === "dark" || doc.documentElement?.getAttribute?.("data-theme") === "dark" || document.documentElement?.dataset?.theme === "dark");
       document.body?.classList?.toggle("modal-open", hasModal);
+      document.body?.classList?.toggle("modal-rw-open", !!(isRwModalOpen || isTaskModalOpen));
       document.body?.classList?.toggle("modal-mindmap-dark", !!(hasModal && (mmOpen || figViewer) && isDark));
     };
 
@@ -1393,6 +1404,7 @@
     document.querySelector("#panes").append(frame);
     syncGroupPositions();
     updateScrollButtons();
+    saveTabsSession();
   }
 
   function reorderTabs(newOrderIds) {
@@ -1483,9 +1495,58 @@
 
   loadAutoHideFromPrefs();
 
+  /* ---------------- Tab Session Persistence ---------------- */
+  function saveTabsSession() {
+    if (isDetachedWindow || typeof sessionStorage === "undefined") return;
+    try {
+      const tabData = [];
+      tabs.forEach((tab, id) => {
+        if (id === "library") return;
+        tabData.push({ id, url: tab.url, title: tab.title, group: tab.group });
+      });
+      const groupData = [];
+      groups.forEach((g) => {
+        groupData.push({ id: g.id, title: g.title, color: g.color, collapsed: g.collapsed });
+      });
+      sessionStorage.setItem("easyread-tabs-session", JSON.stringify({
+        tabs: tabData,
+        groups: groupData,
+        active: active || "library"
+      }));
+    } catch (_) {}
+  }
+
+  function restoreTabsSession() {
+    if (isDetachedWindow || typeof sessionStorage === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem("easyread-tabs-session");
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.groups)) {
+        data.groups.forEach((g) => {
+          if (!groups.has(g.id)) createGroup(g.id, g.title, g.color);
+        });
+      }
+      if (Array.isArray(data.tabs)) {
+        data.tabs.forEach((t) => {
+          if (!tabs.has(t.id)) {
+            create(t.id, t.url, t.title);
+            if (t.group) setTabGroup(t.id, t.group);
+          }
+        });
+      }
+      if (data.active && (data.active === "library" || tabs.has(data.active))) {
+        select(data.active);
+      }
+    } catch (_) {}
+  }
+
+  window.addEventListener?.("beforeunload", saveTabsSession);
+
   create("library", "/", t("文献库"));
   select("library");
 
+  restoreTabsSession();
   restoreDetachedPayload();
 
   const overlay = document.querySelector("#tabsOverlay");
@@ -1494,7 +1555,7 @@
       const activeTab = tabs.get(active);
       const doc = activeTab?.frame?.contentDocument;
       if (!doc) return;
-      const openBackdrop = doc.querySelector(".dialog-backdrop.open");
+      const openBackdrop = doc.querySelector(".dialog-backdrop.open, #rw-modal:not([hidden]), #pr-research-task-modal:not([hidden])");
       if (openBackdrop) {
         openBackdrop.click();
       }

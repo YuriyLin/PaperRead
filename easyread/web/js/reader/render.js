@@ -70,8 +70,18 @@
     const en = PR.isEnKey(key) ? ' lang="en"' : "";
     return '<div class="caption"><div class="zh' + (en ? " en-main" : "") + '"' + en + ' data-key="' + key + '">' + body + staleTag(key) + "</div>" + enIfZh(key, b.caption_en) + "</div>";
   }
+  function hasPageImage(page) {
+    if (PR.feature && !PR.feature("pages")) return false;
+    if (PR.store && PR.store.mode === "static") {
+      const rel = "pages/page-" + String(page).padStart(3, "0") + ".webp";
+      return !!(PR.state && PR.state.images && PR.state.images[rel]);
+    }
+    return true;
+  }
+  PR.hasPageImage = hasPageImage;
+
   function zoomBtnHtml(b) {
-    if (!b || !b.page) return "";
+    if (!b || !b.page || !hasPageImage(b.page)) return "";
     const label = PR.t("放大檢視原文第 {n} 頁", { n: b.page });
     const icon = PR.icon ? PR.icon("search", "sm") : '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM13.5 13.5L17 17"/></svg>';
     const blockAttr = b.id ? ' data-zoom-block="' + PR.esc(b.id) + '"' : "";
@@ -95,15 +105,21 @@
     },
     math: (b) => '<div class="math-row"><div class="math-body" tabindex="0" role="button" aria-label="' + PR.t("公式，點擊可選擇螢光筆或底線") + '">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
-      const placeholder = '<button class="fig-placeholder table-placeholder" data-t="page" aria-label="' + PR.t("表格保留於原文") + '">' +
-        '<span>' + PR.t("表格保留於原文") + '</span><small>' + PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
-      const table = '<div class="figure-media">' + placeholder + zoomBtnHtml(b) + '</div>';
+      const available = hasPageImage(b.page);
+      const placeholder = '<button class="fig-placeholder table-placeholder"' + (available ? ' data-t="page"' : ' disabled') + ' aria-label="' + PR.t("表格保留於原文") + '">' +
+        '<span>' + PR.t("表格保留於原文") + '</span><small>' +
+        (available ? PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) : PR.t("表格位於原文第 {n} 頁", { n: b.page })) +
+        '</small></button>';
+      const table = '<div class="figure-media">' + placeholder + (available ? zoomBtnHtml(b) : "") + '</div>';
       return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
     },
     figure(b) {
-      const placeholder = '<button class="fig-placeholder" data-t="page" aria-label="' + PR.t("圖表保留於原文") + '">' +
-        '<span>' + PR.t("圖表保留於原文") + '</span><small>' + PR.t("圖見原文第 {n} 頁（點擊查看）", { n: b.page }) + '</small></button>';
-      return '<div class="figure-media">' + placeholder + zoomBtnHtml(b) + '</div>' + captionHtml(b);
+      const available = hasPageImage(b.page);
+      const placeholder = '<button class="fig-placeholder"' + (available ? ' data-t="page"' : ' disabled') + ' aria-label="' + PR.t("圖表保留於原文") + '">' +
+        '<span>' + PR.t("圖表保留於原文") + '</span><small>' +
+        (available ? PR.t("圖見原文第 {n} 頁（點擊查看）", { n: b.page }) : PR.t("圖見原文第 {n} 頁", { n: b.page })) +
+        '</small></button>';
+      return '<div class="figure-media">' + placeholder + (available ? zoomBtnHtml(b) : "") + '</div>' + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {
@@ -208,13 +224,15 @@
     const job = S.job || {};
     const running = ["queued", "running"].includes(job.state);
     const nFailed = miss.filter((p) => failedOf()[p.n]).length;
-    const head = job.state === "confirm" ? PR.t("等待确认期间，仍可阅读原页。") : running ? '<span class="spin"></span> ' + PR.esc(job.message || PR.t("翻译中")) + (job.total ? PR.t("（{done}/{total} 页）", { done: job.done, total: job.total }) : "") + '<span class="hint">' + PR.t("译好的页会自动出现在这里") + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
+    const jobMsg = PR.formatJobMessage ? PR.formatJobMessage(job) : (job.message || PR.t("翻译中"));
+    const head = job.state === "confirm" ? PR.t("等待确认期间，仍可阅读原页。") : running ? '<span class="spin"></span> ' + PR.esc(jobMsg) + (job.total ? PR.t("（{done}/{total} 页）", { done: job.done, total: job.total }) : "") + '<span class="hint">' + PR.t("译好的页会自动出现在这里") + (PR.usageShort(job.usage) ? " · " + PR.esc(PR.usageShort(job.usage)) : "") + "</span>"
       : reading() ? PR.t("下面 {n} 页还没整理，先放原页。", { n: miss.length }) + (nFailed ? PR.t("其中 {n} 页上次没整理成功。", { n: nFailed }) : "") +
         (PR.canAsk() && job.state !== "error" ? '<button class="btn sm line" data-t="read-rest">' + PR.t("整理剩下的页") + "</button>" : "")
       : PR.t("下面 {n} 页还没有译文，先放原页。", { n: miss.length }) + (nFailed ? PR.t("其中 {n} 页上次没译成功。", { n: nFailed }) : "") +
         (PR.canAsk() ? '<button class="btn sm line" data-t="translate-rest">' + PR.t("翻译剩下的页") + "</button>" : "");
+    const errText = job.error || (job.message ? (PR.formatJobMessage ? PR.formatJobMessage(job.message) : job.message) : "");
     const recovery = job.read && job.state === "error" && PR.store.mode === "server"
-      ? '<div class="err">' + PR.esc(job.error || job.message || "") + '</div><p class="hint">' + PR.t("整理原文需要可用模型。请检查模型设置后重试；重试使用当前翻译模型，已整理的内容会保留。") +
+      ? '<div class="err">' + PR.esc(errText) + '</div><p class="hint">' + PR.t("整理原文需要可用模型。请检查模型设置后重试；重试使用当前翻译模型，已整理的内容会保留。") +
         '</p><button class="btn sm line" data-t="model-settings">' + PR.t("模型设置") + '</button> <button class="btn sm accent" data-t="read-rest">' + PR.t("重试整理原文") + "</button>"
       : "";
     return '<div class="pending-pages"><div class="pending">' + head + recovery + "</div>" + miss.map(origFig).join("") + "</div>";

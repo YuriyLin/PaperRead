@@ -1,4 +1,5 @@
 """界面语言：系统语言判断、tr 填占位符、页面注入词典，以及所有界面文字都有英文。  python -m unittest tests.test_i18n"""
+import json
 import os
 import subprocess
 import sys
@@ -90,6 +91,55 @@ class I18nTest(unittest.TestCase):
     def test_every_ui_string_has_english(self):
         result = subprocess.run([sys.executable, str(ROOT / "scripts" / "i18n_check.py")], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stdout[-3000:])
+
+
+class I18nSettingsTest(unittest.TestCase):
+    def test_zh_tw_includes_all_tw_overrides_in_script_tag(self):
+        html = '<html lang="zh-CN"><head><title>PaperRead</title></head><body></body></html>'
+        injected = i18n.inject(html, language="zh-TW")
+        self.assertIn('id="pr-zh-tw"', injected)
+        start = injected.find('<script id="pr-zh-tw" type="application/json">') + len('<script id="pr-zh-tw" type="application/json">')
+        end = injected.find('</script>', start)
+        payload = json.loads(injected[start:end])
+        self.assertIn("自动隐藏多标签页", payload)
+        self.assertEqual(payload["自动隐藏多标签页"], "自動隱藏多標籤頁")
+        self.assertIn("移出标签列时自动收合，鼠标移至顶部边缘时滑出，提供更开阔的阅读视野", payload)
+        self.assertEqual(payload["移出标签列时自动收合，鼠标移至顶部边缘时滑出，提供更开阔的阅读视野"], "移出標籤列時自動收合，滑鼠移至頂部邊緣時滑出，提供更開闊的閱讀視野")
+
+    def test_en_includes_tab_autohide_translations(self):
+        html = '<html lang="zh-CN"><head><title>PaperRead</title></head><body></body></html>'
+        injected = i18n.inject(html, language="en")
+        self.assertIn('id="pr-i18n"', injected)
+        start = injected.find('<script id="pr-i18n" type="application/json">') + len('<script id="pr-i18n" type="application/json">')
+        end = injected.find('</script>', start)
+        payload = json.loads(injected[start:end])
+        self.assertIn("自动隐藏多标签页", payload)
+        self.assertEqual(payload["自动隐藏多标签页"], "Auto-hide tabs")
+        self.assertIn("移出标签列时自动收合，鼠标移至顶部边缘时滑出，提供更开阔的阅读视野", payload)
+
+    def test_brand_mark_has_explicit_dimensions(self):
+        lib_html = Path("easyread/web/library.html").read_text(encoding="utf-8")
+        self.assertIn('class="mark" src="/web/paperread-mark.png" width="26" height="26"', lib_html)
+
+
+class ReleaseI18nTest(unittest.TestCase):
+    def test_english_dictionary_has_no_duplicate_keys(self):
+        pairs = json.loads((ROOT / "easyread/web/i18n/en.json").read_text(encoding="utf-8"), object_pairs_hook=list)
+        keys = [key for key, _ in pairs]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_new_feature_translations_preserve_named_parameters(self):
+        import re
+        en = json.loads((ROOT / "easyread/web/i18n/en.json").read_text(encoding="utf-8"))
+        sources = ["common/page-cap.js", "library/cite-export.js", "common/cite.js",
+                   "common/library-nav.js", "library/import.js", "library/detail.js"]
+        for source in sources:
+            code = (ROOT / "easyread/web/js" / source).read_text(encoding="utf-8")
+            for key in re.findall(r'PR\.t\("([^"\n]+)"', code):
+                with self.subTest(source=source, key=key):
+                    self.assertTrue(en.get(key))
+                    self.assertEqual(set(re.findall(r"\{\w+\}", key)), set(re.findall(r"\{\w+\}", en[key])))
+                    self.assertIsNone(re.search("[一-鿿]", en[key]))
 
 
 if __name__ == "__main__":

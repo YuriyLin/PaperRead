@@ -4,11 +4,11 @@
 
 從文獻探索、論文閱讀到知識整理的個人研究工作區。
 
-[下載 PaperRead (v1.5.2)](https://github.com/YuriyLin/PaperRead/releases/latest) · [English](README.en.md) · [回報問題](https://github.com/YuriyLin/PaperRead/issues)
+[下載 PaperRead (v1.5.3)](https://github.com/YuriyLin/PaperRead/releases/latest) · [English](README.en.md) · [回報問題](https://github.com/YuriyLin/PaperRead/issues)
 
-![Release](https://img.shields.io/badge/release-v1.5.2-blue) ![v1.5.3](https://img.shields.io/badge/v1.5.3-尚未發布-orange) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+![Release](https://img.shields.io/badge/release-v1.5.3-blue) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> **版本狀態**：目前最新正式發布版本為 **v1.5.2**；**v1.5.3 尚未發布**（最新實作與修復內容請參考 [更新紀錄](CHANGELOG.md)）。
+> 最新更新內容請參考 [更新紀錄](CHANGELOG.md)。
 
 PaperRead 建立於 EasyRead 之上，將找論文、安排閱讀、對照原文及整理筆記放進同一個本機工作區。
 

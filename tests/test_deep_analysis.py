@@ -121,3 +121,23 @@ class DeepAnalysisTest(unittest.TestCase):
             _, text = deep_analysis.extract_paper_text(ws, max_chars=4000)
             self.assertIn("CRITICAL_ABLATION_RESULT_99_2", text)
             self.assertIn("KEY_LIMITATION_QUADRATIC_COST", text)
+
+    def test_build_audit_prompt_follows_translation_language(self):
+        # Korean target
+        prompt_ko = deep_analysis.build_audit_prompt({"target": "ko"}, "Paper text")
+        self.assertIn("韩语（한국어）", prompt_ko)
+        self.assertNotIn("繁體中文（臺灣習慣用語）", prompt_ko)
+
+        # Japanese target
+        prompt_ja = deep_analysis.build_audit_prompt({"target": "ja"}, "Paper text")
+        self.assertIn("日本語", prompt_ja)
+        self.assertNotIn("繁體中文（臺灣習慣用語）", prompt_ja)
+
+        # English target
+        prompt_en = deep_analysis.build_audit_prompt({"target": "en"}, "Paper text")
+        self.assertIn("Please output the entire report in English", prompt_en)
+        self.assertNotIn("繁體中文（臺灣習慣用語）", prompt_en)
+
+        # Traditional Chinese target
+        prompt_zh_tw = deep_analysis.build_audit_prompt({"target": "zh-TW"}, "Paper text")
+        self.assertIn("繁體中文（臺灣習慣用語）", prompt_zh_tw)

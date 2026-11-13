@@ -160,3 +160,188 @@ test('text box inserts on the ink layer and saves multiline edits and styles',()
   const textGroup=layer.children.find(group=>group.dataset.sticker==='text1');
   assert.match(textGroup.children.find(child=>child.kind==='foreignObject').children[0].innerHTML,/class="katex"/);
 });
+
+/* ---------- Sticker Geometry & Transform ---------- */
+const { move: moveSticker, rotate: rotateSticker, resize: resizeSticker, toolbarPosition } = require('../easyread/web/js/reader/sticker-geometry.js');
+const closeEnough = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
+const geomSticker = { x: 20, y: 30, width: 100, height: 50, rotation: 0 };
+
+test('drag uses coordinates independent of displayed zoom', () => {
+  for (const zoom of [0.5, 1, 2]) {
+    const next = moveSticker(geomSticker, 40 * zoom / zoom, 20 * zoom / zoom);
+    closeEnough(next.x, 60);
+    closeEnough(next.y, 50);
+  }
+});
+
+test('resizing preserves ratio and opposite corner including rotation', () => {
+  let next = resizeSticker(geomSticker, 'se', -20, -10, false);
+  closeEnough(next.width, 80);
+  closeEnough(next.height, 40);
+  closeEnough(next.x, 20);
+  closeEnough(next.y, 30);
+  next = resizeSticker({ ...geomSticker, rotation: 90 }, 'se', -10, 20, false);
+  closeEnough(next.width, 120);
+  closeEnough(next.height, 60);
+  const rad = Math.PI / 2;
+  const corner = s => ({
+    x: s.x + s.width / 2 + (-s.width / 2) * Math.cos(rad) - (-s.height / 2) * Math.sin(rad),
+    y: s.y + s.height / 2 + (-s.width / 2) * Math.sin(rad) + (-s.height / 2) * Math.cos(rad)
+  });
+  closeEnough(corner(next).x, corner(geomSticker).x);
+  closeEnough(corner(next).y, corner(geomSticker).y);
+});
+
+test('shift resize is free and rotation preserves object center', () => {
+  const n = resizeSticker(geomSticker, 'se', 20, 0, true);
+  closeEnough(n.width, 120);
+  closeEnough(n.height, 50);
+  const r = rotateSticker(geomSticker, { x: 0, y: -10 }, { x: 10, y: 0 }, { x: 0, y: 0 });
+  closeEnough(r.rotation, 90);
+  closeEnough(r.x, geomSticker.x);
+  closeEnough(r.y, geomSticker.y);
+});
+
+test('toolbar follows the sticker, clamps to the viewport, and flips above at the bottom', () => {
+  assert.deepEqual(toolbarPosition({ left: 200, right: 300, top: 100, bottom: 200 }, { width: 200, height: 40 }, { width: 600, height: 500 }), { left: 150, top: 210 });
+  assert.deepEqual(toolbarPosition({ left: 520, right: 590, top: 420, bottom: 490 }, { width: 200, height: 40 }, { width: 600, height: 500 }), { left: 392, top: 370 });
+  assert.equal(toolbarPosition({ left: 0, right: 100, top: 600, bottom: 700 }, { width: 200, height: 40 }, { width: 600, height: 500 }), null);
+});
+
+test('edge resizing stretches horizontally or vertically while anchoring the opposite edge', () => {
+  const right = resizeSticker(geomSticker, 'e', 30, 0);
+  closeEnough(right.width, 130);
+  closeEnough(right.height, 50);
+  closeEnough(right.x, 20);
+  closeEnough(right.y, 30);
+  const left = resizeSticker(geomSticker, 'w', -30, 0);
+  closeEnough(left.width, 130);
+  closeEnough(left.height, 50);
+  closeEnough(left.x, -10);
+  closeEnough(left.y, 30);
+  const bottom = resizeSticker(geomSticker, 's', 0, 20);
+  closeEnough(bottom.width, 100);
+  closeEnough(bottom.height, 70);
+  closeEnough(bottom.x, 20);
+  closeEnough(bottom.y, 30);
+  const top = resizeSticker(geomSticker, 'n', 0, -20);
+  closeEnough(top.width, 100);
+  closeEnough(top.height, 70);
+  closeEnough(top.x, 20);
+  closeEnough(top.y, 10);
+});
+
+test('rotated edge resizing anchors the opposite edge in world coordinates', () => {
+  const rotated = { ...geomSticker, rotation: 90 };
+  const rad = Math.PI / 2;
+  const leftEdgeCenter = item => {
+    const cx = item.x + item.width / 2, cy = item.y + item.height / 2;
+    return { x: cx + (-item.width / 2) * Math.cos(rad), y: cy + (-item.width / 2) * Math.sin(rad) };
+  };
+  const res = resizeSticker(rotated, 'e', 0, 20);
+  closeEnough(res.width, 120);
+  closeEnough(res.height, 50);
+  closeEnough(leftEdgeCenter(res).x, leftEdgeCenter(rotated).x);
+  closeEnough(leftEdgeCenter(res).y, leftEdgeCenter(rotated).y);
+});
+
+/* ---------- Sticker History & Undo/Redo ---------- */
+test('sticker history restores one complete edit and redo through the durable commit path', () => {
+  const listeners = {};
+  const element = {
+    addEventListener(type, fn) { listeners[type] = fn; },
+    setAttribute() {},
+    classList: { toggle() {}, remove() {} },
+    replaceChildren() {},
+    style: {},
+    querySelector() { return { setAttribute() {} }; },
+    getBoundingClientRect() { return { left: 0, top: 0 }; },
+    clientWidth: 500, scrollHeight: 600, scrollTop: 0
+  };
+  let warning = '';
+  const PR = {
+    state: { reader: { ink: {}, stickers: {} } },
+    $$: () => [],
+    debounce: f => f,
+    on() {},
+    t: s => s,
+    toast: s => { warning = s; },
+    commit(op) {
+      if (op.op === 'sticker') this.state.reader.stickers[op.sticker.id] = op.sticker;
+      else if (op.op === 'sticker_del') delete this.state.reader.stickers[op.id];
+    }
+  };
+  const document = {
+    getElementById() { return element; },
+    addEventListener() {},
+    createElementNS() { return { setAttribute() {}, dataset: {} }; }
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../easyread/web/js/reader/ink.js'), 'utf8'), {
+    window: { PR, addEventListener() {} },
+    document,
+    ResizeObserver: class { observe() {} },
+    Date, Math, Number
+  });
+  const before = { id: 's1', x: 10 };
+  const after = { id: 's1', x: 30 };
+  PR.state.reader.stickers.s1 = after;
+  PR.recordStickerHistory('s1', before, after);
+  assert.equal(PR.inkHistory(false), true);
+  assert.equal(PR.state.reader.stickers.s1.x, 10);
+  assert.equal(PR.inkHistory(false), false);
+  assert.equal(PR.inkHistory(true), true);
+  assert.equal(PR.state.reader.stickers.s1.x, 30);
+  const colored = { ...after, strokeColor: '#336699', strokeWidth: 3 };
+  PR.state.reader.stickers.s1 = colored;
+  PR.recordStickerHistory('s1', after, colored);
+  assert.equal(PR.inkHistory(false), true);
+  assert.equal(PR.state.reader.stickers.s1.strokeColor, undefined);
+  assert.equal(PR.inkHistory(true), true);
+  assert.equal(PR.state.reader.stickers.s1.strokeWidth, 3);
+  PR.state.reader.stickers.s1 = { id: 's1', x: 50 };
+  assert.equal(PR.inkHistory(false), true);
+  assert.equal(PR.state.reader.stickers.s1.x, 50);
+  assert.ok(warning);
+});
+
+/* ---------- Sticker Lasso Hit Testing ---------- */
+const { contains: lassoContains, hits: lassoHits, hitsPath: lassoHitsPath } = require('../easyread/web/js/reader/sticker-lasso.js');
+const lassoLoop = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
+
+test('freehand lasso includes enclosed centers or corners only', () => {
+  assert.equal(lassoContains(lassoLoop, { x: 50, y: 50 }), true);
+  assert.equal(lassoContains(lassoLoop, { x: 120, y: 50 }), false);
+  const picked = lassoHits(lassoLoop, [
+    { id: 'inside', rect: { left: 20, right: 40, top: 20, bottom: 40 } },
+    { id: 'edge', rect: { left: 90, right: 130, top: 90, bottom: 130 } },
+    { id: 'outside', rect: { left: 120, right: 140, top: 20, bottom: 40 } },
+  ]).map(item => item.id);
+  assert.deepEqual(picked, ['inside', 'edge']);
+});
+
+test('freehand lasso samples the actual ink path, not only its bounding box', () => {
+  const pathObj = {
+    getBoundingClientRect: () => ({ left: 0, right: 100, top: 0, bottom: 100 }),
+    getTotalLength: () => 100,
+    getScreenCTM: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+    getPointAtLength: length => ({ x: length, y: length }),
+  };
+  const small = [{ x: 15, y: 15 }, { x: 25, y: 15 }, { x: 25, y: 25 }, { x: 15, y: 25 }];
+  assert.equal(lassoHitsPath(small, pathObj), true);
+});
+
+/* ---------- Lucide SVG Styling ---------- */
+const { lucideSvg } = require('../easyread/web/js/reader/sticker-style.js');
+
+test('Lucide stroke styling preserves geometry and supports color and width', () => {
+  const svg = fs.readFileSync(path.join(__dirname, '../easyread/web/stickers/science/atom.svg'), 'utf8');
+  const styled = lucideSvg(svg, '#336699', 3.25);
+  assert.match(styled, /color="#336699"/);
+  assert.match(styled, /stroke-width="3.25"/);
+  assert.match(styled, /preserveAspectRatio="none"/);
+  assert.equal((styled.match(/<path/g) || []).length, (svg.match(/<path/g) || []).length);
+  assert.match(styled, /stroke="currentColor"/);
+  assert.equal(lucideSvg(svg, 'red" onload="x', 2), null);
+  assert.equal(lucideSvg(svg, '#000000', Infinity), null);
+  assert.equal(lucideSvg(svg, '#000000', 5), null);
+});

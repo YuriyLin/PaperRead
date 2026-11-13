@@ -180,7 +180,7 @@ def prompt(ws: Workspace, messages: list[dict], anchor: str | None, quote: str, 
     want, colors = wants_marks(ask)
     marks = _marks(ws, colors) if want else _marks_summary(ws)
     meta = ws.load("paper").get("meta") or {}
-    style = (answer_styles.STE100_INSTRUCTIONS if answer_style == answer_styles.STE100
+    style = (answer_styles.ste100_instructions(meta) if answer_style == answer_styles.STE100
              else langs.reply_language_rule(meta) + "，直接、具體，能舉例就舉例。\n")  # i18n-ok
     if answer_style == answer_styles.XRAY:
         style += answer_styles.XRAY_INSTRUCTIONS

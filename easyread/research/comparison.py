@@ -196,7 +196,7 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
                 _safe_report(report, "extract", done, total_chunks + len(loaded) + 1,
                        tr("整理第 {paper}/{total} 篇論文，片段 {chunk}/{chunks}", paper=paper_no,
                           total=len(loaded), chunk=chunk_no, chunks=len(chunks)),
-                       stage_label="提取章節事實", data_scope=data_scope)
+                       stage_label=tr("提取章節事實"), data_scope=data_scope)
                 extracted.append(_call(model_cfg, _extract_prompt(paper["title"], dims, chunk), vault, cancel, meter))
                 done += 1
             summary = "\n\n".join(extracted)
@@ -218,7 +218,7 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
             report("paper", done, total_chunks + len(loaded) + 1,
                    tr("已整理 {done}/{total} 篇論文", done=paper_no, total=len(loaded)))
         _safe_report(report, "synthesis", done, total_chunks + len(loaded) + 1, tr("正在產生跨論文比較報告…"),
-               stage_label="生成比較報告", data_scope=data_scope)
+               stage_label=tr("生成比較報告"), data_scope=data_scope)
         body = _call(model_cfg, _report_prompt([item[0] for item in loaded], cards, dims, focus.strip()[:300]),
                      vault, cancel, meter)
         body = re.sub(r"\A---\s*\n.*?\n---\s*\n", "", body, flags=re.S).strip()
@@ -249,7 +249,7 @@ def start(library, paper_ids: list, dimensions: list, focus: str = "", model: st
         proposal = proposals.from_comparison(title, body, [item for item, _ in loaded],
                                              selected.get("name") or selected.get("id") or "", meter.snapshot())
         _safe_report(report, "review", total_chunks + len(loaded) + 1, total_chunks + len(loaded) + 1, tr("報告已完成，等待審閱。"),
-               stage_label="比較完成", data_scope=data_scope, result_state="completed", next_actions=["view"])
+               stage_label=tr("比較完成"), data_scope=data_scope, result_state="completed", next_actions=["view"])
         return {"proposal": proposal, "papers": [item for item, _ in loaded]}
 
     return tasks.submit("comparison", run, retry_failed=True,

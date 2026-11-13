@@ -346,3 +346,151 @@ test("PR.mindmap exports exportPngBlob and exportPngBase64 methods with KaTeX st
   assert.match(passedStyles, /\.katex/);
   assert.match(passedStyles, /display: none !important/);
 });
+
+test("planner does not destroy or reset rendered mindmap on repeated research-task-update ticks from background tasks", async () => {
+  const prEvents = new Map();
+  let renderPanelCalls = 0;
+  let destroyCalls = 0;
+  let mindmapApiCalls = 0;
+
+  const mindmapView = {
+    innerHTML: "",
+    children: [],
+    replaceChildren(...nodes) { this.children = nodes; this.innerHTML = ""; },
+    setAttribute() {},
+    append(node) { this.children.push(node); },
+    querySelector(sel) {
+      if (sel === ".rp-map-loading" && this.innerHTML.includes("rp-map-loading")) {
+        return { textContent: "" };
+      }
+      return null;
+    },
+  };
+  const deepView = {
+    innerHTML: "",
+    children: [],
+    replaceChildren(...nodes) { this.children = nodes; this.innerHTML = ""; },
+    setAttribute() {},
+    append(node) { this.children.push(node); },
+    querySelector(sel) {
+      if (sel === ".rp-map-loading" && this.innerHTML.includes("rp-map-loading")) {
+        return { textContent: "" };
+      }
+      return null;
+    },
+  };
+  const statusOptions = {
+    dataset: {},
+    style: { setProperty() {} },
+    append() {},
+    querySelectorAll() { return []; },
+  };
+  const mapBtn = { disabled: false, textContent: "", setAttribute() {}, removeAttribute() {} };
+  const deepBtn = { disabled: false, textContent: "", setAttribute() {}, removeAttribute() {} };
+  const expandBtn = { style: { display: "none" } };
+  const deepExpandBtn = { style: { display: "none" } };
+
+  const researchPanel = {
+    innerHTML: "",
+    children: [mindmapView],
+    querySelector(sel) {
+      if (sel === "#rp-mindmap") return mindmapView;
+      if (sel === "#rp-deep-report") return deepView;
+      if (sel === "#rp-status-options") return statusOptions;
+      if (sel === "#rp-map-generate") return mapBtn;
+      if (sel === "#rp-deep-generate") return deepBtn;
+      if (sel === "#rp-map-expand") return expandBtn;
+      if (sel === "#rp-deep-expand") return deepExpandBtn;
+      return null;
+    },
+  };
+
+  const PR = {
+    pid: "paper-1",
+    side: null,
+    state: { paper: { meta: { title_zh: "測試論文" } }, item: { status: "reading" } },
+    t: (s) => s,
+    esc: (s) => String(s || ""),
+    titleHtml: (s) => String(s || ""),
+    titleText: (s) => String(s || ""),
+    icon: () => "<svg></svg>",
+    openSide(side) { PR.side = side; },
+    $: (sel) => (sel === "#researchpanel" ? researchPanel : null),
+    on(evt, fn) { prEvents.set(evt, fn); },
+    emit(evt, payload) { prEvents.get(evt)?.(payload); },
+    mindmap: {
+      renderPanel() {
+        renderPanelCalls++;
+        return {
+          destroy() { destroyCalls++; },
+        };
+      },
+      parseToData: () => ({}),
+      openModal() {},
+    },
+    api: async (url) => {
+      if (url.endsWith("/mindmap")) {
+        mindmapApiCalls++;
+        return {
+          mermaid: "mindmap\n  root((Root))\n    Branch",
+          model: "GPT",
+          task: { id: "mm-task-1", kind: "mindmap", paper_id: "paper-1", state: "completed" },
+        };
+      }
+      if (url.endsWith("/deep-analysis")) {
+        return {
+          report: { markdown: "## Analysis" },
+          task: { id: "deep-task-1", kind: "deep-analysis", paper_id: "paper-1", state: "completed" },
+        };
+      }
+      return { statuses: [{ id: "reading", label: "閱讀中" }] };
+    },
+  };
+
+  const document = {
+    addEventListener() {},
+    createElement(tag) {
+      return { tagName: tag.toUpperCase(), className: "", style: {}, dataset: {}, classList: { toggle() {} }, setAttribute() {}, append() {} };
+    },
+  };
+  const win = {
+    PR,
+    document,
+    location: { search: "" },
+    URLSearchParams,
+    setTimeout: (fn) => fn(),
+  };
+
+  const plannerCode = fs.readFileSync(path.join(__dirname, "../easyread/web/js/reader/planner.js"), "utf8");
+  vm.runInNewContext(plannerCode, { window: win, document, PR, URLSearchParams, setTimeout: win.setTimeout });
+
+  // Open research panel -> renders mindmap once
+  PR.toggleResearch(true);
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(renderPanelCalls, 1);
+  assert.equal(destroyCalls, 0);
+  assert.equal(mindmapApiCalls, 1);
+
+  // Simulate background task polling emitting research-task-update every 2s while mindmap is already completed
+  for (let i = 0; i < 5; i++) {
+    PR.emit("research-task-update", {
+      mindmap: { id: "mm-task-1", kind: "mindmap", paper_id: "paper-1", state: "completed" },
+      deepAnalysis: { id: "deep-task-1", kind: "deep-analysis", paper_id: "paper-1", state: "completed" },
+      smartAnnotate: { id: "sa-task-1", kind: "smart-annotate", paper_id: "paper-1", state: "running" },
+    });
+    await new Promise((r) => setImmediate(r));
+  }
+
+  // Mindmap must NOT be destroyed or re-rendered during background polling
+  assert.equal(renderPanelCalls, 1);
+  assert.equal(destroyCalls, 0);
+  assert.equal(mindmapApiCalls, 1);
+
+  // Calling toggleResearch(true) while already open must not wipe and re-render the panel either
+  PR.toggleResearch(true);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(renderPanelCalls, 1);
+  assert.equal(destroyCalls, 0);
+});

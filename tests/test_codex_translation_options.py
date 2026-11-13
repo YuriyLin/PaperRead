@@ -56,7 +56,7 @@ class CodexTranslationOptionsTest(unittest.TestCase):
             self.assertEqual(config.load()["codex"]["service_tier"], "default")
 
     def test_settings_ui(self):
-        subprocess.run(["node", "--test", "tests/test_codex_translation_options.cjs"], check=True)
+        subprocess.run(["node", "--test", "tests/test_settings_models.cjs"], check=True)
 
     def test_claude_explicit_effort(self):
         with patch.object(engines, "claude_path", return_value="claude"), patch.object(engines, "_popen") as popen, \

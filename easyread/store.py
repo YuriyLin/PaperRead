@@ -55,11 +55,18 @@ def read_json(path: Path, default=None):
 def write_json_atomic(path: Path, data) -> None:
     path = Path(path)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp")
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
+    for attempt in range(10):
+        try:
+            with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            break
+        except PermissionError:
+            if attempt == 9:
+                raise
+            time.sleep(0.05 * (attempt + 1))
     for attempt in range(20):
         try:
             os.replace(tmp, path)

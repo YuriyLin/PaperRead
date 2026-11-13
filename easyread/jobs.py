@@ -157,7 +157,7 @@ class Jobs:
             self._write(ws, state="error", message=tr("出错了"), error=msg[:800])
             log.exception("后台任务出错 %s", pid)
             try:
-                translate.journal(ws, tr("出错停止：{msg}", msg=msg[:500]))
+                translate.journal(ws, f"Stopped due to error: {msg[:500]}")
             except OSError:
                 pass
         finally:

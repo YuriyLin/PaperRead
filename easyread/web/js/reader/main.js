@@ -139,6 +139,7 @@
     else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
     PR.updateTitle();
+    PR.updateKeyTitles && PR.updateKeyTitles();
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));
     PR.ls.set("pr-seen-" + PR.paperKey, Array.from(seen));
     PR.renderPaper();
@@ -149,14 +150,19 @@
     PR.renderJobState();
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", PR.debounce(() => { PR.fitWide(); PR.renderMargin(); }, 150));
-    if (document.fonts) document.fonts.ready.then(() => { PR.fitWide(null, true); PR.layoutMargin(); });
+    window.addEventListener("resize", PR.debounce(() => {
+      if (!PR.$("#paper")?.clientWidth) return;
+      PR.fitWide();
+      PR.renderMargin();
+    }, 150));
+    if (document.fonts) document.fonts.ready.then(() => { PR.fitWide(null, true); PR.layoutMargin({ instant: true }); });
     // 正文变宽变窄（最大化、贴边分屏只来一次 resize，那时版面可能还没变完）就重新缩放宽公式
     let paperW = 0;
     new ResizeObserver(PR.debounce(() => {
       const w = PR.$("#paper").clientWidth;
+      if (!w) return;
       if (w !== paperW) { paperW = w; PR.fitWide(); }
-      PR.layoutMargin();
+      PR.layoutMargin({ instant: true });
     }, 80)).observe(PR.$("#paper"));
     PR.startPolling();
 

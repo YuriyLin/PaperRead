@@ -13,8 +13,9 @@ import shutil
 import tempfile
 from pathlib import Path
 import unittest
+from unittest import mock
 
-from easyread import build as export_build, codeblocks
+from easyread import build as export_build, codeblocks, i18n
 from easyread.library import Library, DataReadError
 from easyread.bulk.folder import read as read_folder
 from easyread.jobs import Jobs
@@ -132,7 +133,7 @@ class TestV14Features(unittest.TestCase):
 
         job = ws.load("job")
         self.assertEqual(job["state"], "done")
-        self.assertIn("已导入", job["message"])
+        self.assertEqual(job["message"], i18n.tr("已导入，未翻译"))
 
     def test_mobile_export_build(self):
         ws, _ = self.lib.create_from_pdf(b"%PDF-1.4 export\n%%EOF", "export.pdf")
@@ -165,6 +166,52 @@ class TestV14Features(unittest.TestCase):
         self.assertIn('"assetId": "doodle-smiling-book"', html)
         self.assertIn('/public/stickers/decorative/doodle-smiling-book.svg', html)
         self.assertIn('data:image/svg+xml;base64,', html)
+
+    def test_export_prerender_latex_formulas(self):
+        ws, _ = self.lib.create_from_pdf(b"%PDF-1.4 export\n%%EOF", "export.pdf")
+        write_json_atomic(ws.root / "paper.json", {
+            "id": ws.id,
+            "meta": {"title_en": "LaTeX Prerender Test", "title_zh": "公式靜態預渲染測試"},
+            "blocks": [
+                {
+                    "id": "b1",
+                    "type": "para",
+                    "page": 1,
+                    "en": "Let $x_i \\in \\mathcal{X}$ and $\\mathcal{N}_i = \\mathcal{N}(x_i)$.",
+                    "zh": "設 $x_i \\in \\mathcal{X}$ 且 $\\mathcal{N}_i = \\mathcal{N}(x_i)$。",
+                },
+                {
+                    "id": "b2",
+                    "type": "math",
+                    "page": 1,
+                    "tex": "\\begin{aligned}\\mathcal{B}_l &= \\{x_i\\}\\end{aligned}",
+                    "tag": "1",
+                },
+            ],
+            "translation": {"done_pages": [1]},
+        })
+
+        out_mobile = self.tmp / "math-mobile.html"
+        res_mobile = export_build.build(ws, out=out_mobile, mobile=True)
+        html_mobile = res_mobile.read_text(encoding="utf-8")
+        self.assertNotIn('<article id="paper" lang="zh-CN">>', html_mobile)
+
+        # Static article should have KaTeX rendered math for both inline and block formulas
+        self.assertIn('class="katex"', html_mobile)
+        self.assertIn('class="katex-display"', html_mobile)
+        self.assertIn('class="math-tag">(1)</div>', html_mobile)
+        self.assertNotIn("$\\mathcal{N}_i", html_mobile)
+        self.assertNotIn("<code>\\begin{aligned}", html_mobile)
+
+    def test_math_renderer_can_use_electron_when_node_is_missing(self):
+        with mock.patch.object(export_build, "_find_node", return_value=None), \
+             mock.patch.dict("os.environ", {"EASYREAD_ELECTRON_EXECUTABLE": "electron-test"}), \
+             mock.patch.object(export_build.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = '{"Ix": "rendered"}'
+            self.assertEqual(export_build._render_math_batch([{"tex": "x", "key": "Ix"}]), {"Ix": "rendered"})
+            self.assertEqual(run.call_args.args[0][0], "electron-test")
+            self.assertEqual(run.call_args.kwargs["env"]["ELECTRON_RUN_AS_NODE"], "1")
 
 
 if __name__ == "__main__":

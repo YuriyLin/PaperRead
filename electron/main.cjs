@@ -32,6 +32,7 @@ let backendUrl;
 let quitting = false;
 let pendingOpen = deepLink.fromArgv(process.argv);
 const detachedWindows = new Set();
+let mainWindowPreDetachState = null;
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -67,7 +68,7 @@ function startBackend() {
   if (backendReady) return backendReady;
   backendReady = (async () => {
   const launch = backendCommand();
-  const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale() };  // 後端按它決定介面語言
+  const env = { ...process.env, PYTHONUTF8: "1", EASYREAD_SYSTEM_LANG: app.getLocale(), EASYREAD_ELECTRON_EXECUTABLE: process.execPath };  // 後端按它決定介面語言
   startup.mark(app, "shell-path-start");
   const shellPath = await startup.loginShellPath(process.platform);
   startup.mark(app, "shell-path-ready");
@@ -103,7 +104,7 @@ function startBackend() {
     });
     backend.stdout.on("data", (chunk) => {
       output = (output + chunk.toString()).slice(-65536);
-      const match = output.match(/PaperRead\s+已(?:启动|啟動)：\s*(http:\/\/127\.0\.0\.1:\d+)/);
+      const match = output.match(/PaperRead\s+(?:started[:\s]+|已(?:启动|啟動)[：:]\s*)(http:\/\/127\.0\.0\.1:\d+)/i);
       if (match && !settled) { startup.mark(app, "backend-http-ready"); backendUrl = match[1]; finish(resolve, match[1]); }
     });
     backend.stderr.on("data", (chunk) => {
@@ -251,6 +252,13 @@ ipcMain.handle("easyread:detach-window", async (event, token, bounds = {}) => {
   // Snap the source window to the left half of the display for side-by-side dual view
   try {
     if (senderWin && !senderWin.isDestroyed()) {
+      if (!mainWindowPreDetachState) {
+        mainWindowPreDetachState = {
+          maximized: senderWin.isMaximized(),
+          fullscreen: senderWin.isFullScreen(),
+          bounds: senderWin.getBounds(),
+        };
+      }
       if (senderWin.isFullScreen()) senderWin.setFullScreen(false);
       const [curMinW, curMinH] = senderWin.getMinimumSize();
       if (curMinW > halfW) {
@@ -293,6 +301,19 @@ ipcMain.handle("easyread:detach-window", async (event, token, bounds = {}) => {
   detachedWindows.add(win);
   win.on("closed", () => {
     detachedWindows.delete(win);
+    if (detachedWindows.size === 0 && mainWindowPreDetachState && mainWindow && !mainWindow.isDestroyed()) {
+      const stateToRestore = mainWindowPreDetachState;
+      mainWindowPreDetachState = null;
+      try {
+        if (stateToRestore.maximized) {
+          mainWindow.maximize();
+        } else if (stateToRestore.fullscreen) {
+          mainWindow.setFullScreen(true);
+        } else if (stateToRestore.bounds) {
+          mainWindow.setBounds(stateToRestore.bounds);
+        }
+      } catch (_) {}
+    }
   });
   await win.loadURL(desktopTabs.detachedShellUrl(backendUrl, token));
   return true;
@@ -303,6 +324,27 @@ ipcMain.handle("easyread:close-current-window", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && !win.isDestroyed()) {
       win.close();
+    }
+  } catch (_) {}
+  return true;
+});
+ipcMain.handle("easyread:restore-main-window", async (event) => {
+  trustedWindow(event);
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const stateToRestore = mainWindowPreDetachState;
+      mainWindowPreDetachState = null;
+      if (stateToRestore) {
+        if (stateToRestore.maximized) {
+          mainWindow.maximize();
+        } else if (stateToRestore.fullscreen) {
+          mainWindow.setFullScreen(true);
+        } else if (stateToRestore.bounds) {
+          mainWindow.setBounds(stateToRestore.bounds);
+        }
+      } else {
+        mainWindow.maximize();
+      }
     }
   } catch (_) {}
   return true;

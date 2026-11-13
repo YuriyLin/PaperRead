@@ -24,7 +24,8 @@
     const pct = j.total ? Math.round((j.done / j.total) * 100) : 0;
     let h = '<div class="jobbox">';
     if (running) {
-      h += '<div><span class="spin"></span> ' + PR.esc(j.message || PR.t("处理中")) + (j.total ? PR.t("（{done}/{total} 页）", { done: j.done, total: j.total }) : "") + "</div>" +
+      const msg = PR.formatJobMessage ? PR.formatJobMessage(j) : (j.message || PR.t("处理中"));
+      h += '<div><span class="spin"></span> ' + PR.esc(msg) + (j.total ? PR.t("（{done}/{total} 页）", { done: j.done, total: j.total }) : "") + "</div>" +
         (PR.usageShort(j.usage) ? '<div class="hint">' + PR.esc(PR.usageShort(j.usage)) + "</div>" : "") +
         '<div class="bar"><i style="width:' + pct + '%"></i></div><div class="row2"><button class="btn sm line" data-d="cancel">' + PR.t("取消") + "</button>" +
         '<button class="btn sm" data-d="read">' + PR.t("边译边读") + "</button></div>";
@@ -34,7 +35,8 @@
       h += read ? "<div>" + PR.t("英文原文：{done} / {total} 页", { done: i.done_pages, total: i.pages }) + (full ? PR.t(" · 全文") : "") + (i.done_pages - en ? PR.t(" · 其中 {n} 页已译", { n: i.done_pages - en }) : "") + "</div>"
         : "<div>" + PR.t("译文：{s}", { s: i.pages ? PR.t("{done} / {total} 页", { done: i.done_pages, total: i.pages }) : PR.t("尚未处理") }) + (full ? PR.t(" · 全文") : "") + "</div>";
       const failed = Object.keys(j.failed || {}).map(Number).sort((a, b) => a - b);
-      if (j.state === "error") h += '<div class="err">' + (j.read ? PR.t("上次整理原文出错：") : PR.t("上次翻译出错：")) + PR.esc(j.error || j.message) + "</div>";
+      const errMsg = j.error || (j.message ? (PR.formatJobMessage ? PR.formatJobMessage(j.message) : j.message) : "");
+      if (j.state === "error") h += '<div class="err">' + (j.read ? PR.t("上次整理原文出错：") : PR.t("上次翻译出错：")) + PR.esc(errMsg) + "</div>";
       if (j.read && j.state === "error") h += '<p class="hint">' + PR.t("整理原文需要可用模型。请检查模型设置后重试；重试使用当前翻译模型，已整理的内容会保留。") + '</p><button class="btn sm line" data-d="model-settings">' + PR.t("模型设置") + "</button>";
       h += PR.usageCard(j.usage, j.usage_total);
       if (j.state === "partial" && failed.length) h += '<div class="err">' + (j.read ? PR.t("第 {pages} 页没整理成功：", { pages: PR.esc(pageList(failed)) }) : PR.t("第 {pages} 页没译成功：", { pages: PR.esc(pageList(failed)) })) + PR.esc(j.error || "") + "</div>";
@@ -222,8 +224,8 @@
       ...(L.statuses || [{ id: "unread", label: PR.t("待閱讀") }, { id: "reading", label: PR.t("閱讀中") }, { id: "organizing", label: PR.t("待整理") }, { id: "done", label: PR.t("已完成") }]).filter((s) => s.id !== "paused").map((s) => ({ label: PR.t("標為{status}", { status: PR.t(s.label) }), fn: setStatus(s.id) })),
       "-",
       { label: PR.t("复制 BibTeX"), icon: "copy", fn: () => copy(PR.cite(i, "bibtex"), " BibTeX") },
-      { label: PR.t("导出离线 HTML（可发给别人）"), icon: "download", fn: () => { PR.toast(PR.t("正在打包…")); location.href = "/api/p/" + id + "/export"; } },
-      { label: PR.t("导出手机版（只读，体积小）"), icon: "download", fn: () => { PR.toast(PR.t("正在打包…")); location.href = "/api/p/" + id + "/export?mobile=1"; } },
+      { label: PR.t("导出离线 HTML（可发给别人）"), icon: "download", fn: () => { PR.toast(PR.t("正在打包…")); location.href = "/api/p/" + id + "/export?lang=" + encodeURIComponent(PR.lang || ""); } },
+      { label: PR.t("导出手机版（只读，体积小）"), icon: "download", fn: () => { PR.toast(PR.t("正在打包…")); location.href = "/api/p/" + id + "/export?mobile=1&lang=" + encodeURIComponent(PR.lang || ""); } },
       { label: PR.t("打开所在文件夹"), icon: "folder", fn: () => PR.api("/api/p/" + id + "/reveal", { method: "POST", body: {} }).catch((e) => PR.toast(PR.esc(e.message))) },
       { label: PR.t("全部重新翻译"), icon: "redo", fn: () => retranslateAll(i) },
       { label: PR.t("翻译记录"), icon: "log", fn: async () => { const r = await PR.api("/api/p/" + id + "/log"); PR.showText(PR.t("翻译记录"), r.text); } },

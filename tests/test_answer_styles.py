@@ -118,6 +118,34 @@ class AnswerStyleTest(unittest.TestCase):
         self.assertIn("用英文（English）", english)
         self.assertNotIn("只輸出繁體中文", english)
 
+    def test_ste_prompt_follows_paper_target_language(self):
+        # Korean target
+        self.ws.update("paper", lambda p: p["meta"].update(target="ko"))
+        prompt_ko = chat.prompt(self.ws, [{"role": "user", "content": "질문"}], "b", "", "openai", answer_style="ste100")
+        self.assertIn("只輸出韩语（한국어）回答", prompt_ko)
+        self.assertNotIn("只輸出繁體中文回答", prompt_ko)
+        self.assertIn("組織韩语（한국어）答案", prompt_ko)
+
+        # Japanese target
+        self.ws.update("paper", lambda p: p["meta"].update(target="ja"))
+        prompt_ja = chat.prompt(self.ws, [{"role": "user", "content": "質問"}], "b", "", "openai", answer_style="ste100")
+        self.assertIn("只輸出日语（日本語）回答", prompt_ja)
+        self.assertNotIn("只輸出繁體中文回答", prompt_ja)
+        self.assertIn("組織日语（日本語）答案", prompt_ja)
+
+        # Simplified Chinese target
+        self.ws.update("paper", lambda p: p["meta"].update(target="zh"))
+        prompt_zh = chat.prompt(self.ws, [{"role": "user", "content": "问题"}], "b", "", "openai", answer_style="ste100")
+        self.assertIn("只輸出中文回答", prompt_zh)
+        self.assertNotIn("不可使用簡體字", prompt_zh)
+
+        # English UI / no paper target
+        self.ws.update("paper", lambda p: p["meta"].pop("target", None))
+        with patch("easyread.i18n.lang", return_value="en"):
+            prompt_en = chat.prompt(self.ws, [{"role": "user", "content": "Question"}], "b", "", "openai", answer_style="ste100")
+        self.assertIn("只輸出英文（English）回答", prompt_en)
+        self.assertNotIn("只輸出繁體中文回答", prompt_en)
+
     def test_all_modes_roundtrip_through_http_storage_and_pinning(self):
         self.start_server()
         model = {"id": "m", "name": "Model", "engine": "openai", "model": "test"}

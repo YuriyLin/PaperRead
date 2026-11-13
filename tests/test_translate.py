@@ -57,7 +57,8 @@ class TranslateTest(unittest.TestCase):
         paper = self.ws.load("paper")
         self.assertEqual(paper["translation"]["done_pages"], [1, 2, 4, 5, 6])
         self.assertEqual([b["page"] for b in paper["blocks"]], [1, 2, 4, 5, 6])  # 并发也按页码排好
-        self.assertIn("第 3 页 第 2 次失败", (self.ws.root / "job.log").read_text(encoding="utf-8"))
+        log_text = (self.ws.root / "job.log").read_text(encoding="utf-8")
+        self.assertTrue("Page 3 failed (attempt 2)" in log_text or "第 3 页 第 2 次失败" in log_text or "第 3 頁 第 2 次失敗" in log_text)
 
     def test_quota_error_stops_remaining_batches(self):
         calls = []
@@ -115,9 +116,28 @@ class ScopePagesTest(unittest.TestCase):
         self.assertEqual(scope_pages(ws, "range:18-30"), [18, 19, 20])   # 超出总页数就截到最后一页
         self.assertEqual(scope_pages(ws, "range:5-3"), [3, 4, 5])        # 填反了也行
         self.assertEqual(scope_pages(ws, "range:30-18"), [18, 19, 20])
-        with self.assertRaisesRegex(ValueError, "超出了论文范围"):
+        with self.assertRaisesRegex(ValueError, r"(超出了论文范围|超出了論文範圍)"):
             scope_pages(ws, "range:30-40")
         self.assertEqual(scope_pages(ws, "first:2"), [1, 2])              # 旧写法还认
+
+
+class RepairGuardTest(unittest.TestCase):
+    def test_missing_block_field_or_table_cell_is_rejected(self):
+        import copy
+        from easyread.repair_guard import retains_content
+        original = {'blocks': [{'id': 'p1', 'type': 'para', 'page': 1, 'zh': 'text'},
+                               {'id': 't1', 'type': 'table', 'page': 1, 'rows': [['a', 'b']]}]}
+        for mutation in ('block', 'field', 'cell', 'identity'):
+            fixed = copy.deepcopy(original)
+            if mutation == 'block': fixed['blocks'].pop()
+            if mutation == 'field': fixed['blocks'][0]['zh'] = ''
+            if mutation == 'cell': fixed['blocks'][1]['rows'][0].pop()
+            if mutation == 'identity': fixed['blocks'][0]['id'] = 'other'
+            with self.subTest(mutation=mutation):
+                self.assertFalse(retains_content(original, fixed))
+        fixed = copy.deepcopy(original)
+        fixed['blocks'][0]['zh'] = 'fixed formula $x$'
+        self.assertTrue(retains_content(original, fixed))
 
 
 if __name__ == "__main__":

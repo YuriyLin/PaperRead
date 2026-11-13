@@ -39,6 +39,10 @@
     if (open) PR.syncPage(true); else pair(null);
   };
   PR.openPage = function (page, blockId) {
+    if (PR.hasPageImage && !PR.hasPageImage(page)) {
+      PR.toast && PR.toast(PR.t("此版本未收錄原頁圖"));
+      return;
+    }
     pvBlock = blockId || null;
     if (PR.side !== "pages") PR.openSide("pages");
     showPage(page, blockId);

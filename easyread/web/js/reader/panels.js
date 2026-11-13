@@ -103,6 +103,10 @@
   PR.$('[data-act="notes"]').innerHTML = PR.icon("note", "sm") + "<span>" + PR.t("笔记") + "</span>";
   PR.$('[data-act="chat"]').innerHTML = PR.icon("sparkle", "sm") + "<span>" + PR.t("问 AI") + "</span>";
   PR.$('[data-act="research"]').innerHTML = PR.icon("book", "sm") + "<span>" + PR.t("研究") + "</span>";
+  const inkSpan = PR.$("#inkToggle span");
+  if (inkSpan) inkSpan.textContent = PR.t("手寫");
+  const stickerSpan = PR.$("#stickerToggle span");
+  if (stickerSpan) stickerSpan.textContent = PR.t("貼紙");
   /* 设置里关掉的功能：顶栏按钮也藏起来 */
   PR.updateKeyTitles = function () {
     const isEn = PR.lang === "en";
@@ -133,6 +137,7 @@
     set('[data-pv="next"]', PR.t("下一頁"), PR.keyOf("pageNext"));
     set('[data-pv="close"]', PR.t("關閉"), PR.keyOf("pages"));
   };
+  PR.updateKeyTitles();
 
   PR.applyFeatures = function () {
     const set = (sel, on) => { const el = PR.$(sel); if (el) el.style.display = on ? "" : "none"; };
@@ -175,7 +180,10 @@
     const j = S.job || {};
     const el = PR.$("#jobState");
     if (j.state === "confirm") { el.textContent = PR.t("等你确认"); return; }
-    if (["queued", "running"].includes(j.state)) el.innerHTML = '<span class="spin"></span> ' + PR.esc(j.message || PR.t("翻译中")) + (j.total ? " " + j.done + "/" + j.total : "");
+    if (["queued", "running"].includes(j.state)) {
+      const msg = PR.formatJobMessage ? PR.formatJobMessage(j) : (j.message || PR.t("翻译中"));
+      el.innerHTML = '<span class="spin"></span> ' + PR.esc(msg) + (j.total ? " " + j.done + "/" + j.total : "");
+    }
     else if (j.state === "error") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + "</span>";
     else if (j.state === "partial") el.innerHTML = '<span class="err" title="' + PR.esc(j.error || "") + '">' + (j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";
     else el.innerHTML = "";

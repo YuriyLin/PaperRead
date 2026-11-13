@@ -114,6 +114,74 @@ class ResearchTaskTests(unittest.TestCase):
         acked = original_post(self.app, f"/paper/p-100/mindmap/tasks/{submitted['id']}/ack", {})["task"]
         self.assertTrue(acked["acknowledged"])
 
+    def test_reading_path_ack_survives_late_task_persistence(self):
+        cache_key = research_v2.READING_PATH_TASK_CACHE_KEY
+        task = {"id": "path-race", "kind": "reading-path", "state": "completed",
+                "result": {"path_id": "path-1"}}
+        request = {"model": "test-model"}
+        research_v2._persist_reading_path_task(self.root, request, task)
+
+        persist_read = threading.Event()
+        release_persist = threading.Event()
+        ack_lock_attempt = threading.Event()
+        ack_done = threading.Event()
+        ack_result = {}
+        errors = []
+        cache_lock = threading.Lock()
+
+        class ObservedLock:
+            def __enter__(self):
+                if threading.current_thread().name == "path-ack-race":
+                    ack_lock_attempt.set()
+                cache_lock.acquire()
+
+            def __exit__(self, *_):
+                cache_lock.release()
+
+        original_cache_get = planning_store.cache_get
+
+        def delayed_cache_get(root, key):
+            result = original_cache_get(root, key)
+            if key == cache_key and threading.current_thread().name == "path-late-persist":
+                persist_read.set()
+                if not release_persist.wait(2):
+                    raise TimeoutError("test did not release the late task update")
+            return result
+
+        def persist_late_update():
+            try:
+                research_v2._persist_reading_path_task(self.root, request, task)
+            except Exception as error:  # noqa: BLE001
+                errors.append(error)
+
+        def acknowledge():
+            try:
+                ack_result["response"] = research_v2.post(
+                    self.app, "/reading-path/tasks/path-race/ack", {})
+            except Exception as error:  # noqa: BLE001
+                errors.append(error)
+            finally:
+                ack_done.set()
+
+        with mock.patch.object(planning_store, "cache_get", side_effect=delayed_cache_get), \
+                mock.patch.object(research_v2, "_READING_PATH_TASK_CACHE_LOCK", ObservedLock()):
+            persist_thread = threading.Thread(target=persist_late_update, name="path-late-persist")
+            persist_thread.start()
+            self.assertTrue(persist_read.wait(1))
+            ack_thread = threading.Thread(target=acknowledge, name="path-ack-race")
+            ack_thread.start()
+            self.assertTrue(ack_lock_attempt.wait(1))
+            self.assertFalse(ack_done.wait(.05))
+            release_persist.set()
+            persist_thread.join(1)
+            ack_thread.join(1)
+
+        self.assertFalse(persist_thread.is_alive())
+        self.assertFalse(ack_thread.is_alive())
+        self.assertEqual(errors, [])
+        self.assertTrue(ack_result["response"]["task"]["acknowledged"])
+        self.assertTrue(original_cache_get(self.root, cache_key)[0]["acknowledged"])
+
     def test_mindmap_ack_survives_late_task_persistence(self):
         cache_key = research_v2.MINDMAP_TASK_CACHE_PREFIX + "p-race"
         task = {"id": "mindmap-race", "kind": "mindmap", "state": "completed", "paper_id": "p-race",

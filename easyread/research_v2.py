@@ -13,7 +13,7 @@ from hashlib import sha256
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import config, http, planning_store, prompts, sources
+from . import config, http, i18n, planning_store, prompts, sources
 from .research import deep_analysis, obsidian_export
 from .i18n import tr
 
@@ -25,20 +25,22 @@ _summary_worker_lock = threading.Lock()
 _summary_workers: set[str] = set()
 _summary_recovered_roots: set[str] = set()
 READING_PATH_TASK_CACHE_KEY = "reading-path:task"
+_READING_PATH_TASK_CACHE_LOCK = threading.Lock()
 
 
 def _persist_reading_path_task(root: Path, request: dict, task: dict) -> None:
-    previous, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
-    same_task = isinstance(previous, dict) and (previous.get("task") or {}).get("id") == task.get("id")
     clean_task = {key: value for key, value in task.items() if key != "result"}
     result = task.get("result")
     if isinstance(result, dict):
         clean_task["result"] = result
-    planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, {
-        "task": clean_task,
-        "request": request,
-        "acknowledged": bool(previous.get("acknowledged")) if same_task else False,
-    })
+    with _READING_PATH_TASK_CACHE_LOCK:
+        previous, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
+        same_task = isinstance(previous, dict) and (previous.get("task") or {}).get("id") == task.get("id")
+        planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, {
+            "task": clean_task,
+            "request": request,
+            "acknowledged": bool(previous.get("acknowledged")) if same_task else False,
+        })
 
 
 def _current_reading_path_task(root: Path) -> dict | None:
@@ -555,7 +557,17 @@ def _summary_worker(app):
                 papers = [{"paper_key": x["paper_key"], "title": str(x["paper"].get("title") or "")[:400],
                            "authors": str(x["paper"].get("authors") or "")[:500], "year": x["paper"].get("year"),
                            "venue": str(x["paper"].get("venue") or "")[:300], "abstract": str(x["paper"].get("abstract") or "")[:5000]} for x in valid]
-                prompt = "請使用繁體中文（臺灣用語）整理下列候選論文的來源摘要。每篇只根據該篇提供的資料，不補造結果、引用或出版資訊；缺少資訊請標示未提供。輸出 JSON 陣列，每個元素含 paper_key 與 summary_markdown，摘要以 Markdown 呈現研究問題、方法、結果與限制。\n" + json.dumps(papers, ensure_ascii=False)  # i18n-ok: 固定要求模型產生繁體中文摘要。
+                if i18n.lang() == "en":
+                    prompt = (
+                        "Please summarize the source abstracts of the following candidate papers in English. "
+                        "For each paper, base the summary solely on the provided information; do not invent results, citations, or publication details. "
+                        "If information is missing, explicitly state it is not provided. "
+                        "Output a JSON array, where each element contains 'paper_key' and 'summary_markdown'. "
+                        "Format the summary in Markdown covering Research Problem, Methodology, Key Results, and Limitations.\n"
+                        + json.dumps(papers, ensure_ascii=False)
+                    )
+                else:
+                    prompt = "請使用繁體中文（臺灣用語）整理下列候選論文的來源摘要。每篇只根據該篇提供的資料，不補造結果、引用或出版資訊；缺少資訊請標示未提供。輸出 JSON 陣列，每個元素含 paper_key 與 summary_markdown，摘要以 Markdown 呈現研究問題、方法、結果與限制。\n" + json.dumps(papers, ensure_ascii=False)  # i18n-ok: prompt
                 answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
                 output = engines.parse_json(answer)
                 unwrapped = _unwrap_json_list(output)
@@ -1976,11 +1988,12 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         return {"task": task}
     if endpoint.startswith("/reading-path/tasks/") and endpoint.endswith("/ack"):
         identity = endpoint.split("/")[-2]
-        saved, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
-        if not isinstance(saved, dict) or (saved.get("task") or {}).get("id") != identity:
-            raise ValueError(tr("找不到這個閱讀路徑分析工作。"))
-        saved["acknowledged"] = True
-        planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, saved)
+        with _READING_PATH_TASK_CACHE_LOCK:
+            saved, _ = planning_store.cache_get(root, READING_PATH_TASK_CACHE_KEY)
+            if not isinstance(saved, dict) or (saved.get("task") or {}).get("id") != identity:
+                raise ValueError(tr("找不到這個閱讀路徑分析工作。"))
+            saved["acknowledged"] = True
+            planning_store.cache_put(root, READING_PATH_TASK_CACHE_KEY, saved)
         task = _current_reading_path_task(root)
         return {"task": task}
     if endpoint == "/export/summary":
@@ -2003,9 +2016,9 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
         def persist(task):
             _persist_mindmap_task(root, pid, request, task)
         def run(cancel, report):
-            report("starting", 0, 2, tr("正在整理論文文字…"))
+            report("starting", 0, 2, tr("正在整理論文文字…"), stage_label=tr("整理論文文字"))
             result = post(app, f"/paper/{pid}/mindmap", body, _cancel=cancel, _report=report)
-            report("completed", 2, 2, tr("心智圖已完成"))
+            report("completed", 2, 2, tr("心智圖已完成"), stage_label=tr("心智圖已完成"), result_state="completed")
             return result
         task = tasks.submit("mindmap", run, retry_failed=True, scope=scope, on_update=persist,
                             key=pid, paper_id=pid, title=title)
@@ -2285,7 +2298,16 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             raise ValueError("所選論文沒有可供整理的摘要。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         from . import chat_models, engines, usage
         cfg, model = chat_models.engine_cfg(config.load(), body.get("model"))
-        prompt = "請使用繁體中文（臺灣用語）整理下列已取得的論文摘要。只能整理提供的資料；不得補造研究結果、引用或論文資訊。缺少資料請標示「未提供」，推論請明確標示。使用 Markdown，包含研究問題、方法、結果與限制。\n\n" + json.dumps(selected, ensure_ascii=False)  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
+        if (body.get("lang") == "en") or (i18n.lang() == "en"):
+            prompt = (
+                "Please summarize the following paper abstract in English. "
+                "Base the summary solely on the provided information; do not invent research results, citations, or paper details. "
+                "If information is missing, mark as 'Not provided', and clearly identify any inferences. "
+                "Format using Markdown covering Research Problem, Methodology, Key Results, and Limitations.\n\n"
+                + json.dumps(selected, ensure_ascii=False)
+            )
+        else:
+            prompt = "請使用繁體中文（臺灣用語）整理下列已取得的論文摘要。只能整理提供的資料；不得補造研究結果、引用或論文資訊。缺少資料請標示「未提供」，推論請明確標示。使用 Markdown，包含研究問題、方法、結果與限制。\n\n" + json.dumps(selected, ensure_ascii=False)  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         meter = usage.Meter(cfg.get("engine", ""))
         answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], None, meter)
         return {"text": answer, "model": model.get("name", model.get("id", "")), "source_count": len(selected), "usage": meter.snapshot()}
@@ -2306,7 +2328,12 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
     if endpoint == "/reading-path":
         from . import engines
         cancel = _cancel or threading.Event()
-        report = _report or (lambda *_args: None)
+        raw_report = _report or (lambda *_args, **_kwargs: None)
+        def report(phase, done, total, message, **kwargs):
+            try:
+                raw_report(phase, done, total, message, **kwargs)
+            except TypeError:
+                raw_report(phase, done, total, message)
         def check_cancel():
             if cancel.is_set():
                 raise engines.Cancelled()
@@ -2320,14 +2347,14 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             raise ValueError("候選資料過多，請減少候選論文後重試。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
         reference_pool, related_pool, discovery_warnings = [], [], []
         if topic:
-            report("search", 0, 5, tr("正在搜尋相關論文。"))
+            report("search", 0, 5, tr("正在搜尋相關論文。"), stage_label=tr("搜尋相關論文"))
             check_cancel()
             topic_search = _search_works(root, topic, sort="relevance_score:desc")
             if topic_search.get("stale"):
                 discovery_warnings.append(tr("目前使用先前快取的搜尋資料，可能不是最新結果。"))
             search_pool = [*search_pool, *(topic_search.get("results") or [])]
         if start_paper.get("title"):
-            report("seed", 1, 5, tr("正在補齊起點論文與參考資料。"))
+            report("seed", 1, 5, tr("正在補齊起點論文與參考資料。"), stage_label=tr("整理起點資料"))
             check_cancel()
             exact = None
             seed_aliases = _paper_aliases(start_paper)
@@ -2408,7 +2435,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
                 elif relation == "related": related_pool.append({**work, "seed_relation": "related"})
         else:
             start_work = None
-        report("candidates", 2, 5, tr("正在整理候選論文。"))
+        report("candidates", 2, 5, tr("正在整理候選論文。"), stage_label=tr("整理候選論文"))
         check_cancel()
         if not any((candidate_pool, reference_pool, related_pool, search_pool, [start_work] if start_work else [])):
             raise ValueError("找不到可用的論文資料，請先搜尋主題或選擇候選論文。")  # i18n-ok: Research 工作區訊息依產品規格固定使用繁體中文。
@@ -2439,23 +2466,37 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
                 entry["note"] = "起點論文之相關研究（主流方法／衍生延伸）"  # i18n-ok: prompt note
             source.append(entry)
 
-        prompt = (
-            "你是一位學術研究導師。請根據下方已檢索到的候選論文清單，依研究目標規劃一份具備學習進階順序的閱讀路徑（由淺入深、由基礎到前沿，約 5 至 10 篇）。\n"  # i18n-ok: prompt
-            "規則：\n"  # i18n-ok: prompt
-            "1. 只能推薦清單中存在的論文 id，不得虛構論文或作者。\n"  # i18n-ok: prompt
-            "2. 角色（role）請依閱讀順序精準標註：如「基礎入門」、「先備背景」、「主流方法」、「起點核心」、「代表性研究」、「延伸探索」、「前沿突破」等。\n"  # i18n-ok: prompt
-            "3. 理由（reason）請具體說明「為什麼要先讀這篇、它為後續論文建立了什麼概念或提供了什麼方法」。\n"  # i18n-ok: prompt
-            "4. priority 請標記閱讀順序（1 為最先讀，數字依序遞增）。\n"  # i18n-ok: prompt
-            "5. 請使用繁體中文（臺灣用語）。輸出標準 JSON 陣列，每項包含 id、role、reason、priority。\n\n"  # i18n-ok: prompt
-            f"研究目標：{goal or '建立主題脈絡，由淺入深掌握核心研究'}\n"  # i18n-ok: prompt
-            f"主題：{topic or str(start_paper.get('title') or '')}\n"  # i18n-ok: prompt
-            f"候選論文：{json.dumps(source, ensure_ascii=False)}"  # i18n-ok: prompt
-        )
+        if (body.get("lang") == "en") or (i18n.lang() == "en"):
+            prompt = (
+                "You are an academic research mentor. Based on the candidate paper list below, plan a progressive reading path (from foundational to cutting-edge, about 5 to 10 papers) according to the research goal.\n"
+                "Rules:\n"
+                "1. Only recommend paper IDs that exist in the list. Do not invent papers or authors.\n"
+                "2. role: specify precise role according to reading order (e.g., 'Foundations', 'Prerequisites', 'Mainstream method', 'Starting paper', 'Representative baseline', 'Extension', 'Breakthrough').\n"
+                "3. reason: explain specifically 'why read this paper first, what concept it establishes or what method it provides for subsequent papers'.\n"
+                "4. priority: reading order (1 is first, incrementing sequentially).\n"
+                "5. Please write in English. Output a standard JSON array, each item containing id, role, reason, priority.\n\n"
+                f"Research goal: {goal or 'Build thematic context and master core research progressively'}\n"
+                f"Topic: {topic or str(start_paper.get('title') or '')}\n"
+                f"Candidate papers: {json.dumps(source, ensure_ascii=False)}"
+            )
+        else:
+            prompt = (
+                "你是一位學術研究導師。請根據下方已檢索到的候選論文清單，依研究目標規劃一份具備學習進階順序的閱讀路徑（由淺入深、由基礎到前沿，約 5 至 10 篇）。\n"  # i18n-ok: prompt
+                "規則：\n"  # i18n-ok: prompt
+                "1. 只能推薦清單中存在的論文 id，不得虛構論文或作者。\n"  # i18n-ok: prompt
+                "2. 角色（role）請依閱讀順序精準標註：如「基礎入門」、「先備背景」、「主流方法」、「起點核心」、「代表性研究」、「延伸探索」、「前沿突破」等。\n"  # i18n-ok: prompt
+                "3. 理由（reason）請具體說明「為什麼要先讀這篇、它為後續論文建立了什麼概念或提供了什麼方法」。\n"  # i18n-ok: prompt
+                "4. priority 請標記閱讀順序（1 為最先讀，數字依序遞增）。\n"  # i18n-ok: prompt
+                "5. 請使用繁體中文（臺灣用語）。輸出標準 JSON 陣列，每項包含 id、role、reason、priority。\n\n"  # i18n-ok: prompt
+                f"研究目標：{goal or '建立主題脈絡，由淺入深掌握核心研究'}\n"  # i18n-ok: prompt
+                f"主題：{topic or str(start_paper.get('title') or '')}\n"  # i18n-ok: prompt
+                f"候選論文：{json.dumps(source, ensure_ascii=False)}"  # i18n-ok: prompt
+            )
 
         report("planning", 3, 5, tr("AI 正在規劃閱讀順序。"))
         check_cancel()
         answer = engines.run(engines.for_translation(cfg), prompt, app.lib.root, [], cancel, meter)
-        report("validate", 4, 5, tr("正在驗證並保存閱讀路徑。"))
+        report("validate", 4, 5, tr("正在驗證並保存閱讀路徑。"), stage_label=tr("規劃閱讀路徑"))
         check_cancel()
         plan = _unwrap_json_list(engines.parse_json(answer))
         if not isinstance(plan, list):
@@ -2493,6 +2534,7 @@ def post(app, endpoint: str, body: dict, *, _cancel=None, _report=None):
             "results": output, "model": model.get("name", model.get("id", "")),
             "source_count": len(capped_papers), "discovery_warnings": discovery_warnings,
         })
+        report("done", 5, 5, tr("閱讀路徑已完成"), stage_label=tr("閱讀路徑已完成"), result_state="completed")
         return {"results": output, "path": snapshot, "path_id": snapshot["path_id"], "revision": snapshot["revision"],
                 "model": model.get("name", model.get("id", "")), "source_count": len(capped_papers),
                 "warning": "；".join(discovery_warnings), "usage": meter.snapshot()}  # i18n-ok: separator in localized warning text.

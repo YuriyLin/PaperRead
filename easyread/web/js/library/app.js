@@ -159,7 +159,8 @@
     if (j && j.state === "confirm") return '<span class="stat">' + PR.t("等你确认") + "</span>";
     if (j && ["queued", "running"].includes(j.state)) {
       const pct = j.total ? " " + PR.t("{done}/{total} 页", { done: j.done, total: j.total }) : "";
-      return '<span class="stat job"><span class="spin"></span>' + PR.esc(j.state === "queued" ? PR.t("排队中") : (j.message || PR.t("处理中"))) + pct + "</span>";
+      const msg = PR.formatJobMessage ? PR.formatJobMessage(j) : (j.state === "queued" ? PR.t("排队中") : (j.message || PR.t("处理中")));
+      return '<span class="stat job"><span class="spin"></span>' + PR.esc(msg) + pct + "</span>";
     }
     if (j && j.state === "error") return '<span class="stat err">' + (j.read ? PR.t("整理原文出错") : PR.t("翻译出错")) + "</span>";
     if (j && j.state === "partial") return '<span class="stat err">' + (j.read ? PR.t("{n} 页没整理成功", { n: Object.keys(j.failed || {}).length }) : PR.t("{n} 页没译成功", { n: Object.keys(j.failed || {}).length })) + "</span>";

@@ -210,7 +210,8 @@ class ConsistencyTest(unittest.TestCase):
 
         self.assertEqual(run_pages(ws, cfg, [1, 2, 3, 4], engine, cancel), {})
         self.assertEqual(ws.load("paper")["translation"]["done_pages"], [1, 2, 3, 4])
-        self.assertIn("术语一致性检查已取消", (ws.root / "job.log").read_text(encoding="utf-8"))
+        log_content = (ws.root / "job.log").read_text(encoding="utf-8")
+        self.assertTrue("Terminology consistency check cancelled" in log_content or "术语一致性检查已取消" in log_content)
 
 
 class TermsUnifyTest(unittest.TestCase):

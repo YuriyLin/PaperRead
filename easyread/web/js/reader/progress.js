@@ -96,6 +96,7 @@
       shown = true;
       landing = false;  // 对准了，从这里才开始记
       if (paper) paper.classList.remove("landing");
+      if (PR.layoutMargin) PR.layoutMargin({ instant: true });
     };
     const stop = () => { stopped = true; show(); };  // 用户自己动了：别跟了，也别藏着
     const land = () => {

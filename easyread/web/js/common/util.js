@@ -216,16 +216,64 @@ window.PR = window.PR || {};
   PR.icon = (name, cls) => '<svg class="i' + (cls ? " " + cls : "") + '" viewBox="0 0 20 20" aria-hidden="true"><path d="' + (P[name] || "") + '"/></svg>';
   PR.icons = { menu: PR.icon("menu"), edit: PR.icon("edit", "sm"), note: PR.icon("note", "sm") };
 
+  PR.formatJobMessage = function (jobOrMsg) {
+    if (!jobOrMsg) return "";
+    const raw = typeof jobOrMsg === "string" ? jobOrMsg : (jobOrMsg.message || "");
+    const read = typeof jobOrMsg === "object" && jobOrMsg ? !!jobOrMsg.read : false;
+    const isEn = PR.lang === "en";
+    if (!raw) {
+      if (typeof jobOrMsg === "object" && jobOrMsg && jobOrMsg.state === "queued") return PR.t("排队中");
+      return PR.t("处理中");
+    }
+    const trimmed = raw.trim();
+    const direct = PR.t(trimmed);
+    if (direct !== trimmed) return direct;
+
+    const pageMatch = trimmed.match(/^(正在(?:翻译|翻譯)|正在整理原文|Translating|Processing original)\s*(.*)$/);
+    if (pageMatch) {
+      const verbRaw = pageMatch[1];
+      const rest = pageMatch[2].trim();
+      const isRead = read || verbRaw.includes("整理") || verbRaw.includes("original"); // i18n-ok: message keyword parsing
+      const verb = isEn ? (isRead ? "Processing original" : "Translating") : (isRead ? PR.t("正在整理原文") : PR.t("正在翻译"));
+      if (!rest) return verb;
+
+      const ranges = [];
+      const rangeRegex = /(\d+)(?:\s*[–—-]\s*(\d+))?/g;
+      let m;
+      while ((m = rangeRegex.exec(rest)) !== null) {
+        if (m[2]) ranges.push({ a: m[1], b: m[2] });
+        else ranges.push({ a: m[1] });
+      }
+
+      if (ranges.length > 0) {
+        if (isEn) {
+          const formattedRanges = ranges.map(r => r.b ? `${r.a}–${r.b}` : `${r.a}`).join(", ");
+          const pageWord = ranges.length > 1 || ranges.some(r => r.b) ? "pages" : "page";
+          return `${verb} ${pageWord} ${formattedRanges}`;
+        } else {
+          const formattedRanges = ranges.map(r => r.b ? PR.t("第 {a}–{b} 页", { a: r.a, b: r.b }) : PR.t("第 {page} 页", { page: r.a })).join(PR.t("、"));
+          return verb + formattedRanges;
+        }
+      }
+      return isEn ? `${verb} ${rest}` : `${verb}${rest}`;
+    }
+
+    return trimmed;
+  };
+
   PR.toast = function (html, action, ms) {
     let t = PR.$("#toast");
     if (!t) { t = PR.el("div", { id: "toast", role: "status" }); document.body.appendChild(t); }
-    t.innerHTML = "<span>" + html + "</span>";
+    const translatedHtml = typeof html === "string" && !html.includes("<") ? PR.t(html) : html;
+    t.innerHTML = "<span>" + translatedHtml + "</span>";
     if (action) {
-      const b = PR.el("button", { text: action.label });
+      const actLabel = action.label ? PR.t(action.label) : "";
+      const b = PR.el("button", { text: actLabel });
       b.onclick = () => { t.classList.remove("open"); action.fn(); };
       t.appendChild(b);
     }
     t.classList.add("open");
+    if (PR.translateDom) PR.translateDom(t);
     clearTimeout(PR._toastT);
     PR._toastT = setTimeout(() => t.classList.remove("open"), ms || 4200);
   };

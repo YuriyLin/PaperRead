@@ -114,9 +114,78 @@
     PR.emit("settings-saved", st);
   }
 
+  PR.formatLogEnglish = function (text) {
+    if (!text) return "";
+    return text.split(/\r?\n/).map((line) => {
+      const mTime = line.match(/^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\s+[A-Z]+)?\s+)(.*)$/);
+      const pfx = mTime ? mTime[1] : "";
+      let b = mTime ? mTime[2] : line;
+
+      b = b.replace(/^PaperRead\s+([0-9.]+)\s+已[啟启]動[：:]\s*(https?:\/\/[^\s]+)\s+文[獻献][庫库][：:]\s*(.*)$/, "PaperRead $1 started: $2  Library: $3"); // i18n-ok
+      const mStarted = b.match(/^(?:只[讀读]原文[（(]不[翻飜]?[譯译][）)]\s*)?[開开]始[：:]\s*(\d+)\s*[頁页][，,]\s*(\d+)\s*批[，,]\s*引擎\s*([^，,]+)[，,]\s*[併并]發\s*(\d+)$/); // i18n-ok
+      if (mStarted) {
+        const ro = (line.includes("只讀原文") || line.includes("只读原文")) ? "[Read-only] " : ""; // i18n-ok
+        b = ro + "Started: " + mStarted[1] + " pages, " + mStarted[2] + " batches, engine " + mStarted[3] + ", concurrency " + mStarted[4];
+      }
+      const mSeg = b.match(/^分\s*(\d+)\s*段同[時时][譯译][：:](.*)$/); // i18n-ok
+      if (mSeg) {
+        let sub = mSeg[2]
+          .replace(/第\s*(\d+)[–-](\d+)\s*[頁页]/g, "Pages $1–$2") // i18n-ok
+          .replace(/第\s*(\d+)\s*[頁页]/g, "Page $1") // i18n-ok
+          .replace(/、/g, ", "); // i18n-ok
+        b = "Concurrent translation in " + mSeg[1] + " segments: " + sub;
+      }
+      b = b.replace(/^第\s*(\d+)[–-](\d+)\s*[頁页]\s*完成$/, "Pages $1–$2 completed"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]\s*完成$/, "Page $1 completed"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)[–-](\d+)\s*[頁页]\s*第\s*(\d+)\s*次[失矢]敗[：:]\s*(.*)$/, "Pages $1–$2 failed (attempt $3): $4"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]\s*第\s*(\d+)\s*次[失矢]敗[：:]\s*(.*)$/, "Page $1 failed (attempt $2): $3"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)[–-](\d+)\s*[頁页]\s*第\s*(\d+)\s*次失败[：:]\s*(.*)$/, "Pages $1–$2 failed (attempt $3): $4"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]\s*第\s*(\d+)\s*次失败[：:]\s*(.*)$/, "Page $1 failed (attempt $2): $3"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)[–-](\d+)\s*[頁页]\s*模型整[頁页]漏[譯译]，[單单][獨独]再[譯译]一次$/, "Pages $1–$2 missed entirely by model, retrying individually"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]\s*模型整[頁页]漏[譯译]，[單单][獨独]再[譯译]一次$/, "Page $1 missed entirely by model, retrying individually"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)[–-](\d+)\s*[頁页]修正[失矢]敗，保留原[譯译][：:]\s*(.*)$/, "Pages $1–$2 fix failed, original translation kept: $3"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]修正[失矢]敗，保留原[譯译][：:]\s*(.*)$/, "Page $1 fix failed, original translation kept: $2"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)[–-](\d+)\s*[頁页]修正失败，保留原[译譯][：:]\s*(.*)$/, "Pages $1–$2 fix failed, original translation kept: $3"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]修正失败，保留原[译譯][：:]\s*(.*)$/, "Page $1 fix failed, original translation kept: $2"); // i18n-ok
+      b = b.replace(/^第\s*(\d+)\s*[頁页]起[術术][語语][統统]一[：:](.+?)\s*的[“"「](.+?)[”"」]改成已有的[“"「](.+?)[”"」]$/, 'Terminology unified starting from page $1: "$3" -> "$4" for $2'); // i18n-ok
+      const mTc = b.match(/^[術术][語语]一致性[：:]\s*第\s*(\d+)\s*[頁页]\s*(.*)$/); // i18n-ok
+      if (mTc) b = "Terminology consistency: Page " + mTc[1] + " " + mTc[2];
+      b = b.replace(/^[術术][語语]一致性[檢检]查[：:]\s*[查檢检]了\s*(\d+)\s*段[，,]\s*改了\s*(\d+)\s*段$/, "Terminology consistency check: checked $1 sections, updated $2 sections"); // i18n-ok
+      b = b.replace(/^[術术][語语]一致性[檢检]查[：:]\s*沒有[發发]現不一致$/, "Terminology consistency check: no inconsistencies found"); // i18n-ok
+      b = b.replace(/^[術术][語语]一致性[檢检]查[：:]\s*没有发现不一致$/, "Terminology consistency check: no inconsistencies found"); // i18n-ok
+      b = b.replace(/^[術术][語语]一致性[檢检]查已取消[，,]\s*[譯译]文保留$/, "Terminology consistency check cancelled, translation kept"); // i18n-ok
+      b = b.replace(/^[術术][語语]一致性[檢检]查[沒没]做成[：:]\s*(.*)$/, "Terminology consistency check failed: $1"); // i18n-ok
+      b = b.replace(/^[術术][語语]一致性[檢检]查[失矢]敗[：:]\s*(.*)$/, "Terminology consistency check failed: $1"); // i18n-ok
+      b = b.replace(/^[術术][語语]一致性[檢检]查失败[：:]\s*(.*)$/, "Terminology consistency check failed: $1"); // i18n-ok
+      b = b.replace(/^[處处]理完成[，,]\s*但有\s*(\d+)\s*[頁页][失矢]敗[：:]\s*(.*)$/, "Finished, but $1 pages failed: $2"); // i18n-ok
+      b = b.replace(/^[處处]理完成[，,]\s*但有\s*(\d+)\s*[頁页]失败[：:]\s*(.*)$/, "Finished, but $1 pages failed: $2"); // i18n-ok
+      b = b.replace(/^[結结]束[，,]\s*全部成功$/, "Finished, all successful"); // i18n-ok
+      b = b.replace(/^[結结]束[，,]\s*(\d+)\s*[頁页][失矢]敗[：:]\s*(.*)$/, "Finished, $1 pages failed: $2"); // i18n-ok
+      b = b.replace(/^[結结]束[，,]\s*(\d+)\s*[頁页]失败[：:]\s*(.*)$/, "Finished, $1 pages failed: $2"); // i18n-ok
+      b = b.replace(/^[額额]度用完或[連连]不上[，,]\s*停止[翻飜]?[譯译]剩下的[頁页]$/, "Quota exceeded or connection lost, stopping remaining pages"); // i18n-ok
+      b = b.replace(/^出[錯错]停止[：:]\s*(.*)$/, "Stopped due to error: $1"); // i18n-ok
+      b = b.replace(/^核[對对]提示[沒没]存上[：:]\s*(.*)$/, "Verification prompt failed to save: $1"); // i18n-ok
+      b = b.replace(/^改[為为]常[駐驻][，,]\s*不再在[頁页]面[關关]掉[後后]自[動动]退出$/, "Daemon mode enabled; staying open after page close"); // i18n-ok
+      b = b.replace(/^[頁页]面都[關关]了[，,]\s*[後后]台[沒没]有任[務务]在跑[，,]\s*退出服[務务]$/, "All pages closed with no active background jobs, shutting down server"); // i18n-ok
+      b = b.replace(/^[檢检]查新版本[沒没]成功[：:]\s*(.*)$/, "Check for update failed: $1"); // i18n-ok
+      b = b.replace(/^證[書书]校[驗验][失矢]敗\s*(.*?)[：:]\s*(.*)$/, "Certificate verification failed $1: $2"); // i18n-ok
+      b = b.replace(/^证书校验失败\s*(.*?)[：:]\s*(.*)$/, "Certificate verification failed $1: $2"); // i18n-ok
+      b = b.replace(/^[連连]通性[檢检]查[失矢]敗\s*(.*?)[：:]\s*(.*)$/, "Connectivity check failed $1: $2"); // i18n-ok
+      b = b.replace(/^[翻飜]?[譯译][失矢]敗\s*(.*)$/, "Translation failed $1"); // i18n-ok
+      b = b.replace(/^翻译失败\s*(.*)$/, "Translation failed $1"); // i18n-ok
+      b = b.replace(/^導[入入][失矢]敗\s*(.*)$/, "Import failed $1"); // i18n-ok
+      b = b.replace(/^导入失败\s*(.*)$/, "Import failed $1"); // i18n-ok
+      b = b.replace(/必須是二維陣列/g, "must be a 2D array").replace(/必须是二维数组/g, "must be a 2D array"); // i18n-ok
+      b = b.replace(/^[（(]完整[日誌日志]+[：:]\s*(.*?)[）)]$/, "(full log: $1)"); // i18n-ok
+
+      return pfx + b;
+    }).join("\n");
+  };
+
   PR.showText = function (title, text) {
     const d = PR.$("#textDlg");
-    d.querySelector(".dialog").innerHTML = "<h2>" + PR.esc(title) + '</h2><pre class="logview">' + PR.esc(text || PR.t("（还没有记录）")) + '</pre><div class="actions"><button class="btn" data-close>' + PR.t("关闭") + "</button></div>";
+    const bodyText = PR.formatLogEnglish(text);
+    d.querySelector(".dialog").innerHTML = "<h2>" + PR.esc(title) + '</h2><pre class="logview">' + PR.esc(bodyText || PR.t("（还没有记录）")) + '</pre><div class="actions"><button class="btn" data-close>' + PR.t("关闭") + "</button></div>";
     d.classList.add("open");
     const pre = d.querySelector("pre"); pre.scrollTop = pre.scrollHeight;
   };

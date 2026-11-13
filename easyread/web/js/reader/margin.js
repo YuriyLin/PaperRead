@@ -115,7 +115,7 @@
       }
     }
     PR.$$(".card").forEach(prepCard);
-    if (wide) PR.layoutMargin();
+    if (wide) PR.layoutMargin({ instant: true });
     PR.emit("margin-rendered");
   };
 
@@ -132,13 +132,27 @@
   }
 
   /* 宽屏：卡片贴着锚点，放不下就往下顺延 */
-  PR.layoutMargin = function () {
+  PR.layoutMargin = function (opts) {
     if (!PR.marginWide()) return;
+    const instant = !!(opts && opts.instant);
     const dual = PR.dualMarginWide();
     const margins = dual ? [PR.$("#margin-left"), PR.$("#margin")] : [PR.$("#margin")];
     for (const margin of margins) {
-      const mTop = margin.getBoundingClientRect().top;
-      const cards = PR.$$(".card", margin).map((c) => {
+      if (!margin) continue;
+      const mRect = margin.getBoundingClientRect();
+      const rawCards = PR.$$(".card", margin);
+      if (!rawCards.length) {
+        margin.style.minHeight = "0px";
+        continue;
+      }
+      const hasBox = margin.offsetWidth > 0 || margin.offsetHeight > 0 || mRect.width > 0 || mRect.height > 0 ||
+        rawCards.some((c) => {
+          const h = document.getElementById("b-" + c.dataset.anchor);
+          return c.offsetHeight > 0 || (h && (h.offsetHeight > 0 || h.getBoundingClientRect().top !== mRect.top));
+        });
+      if (!hasBox) continue;
+      const mTop = mRect.top;
+      const cards = rawCards.map((c) => {
         const host = document.getElementById("b-" + c.dataset.anchor);
         let y = host ? host.getBoundingClientRect().top - mTop : 0;
         const sel = c.dataset.note ? noteTargetSelector(c.dataset.note) : 'mark[data-card="' + c.dataset.card + '"]';
@@ -150,8 +164,11 @@
       let bottom = -Infinity;
       for (const { c, y } of cards) {
         const top = Math.max(y, bottom + 16);
+        const noAnim = instant || !c.style.top;
+        if (noAnim) c.style.transition = "none";
         c.style.top = Math.round(top) + "px";
         bottom = top + c.offsetHeight;
+        if (noAnim) c.style.transition = "";
       }
       margin.style.minHeight = Math.max(0, bottom) + "px";
     }

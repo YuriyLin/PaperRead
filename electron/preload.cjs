@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("easyreadDesktop", {
   installUpdate: () => ipcRenderer.invoke("easyread:update-install"),
   openDetachedWindow: (token, bounds) => ipcRenderer.invoke("easyread:detach-window", token, bounds),
   closeCurrentWindow: () => ipcRenderer.invoke("easyread:close-current-window"),
+  restoreMainWindow: () => ipcRenderer.invoke("easyread:restore-main-window"),
   onUpdateState: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on("easyread:update-state", listener);

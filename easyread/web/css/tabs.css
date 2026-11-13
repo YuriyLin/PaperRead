@@ -48,6 +48,10 @@ html[data-theme="dark"] .tabs-overlay,
   background: rgba(0, 0, 0, 0.45);
 }
 
+body.modal-rw-open .tabs-overlay {
+  background: rgba(10, 10, 10, 0.45);
+}
+
 body.modal-mindmap-dark .tabs-overlay {
   background: rgba(0, 0, 0, 0.72);
 }
@@ -485,7 +489,8 @@ body.autohide-tabs #panes {
   pointer-events: none;
 }
 .paper-pane.frozen {
-  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

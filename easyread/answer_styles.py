@@ -23,9 +23,26 @@ def parse(value=None) -> str:
 # Reference: https://www.asd-ste100.org/STE_faq.html
 # Additional clarity principles reviewed (original Chinese instructions below):
 # https://github.com/danyuchn/asd-ste100-skill/blob/7d4a135a199a5d7447c4886bcd7ffe742a627bc9/SKILL.md
-STE100_INSTRUCTIONS = """本次使用 ASD-STE100 問答模式。先前的對話只提供語境，不決定本次的語言和格式。
-只輸出繁體中文回答，不附英文答案、英文草稿或雙語對照；不可使用簡體字。專業名詞、縮寫、程式碼和公式可以保留必要的原文。
-ASD-STE100 是英文標準。本模式借鑑 Issue 9 的簡明技術寫作原則，使用這些原則組織中文答案；不要把英文的詞數限制機械地套用到中文，也不要聲稱中文答案符合英文標準。
+def ste100_instructions(meta: dict | None = None) -> str:
+    from . import langs
+    target = (meta or {}).get("target")
+    lang_desc = langs.reply_lang(meta)
+    if target == "zh-TW" or lang_desc == langs.prompt_name("zh-TW"):
+        target_rule = "只輸出繁體中文回答，不附英文答案、英文草稿或雙語對照；不可使用簡體字。專業名詞、縮寫、程式碼和公式可以保留必要的原文。"  # i18n-ok
+        std_rule = "ASD-STE100 是英文標準。本模式借鑑 Issue 9 的簡明技術寫作原則，使用這些原則組織中文答案；不要把英文的詞數限制機械地套用到中文，也不要聲稱中文答案符合英文標準。"  # i18n-ok
+    elif target == "zh" or lang_desc == "中文":  # i18n-ok
+        target_rule = "只輸出中文回答，不附英文答案、英文草稿或雙語對照。專業名詞、縮寫、程式碼和公式可以保留必要的原文。"  # i18n-ok
+        std_rule = "ASD-STE100 是英文標準。本模式借鑑 Issue 9 的簡明技術寫作原則，使用這些原則組織中文答案；不要把英文的詞數限制機械地套用到中文，也不要聲稱中文答案符合英文標準。"  # i18n-ok
+    elif target == "en" or "英文" in lang_desc or "English" in lang_desc:  # i18n-ok
+        target_rule = "只輸出英文（English）回答，不附雙語對照。專業名詞、縮寫、程式碼和公式可以保留必要的原文。"  # i18n-ok
+        std_rule = "ASD-STE100 是英文標準。本模式依據 Issue 9 的簡明技術寫作原則組織英文答案；不要聲稱答案已通過 STE 詞典校驗或標準認證。"  # i18n-ok
+    else:
+        target_rule = f"只輸出{lang_desc}回答，不附英文答案、英文草稿或雙語對照。專業名詞、縮寫、程式碼和公式可以保留必要的原文。"  # i18n-ok
+        std_rule = f"ASD-STE100 是英文標準。本模式借鑑 Issue 9 的簡明技術寫作原則，使用這些原則組織{lang_desc}答案；不要把英文的詞數限制機械地套用，也不要聲稱答案符合英文標準。"  # i18n-ok
+
+    return f"""本次使用 ASD-STE100 問答模式。先前的對話只提供語境，不決定本次的語言和格式。
+{target_rule}
+{std_rule}
 - 使用簡明、直接的短句，每句表達一個主要意思，每段圍繞一個主題。三個或更多步驟、條件或並列要點使用列表。
 - 優先使用主動表達，明確誰做什麼、動作涉及哪個對象。不知道行為主體時不要猜測，也不要省略主語造成歧義。
 - 讀者需要操作說明時，先說明適用條件，再依序列出動作和必要的結果或限制；每一步說明一個動作。不要把描述性結論改成操作命令。
@@ -38,6 +55,9 @@ ASD-STE100 是英文標準。本模式借鑑 Issue 9 的簡明技術寫作原則
 區分論文證據和補充解釋。當前正文不完整或只提供節錄時，涉及全文的結論必須說明這個範圍。
 輸出前先檢查事實、數值、條件、範圍和語氣強度是否忠於依據，再檢查術語是否一致和表達是否清楚；不要輸出檢查過程，也不要聲稱答案已通過 STE 詞典校驗或標準認證。
 """
+
+
+STE100_INSTRUCTIONS = ste100_instructions({"target": "zh-TW"})
 
 # Based on EasyRead's MIT-licensed paper-xray / answer style (upstream PR #41).
 XRAY_INSTRUCTIONS = """本次使用精讀模式。圍繞讀者的問題深入解釋，不必每次都產生整篇閱讀報告。先前對話只提供語境，不決定本次的回答方式。

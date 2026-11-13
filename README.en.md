@@ -4,15 +4,15 @@
 
 A personal research workspace for discovering, reading, and connecting papers.
 
-[Download PaperRead (v1.5.2)](https://github.com/YuriyLin/PaperRead/releases/latest) · [繁體中文](README.md) · [Report an issue](https://github.com/YuriyLin/PaperRead/issues)
+[Download PaperRead (v1.5.3)](https://github.com/YuriyLin/PaperRead/releases/latest) · [繁體中文](README.md) · [Report an issue](https://github.com/YuriyLin/PaperRead/issues)
 
-![Release](https://img.shields.io/badge/release-v1.5.2-blue) ![v1.5.3](https://img.shields.io/badge/v1.5.3-unreleased-orange) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+![Release](https://img.shields.io/badge/release-v1.5.3-blue) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> **Release Status**: The latest official release is **v1.5.2**. **v1.5.3 is currently unreleased** (work-in-progress implementations and fixes can be viewed in the [Changelog](CHANGELOG.md)).
+> See the [Changelog](CHANGELOG.md) for the latest updates.
 
 Built on EasyRead, PaperRead brings literature discovery, reading, source verification, and notes into one local workspace.
 
-![Bilingual reader and original PDF page](docs/images/readingpage.jpg)
+![Bilingual reader and original PDF page](docs/images/en/readingpage.png)
 
 ## Why PaperRead?
 
@@ -24,9 +24,9 @@ Search results, reading progress, and research notes often live in separate tool
 
 Find papers, collect candidates, plan reading, and explore connections.
 
-![Reading board](docs/images/researchspace.jpg)
+![Reading board](docs/images/en/kanban.png)
 
-![Reading path](docs/images/route.jpg)
+![Reading path](docs/images/en/route.png)
 
 | Feature | Purpose |
 | --- | --- |
@@ -38,7 +38,7 @@ Find papers, collect candidates, plan reading, and explore connections.
 
 Read translations alongside the original and capture your thoughts.
 
-![Handwritten annotations in the reader](docs/images/handwrite.jpg)
+![Handwritten annotations in the reader](docs/images/en/handwrite%26sticker.png)
 
 | Feature | Purpose |
 | --- | --- |
@@ -51,7 +51,7 @@ Read translations alongside the original and capture your thoughts.
 
 Move from individual papers to comparisons, with the source close at hand.
 
-![Paper mind map](docs/images/mindmap.jpg)
+![Paper mind map](docs/images/en/mindmap.png)
 
 | Feature | Purpose |
 | --- | --- |
