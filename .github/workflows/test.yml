@@ -31,6 +31,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Build note editor
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: |
+          npm ci
+          npm run build:editor
       - name: 桌面、原頁與筆記儲存
         run: node --test tests/test_*.cjs
       - name: 啟動服務，開啟文獻庫頁面
