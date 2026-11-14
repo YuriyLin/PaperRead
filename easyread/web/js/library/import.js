@@ -31,7 +31,9 @@
       '<label class="field"><span>' + PR.t("链接、arXiv 编号、DOI 或论文标题") + '</span><div class="inline"><input class="input" id="arxivRef" placeholder="' + PR.t("2411.00640 · 10.18653/v1/N19-1423 · 论文网页链接 · 论文标题") + '">' +
       '<button class="btn accent" id="arxivGo">' + PR.t("导入") + "</button></div></label>" +
       '<div class="imp-bulk"><button class="linkish" id="folderGo">' + PR.icon("folder", "sm") + PR.t("导入整个文件夹") + "</button>" +
-      '<button class="linkish" id="zoteroGo">' + PR.icon("upload", "sm") + PR.t("从 Zotero 迁移整个文献库") + "</button></div>" +
+      '<button class="linkish" id="zoteroGo">' + PR.icon("upload", "sm") + PR.t("从 Zotero 迁移整个文献库") + "</button>" +
+      '<span class="imp-sync-grp"><button class="linkish" id="zoteroSync" title="' + PR.esc(PR.t("同步 Zotero")) + '">' + PR.icon("sync", "sm") + PR.t("同步 Zotero") + '</button>' +
+      '<button class="imp-icon-btn" id="zoteroSyncSettings" title="' + PR.esc(PR.t("設定 Zotero 同步")) + '" aria-label="' + PR.esc(PR.t("設定 Zotero 同步")) + '">' + PR.icon("gear", "sm") + "</button></span></div>" +
       '<div class="imp-opts"><span class="imp-lbl">' + PR.t("导入后") + '</span><div class="seg" id="afterSeg">' + AFTER.map(([k, l, tip]) => '<button data-after="' + k + '" title="' + PR.esc(tip) + '" class="' + (after === k ? "on" : "") + '"' + (off && k !== "none" ? " disabled" : "") + ">" + l + "</button>").join("") + "</div>" +
         '<select class="input imp-target" id="impTarget" title="' + PR.t("译成哪种语言") + '"' + (after === "translate" ? "" : " hidden") + ">" + PR.opt(PR.TARGETS, PR.target) + "</select></div>" +
       '<p class="hint" id="enTargetHint"' + (after === "translate" && PR.target === "en" ? "" : " hidden") + '>' + PR.t("原文本来就是英文的话，选“读英文原文”就行，不用翻译，更省用量。") + "</p>" +
@@ -77,6 +79,8 @@
     if (e.target.closest("#arxivGo")) importRef(PR.$("#arxivRef").value);
     if (e.target.closest("#impEngine")) { close(); PR.openSettings(); }
     if (e.target.closest("#zoteroGo")) { close(); PR.openZotero(); }
+    if (e.target.closest("#zoteroSync")) { close(); PR.openZoteroSync(); }
+    if (e.target.closest("#zoteroSyncSettings")) { close(); PR.openZotero(true); }
     if (e.target.closest("#folderGo")) { close(); PR.openFolderImport(); }
     const a = e.target.closest("[data-after]");
     if (a && !a.disabled) {

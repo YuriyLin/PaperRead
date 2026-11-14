@@ -20,5 +20,14 @@
 .zt-bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
 .zt-now { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 12px; }
 .zt-done { font-size: 14px; margin: 0 0 12px; }
-.imp-bulk { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0 0 4px; }  /* 导入对话框里的两个入口 */
-.imp-bulk .linkish { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.imp-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 4px; }  /* 导入对话框里的批量与同步入口 */
+.imp-bulk .linkish { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+.imp-sync-grp { display: inline-flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--accent-soft); }
+.imp-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; color: var(--ink-3); transition: background .15s, color .15s; }
+.imp-icon-btn:hover { background: var(--accent-soft-2); color: var(--accent); }
+.zt-title { display: flex; align-items: center; gap: 8px; }
+.zt-pick-link { display: inline-flex; align-items: center; gap: 5px; }
+.zt-sync-box { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--rule); }
+.zt-sync-box .field { margin: 0; }
+.zt-icon-btn { flex: none; width: 34px; padding: 0; justify-content: center; }
+#bulkDlg .btn { display: inline-flex; align-items: center; gap: 6px; }

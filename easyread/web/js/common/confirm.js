@@ -22,7 +22,7 @@
   function place(box, at) {
     const r = at && at.getBoundingClientRect ? at.getBoundingClientRect() : at ? { left: at.x, right: at.x, top: at.y, bottom: at.y } : null;
     const w = box.offsetWidth, h = box.offsetHeight;
-    if (!r) { box.style.left = Math.max(8, (innerWidth - w) / 2) + "px"; box.style.top = Math.max(8, innerHeight * 0.28) + "px"; return; }
+    if (!r) { box.style.left = Math.max(8, (innerWidth - w) / 2) + "px"; box.style.top = Math.max(8, (innerHeight - h) / 2) + "px"; return; }
     let y = r.bottom + 6;
     if (y + h > innerHeight - 8) y = Math.max(8, r.top - h - 6);
     box.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left)) + "px";

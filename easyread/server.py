@@ -308,6 +308,7 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.split("/")  # ['', 'api', 'p', id, action, name?]
             ws = lib.ws(parts[3]) if len(parts) > 4 else None
             if not ws:
+                self.close_connection = True
                 return self._json(404, {"error": tr("没有这篇论文")})
             action = parts[4]
             if action == "state":
@@ -372,6 +373,7 @@ class Handler(BaseHTTPRequestHandler):
                 source = ws.source_pdf if rel == "source.pdf" else _safe(ws.root, rel)
                 return self._file(source if source and source.is_file() else None, cache=rel != "source.pdf",
                                   ctype="application/pdf" if rel == "source.pdf" else None)
+        self.close_connection = True
         return self._json(404, {"error": "not found"})
 
     # ---------- POST ----------
@@ -489,6 +491,7 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.split("/")
             ws = lib.ws(parts[3]) if len(parts) > 4 else None
             if not ws:
+                self.close_connection = True
                 return self._json(404, {"error": tr("没有这篇论文")})
             action = parts[4]
             body = json.loads(self._body() or b"{}")
@@ -556,5 +559,6 @@ class Handler(BaseHTTPRequestHandler):
             if action == "delete":
                 app.jobs.cancel(ws.id)
                 return self._json(200, {"trash": str(lib.trash(ws.id))})
+        self.close_connection = True
         return self._json(404, {"error": "not found"})
 

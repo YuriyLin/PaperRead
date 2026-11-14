@@ -40,6 +40,15 @@ public static class PaperReadPicker {
   [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
   static extern void SHCreateItemFromParsingName(string path, IntPtr bc, ref Guid riid, out IShellItem item);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] static extern bool EnumThreadWindows(uint tid, EnumProc lpfn, IntPtr lp);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+  delegate bool EnumProc(IntPtr hwnd, IntPtr lp);
   public static string Pick(string title, string start) {
     var d = (IFileDialog)new FileOpenDialog();
     uint o; d.GetOptions(out o); d.SetOptions(o | 0x20 | 0x40);  // FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM
@@ -47,14 +56,28 @@ public static class PaperReadPicker {
     if (!string.IsNullOrEmpty(start)) {
       try { var g = typeof(IShellItem).GUID; IShellItem s; SHCreateItemFromParsingName(start, IntPtr.Zero, ref g, out s); d.SetFolder(s); } catch {}
     }
-    // Background process: without a topmost owner the dialog opens behind the browser.
-    var owner = new System.Windows.Forms.Form();
-    owner.TopMost = true; owner.ShowInTaskbar = false; owner.Opacity = 0;
-    owner.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
-    owner.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-    owner.Size = new System.Drawing.Size(1, 1);
-    owner.Show(); owner.Activate(); SetForegroundWindow(owner.Handle);
-    try { if (d.Show(owner.Handle) != 0) return ""; } finally { owner.Close(); }
+    uint tid = GetCurrentThreadId();
+    var timer = new System.Windows.Forms.Timer();
+    timer.Interval = 120;
+    int tries = 0;
+    bool everForeground = false;
+    timer.Tick += (s, e) => {
+      tries++;
+      EnumThreadWindows(tid, (hwnd, lp) => {
+        if (!IsWindowVisible(hwnd)) return true;
+        RECT rc;
+        if (!GetWindowRect(hwnd, out rc) || (rc.Right - rc.Left) < 150 || (rc.Bottom - rc.Top) < 150) return true;
+        ShowWindow(hwnd, 5);
+        SetForegroundWindow(hwnd);
+        BringWindowToTop(hwnd);
+        if (GetForegroundWindow() == hwnd) { everForeground = true; return false; }
+        return true;
+      }, IntPtr.Zero);
+      if (everForeground) { timer.Stop(); return; }
+      if (tries >= 20) { timer.Stop(); Environment.Exit(2); }
+    };
+    timer.Start();
+    try { if (d.Show(IntPtr.Zero) != 0) return ""; } finally { timer.Stop(); timer.Dispose(); }
     IShellItem r; d.GetResult(out r); string p; r.GetDisplayName(0x80058000, out p);  // SIGDN_FILESYSPATH
     return p;
   }
@@ -79,9 +102,15 @@ def pick(title: str, start: str = "") -> str | None:
     else:
         return None
     foreground.allow()
+    kwargs = {"capture_output": True, "env": env, "timeout": 600,
+              "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)}
+    if sys.platform == "win32":
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 1  # SW_SHOWNORMAL：避免背景進程把系統對話框也繼承成隱藏
+        kwargs["startupinfo"] = si
     try:
-        r = subprocess.run(cmd, capture_output=True, env=env, timeout=600,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        r = subprocess.run(cmd, **kwargs)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:  # 编译或 COM 出错：当成弹不出来，让页面改成填路径

@@ -106,10 +106,12 @@
   // Titles allow math, but preserve literal Markdown punctuation and links.
   PR.titleHtml = function (text) {
     const saved = tokens(String(text == null ? "" : text), false);
-    return PR.esc(saved.text).replace(saved.inline, (match, index) => {
-      const token = saved.values[index];
-      return token.code || token.link ? PR.esc(token.raw) : PR.tex(token.text, false);
-    });
+    return PR.esc(saved.text)
+      .replace(/&lt;(\/?(?:sup|sub))&gt;/gi, (_, tag) => "<" + tag.toLowerCase() + ">")
+      .replace(saved.inline, (match, index) => {
+        const token = saved.values[index];
+        return token.code || token.link ? PR.esc(token.raw) : PR.tex(token.text, false);
+      });
   };
   PR.titleText = function (text) {
     return String(text == null ? "" : text)
