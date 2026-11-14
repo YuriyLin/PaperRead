@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs
 
@@ -130,13 +131,17 @@ class OpenLinkTest(unittest.TestCase):
 class FolderPickTest(unittest.TestCase):
     def run_with(self, returncode, stdout):
         done = subprocess.CompletedProcess([], returncode, stdout=stdout.encode("utf-8"), stderr=b"")
-        with patch("easyread.folder_pick.sys.platform", "win32"), patch("easyread.folder_pick.subprocess.run", return_value=done) as run:
+        with patch("easyread.folder_pick.sys.platform", "win32"), \
+             patch.object(subprocess, "STARTUPINFO", lambda: SimpleNamespace(dwFlags=0, wShowWindow=0), create=True), \
+             patch.object(subprocess, "STARTF_USESHOWWINDOW", 1, create=True), \
+             patch("easyread.folder_pick.subprocess.run", return_value=done) as run:
             return folder_pick.pick("选文件夹"), run
 
     def test_returns_chosen_path_without_trailing_separator(self):
         path, run = self.run_with(0, "D:\\坚果云\\论文\\\n")
         self.assertEqual(path, "D:\\坚果云\\论文")
         self.assertEqual(run.call_args.kwargs["env"]["EASYREAD_PICK_TITLE"], "选文件夹")
+        self.assertEqual(run.call_args.kwargs["startupinfo"].wShowWindow, 1)
 
     def test_cancel_returns_empty(self):
         self.assertEqual(self.run_with(0, "")[0], "")
