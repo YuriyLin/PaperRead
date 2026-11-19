@@ -46,9 +46,10 @@ body { font-size: 15px; }
 #stage:has(#paper.landing) > #margin-left,
 #stage:has(#paper.landing) > #margin,
 #stage:has(#paper.landing) > #inkLayer { visibility: hidden; }  /* 回到上次读到的地方期间先不显示正文与边注 */
-#margin { grid-column: 4; position: relative; min-width: 0; font-size: 15px; }
-#margin-left { display: none; position: relative; min-width: 0; font-size: 15px; }
-#inkLayer { position: absolute; inset: 0; z-index: 5; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#margin { grid-column: 4; position: relative; min-width: 0; font-size: 15px; overflow-anchor: none; }
+#margin-left { display: none; position: relative; min-width: 0; font-size: 15px; overflow-anchor: none; }
+#inkLayer { position: absolute; inset: 0; z-index: 5; width: 100%; height: 100%; overflow: visible; pointer-events: none; overflow-anchor: none; }
+.pending-pages { overflow-anchor: none; }
 #inkLayer.active { pointer-events: auto; cursor: crosshair; touch-action: none; }
 #inkLayer:not(.active) path { pointer-events: none; }
 #inkLayer.erase { cursor: none; }
@@ -190,9 +191,9 @@ body.en-only #paper { font-family: var(--serif-en); }  /* 只读英文原文：�
 /* 表格：三线表 */
 .blk-table { margin: 1.8em 0 2em; }
 .tbl-wrap { overflow-x: auto; }
-table.tbl { margin: 0 auto; border-collapse: collapse; font-size: .86em; line-height: 1.5; font-variant-numeric: tabular-nums lining-nums; font-family: var(--serif-en), var(--serif-zh); border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+table.tbl { margin: 0 auto; max-width: 100%; border-collapse: collapse; font-size: .86em; line-height: 1.5; font-variant-numeric: tabular-nums lining-nums; font-family: var(--serif-en), var(--serif-zh); border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
 table.tbl th { font-family: var(--serif-zh); font-weight: 600; border-bottom: .75px solid var(--ink-2); }
-table.tbl th, table.tbl td { padding: .45em .95em; vertical-align: top; white-space: nowrap; }
+table.tbl th, table.tbl td { padding: .45em .85em; vertical-align: top; white-space: normal; overflow-wrap: break-word; }
 table.tbl td:first-child, table.tbl th:first-child { padding-left: .3em; }
 table.tbl td:last-child, table.tbl th:last-child { padding-right: .3em; }
 table.tbl td .sub { color: var(--ink-3); }
@@ -201,7 +202,7 @@ table.tbl td .sub { color: var(--ink-3); }
 .caption .en { width: fit-content; margin-left: auto; margin-right: auto; }
 .caption .label { font-weight: 600; color: var(--ink); margin-right: .15em; }
 /* 图片保持原色，透明区域按 PDF 的白纸底色显示。 */
-.blk-figure img { display: block; max-width: 100%; margin: 0 auto; border-radius: 2px; background: #fff; }
+.blk-figure img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 2px; background: #fff; }
 .figure-media { margin: 0 auto; }
 .figure-translation { margin: .8em auto 0; padding: .65em .85em .7em; max-width: 42em; border-left: 2px solid var(--accent); border-radius: 4px; background: var(--accent-soft); font-size: .86em; line-height: 1.7; }
 .figure-translation-label { margin-bottom: .2em; font: 11.5px/1.4 var(--ui); letter-spacing: .06em; color: var(--accent); }
@@ -216,6 +217,7 @@ table.tbl td .sub { color: var(--ink-3); }
 .refs .note { font: 12.5px/1.6 var(--ui); color: var(--ink-3); margin: -.2em 0 1.2em; }
 .refs ol { list-style: none; margin: 0; padding: 0; }
 .refs li { display: grid; grid-template-columns: 2.6em 1fr; margin: 0 0 .7em; border-radius: 3px; overflow-wrap: anywhere; }
+.refs li.plain { display: block; }
 .refs li .n { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .refs li.flash { animation: flash 1.6s ease; }
 

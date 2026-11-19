@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Iterator
 
 from . import __version__, api_diagnostics, http, usage
-from .engines import Cancelled, EngineError
+from .engines import Cancelled, EngineError, OutputLimitReached
 from .i18n import tr
 
 def api_kinds() -> list[tuple[str, str]]:
@@ -187,7 +187,7 @@ def _responses_text(res) -> str:
 
 
 def _truncated() -> EngineError:
-    err = EngineError(tr("模型输出被截断了（超过它的输出长度上限）。在设置里把“每次交给模型的页数”调成 1 页再试。"))
+    err = OutputLimitReached(tr("模型输出被截断了。请提高服务商的单次输出上限，或改用支持更长输出的模型。"))
     err.code = "OUTPUT_TRUNCATED"
     return err
 

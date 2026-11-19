@@ -1,0 +1,9 @@
+.crop-dialog { width: min(850px, 94vw); display: flex; flex-direction: column; overflow: hidden; }
+.crop-dialog h2 { margin-bottom: 6px; }
+.crop-dialog > .field { max-width: 140px; margin: 8px 0; }
+.crop-scroll { overflow: auto; min-height: 0; background: var(--bg); border: 1px solid var(--rule); }
+.crop-stage { position: relative; width: fit-content; max-width: 100%; margin: auto; cursor: crosshair; touch-action: none; user-select: none; }
+.crop-stage img { display: block; width: auto; height: auto; max-width: 100%; max-height: 54vh; }
+.crop-box { position: absolute; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; box-sizing: border-box; }
+.crop-status { margin: 8px 0 0; }
+.crop-dialog .actions { margin-top: 10px; }

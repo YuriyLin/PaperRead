@@ -124,6 +124,14 @@ class LocateTest(unittest.TestCase):
         pdfwork.refresh_layout(root)
         self.assertIn("p", json.loads((root / "layout.json").read_text(encoding="utf-8")))
 
+    def test_block_english_strips_single_line_escaped_markdown_links_only(self):
+        self.assertEqual(
+            pdfwork.block_english({"type": "para", "en": r"See [Fig. \[1\]](#fig:1)."}),
+            r"See Fig. \[1\].",
+        )
+        multiline = "First [note]\nnext line (parenthetical)."
+        self.assertEqual(pdfwork.block_english({"type": "para", "en": multiline}), multiline)
+
 
 class PdfReleasedTest(unittest.TestCase):
     """用完 PDF 要关掉：不然 Windows 上 source.pdf 一直被占着，论文移不进回收站。"""

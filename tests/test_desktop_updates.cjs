@@ -67,11 +67,19 @@ test("unconfigured fork leaves desktop auto-update disabled", async () => {
 
 test("configured repository is the only desktop update feed", () => {
   const expected = { provider: "github", owner: "example", repo: "research-os" };
-  for (const platform of ["win32", "darwin"]) {
-    assert.deepEqual(fixture(platform, {}).feeds, [expected]);
-  }
+  assert.deepEqual(fixture("win32", {}).feeds, [expected]);
   assert.deepEqual(fixture("linux", {}).feeds, []);
   assert.deepEqual(fixture("linux", { APPIMAGE: "/tmp/PaperRead.AppImage" }).feeds, [expected]);
+});
+
+test("macOS DMG uses manual downloads and never reaches the native updater", async () => {
+  const f = fixture("darwin", {});
+  f.updater.checkForUpdates = async () => assert.fail("must use the release download link");
+  assert.equal(f.run("state").supported, false);
+  assert.equal((await f.run("download")).phase, "idle");
+  assert.equal((await f.run("install")).phase, "idle");
+  assert.deepEqual(f.feeds, []);
+  assert.deepEqual(f.calls, []);
 });
 
 test("untrusted renderer cannot invoke update operations", async () => {

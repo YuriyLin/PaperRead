@@ -95,6 +95,12 @@ def _collect_math_items(paper: dict, reader: dict) -> list[dict]:
                         texts.append(str(v))
             elif isinstance(it, str):
                 texts.append(it)
+        for field in ("head", "rows"):
+            for row in b.get(field) or []:
+                cells = row if isinstance(row, list) else [row]
+                for c in cells:
+                    if c:
+                        texts.append(str(c))
 
     for r in paper.get("references") or []:
         if isinstance(r, dict) and r.get("text"):
@@ -337,15 +343,45 @@ def _prerender_paper(paper: dict, reader: dict, images: dict, mobile: bool = Fal
         elif btype == "table":
             cap_key = f"{bid}#caption"
             caption = edits.get(cap_key, {}).get("zh") or b.get("caption_zh") or b.get("caption_en") or ""
-            page_n = b.get("page", 1)
-            page_rel = f"pages/page-{page_n:03d}.webp"
-            has_page = page_rel in images
-            if has_page:
-                media = f'<div class="figure-media"><button class="fig-placeholder table-placeholder" data-t="page"><span>{i18n.tr("表格保留於原文")}</span><small>{i18n.tr("表格位於原文第 {n} 頁（點擊查看）", n=page_n)}</small></button></div>'  # i18n-ok
-            else:
-                media = f'<div class="figure-media"><button class="fig-placeholder table-placeholder" disabled><span>{i18n.tr("表格保留於原文")}</span><small>{i18n.tr("表格位於原文第 {n} 頁", n=page_n)}</small></button></div>'  # i18n-ok
+            def _trows(val):
+                if not isinstance(val, list) or not val:
+                    return []
+                if all(not isinstance(r, list) for r in val):
+                    return [val]
+                return [r if isinstance(r, list) else [r] for r in val]
+            head_rows = _trows(b.get("head"))
+            body_rows = _trows(b.get("rows"))
+            table_notes = []
+            end = len(body_rows)
+            if any(len(r) > 1 for r in head_rows) or any(len(r) > 1 for r in body_rows):
+                while end:
+                    row = body_rows[end - 1]
+                    note_txt = str(row[0] if row else "").strip()
+                    if not re.match(r"^(?:\*{1,2})?(?:notes?|注[释釋]?|備註|备注)\s*[:：.]", note_txt, re.I) or any(str(c or "").strip() for c in row[1:]):  # i18n-ok
+                        break
+                    table_notes.insert(0, note_txt)
+                    end -= 1
+            align = str(b.get("align") or "")
+            def _tstyle(i):
+                ch = align[i] if i < len(align) else ""
+                if not ch:
+                    return ""
+                return f' style="text-align:{ {"l": "left", "r": "right", "c": "center"}.get(ch, "left") }"'
+            def _tcell(c):
+                rendered = _inline_md(str(c if c is not None else ""), math_map, ref_ids)
+                return re.sub(r"<br>(\([^<]*\))", r'<br><span class="sub">\1</span>', rendered)
+            thead = "".join("<tr>" + "".join(f"<th{_tstyle(i)}>{_tcell(c)}</th>" for i, c in enumerate(r)) + "</tr>" for r in head_rows)
+            tbody_rows = []
+            for r in body_rows[:end]:
+                disp = list(r)
+                if disp and isinstance(disp[0], str) and re.match(r"^ {2,}\S", disp[0]):
+                    lead_sp = len(disp[0]) - len(disp[0].lstrip(" "))
+                    disp[0] = ("\u00a0" * lead_sp) + disp[0][lead_sp:]
+                tbody_rows.append("<tr>" + "".join(f"<td{_tstyle(i)}>{_tcell(c)}</td>" for i, c in enumerate(disp)) + "</tr>")
+            table_html = f'<div class="tbl-wrap"><table class="tbl"><thead>{thead}</thead><tbody>{"".join(tbody_rows)}</tbody></table></div>'
             cap_html = f'<div class="caption"><div class="zh" data-key="{cap_key}">{_inline_md(caption, math_map, ref_ids)}</div></div>' if caption else ""
-            content = (cap_html + media) if b.get("caption_pos") == "above" else (media + cap_html)
+            notes_html = "".join(f'<div class="caption table-note">{_inline_md(n, math_map, ref_ids)}</div>' for n in table_notes)
+            content = ((cap_html + table_html) if b.get("caption_pos") == "above" else (table_html + cap_html)) + notes_html
             parts.append(f'<section class="blk blk-table" id="b-{bid}" data-id="{bid}">{content}</section>')
 
         elif btype == "references":

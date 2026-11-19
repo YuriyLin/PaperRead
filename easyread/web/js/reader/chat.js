@@ -20,10 +20,12 @@
   PR.canChat = () => PR.store.mode === "server";
   /* 在线演示 / 离线版：带着对话记录时可以看，不能问 */
   PR.chatView = () => PR.canChat() || !!(S.chat && (S.chat.threads || []).length);
-  PR.chatOpen = () => PR.side === "chat";
+  PR.chatOpen = () => (PR.dockVisible ? PR.dockVisible("chat") : PR.side === "chat");
   PR.toggleChat = function (force) {
-    const open = force != null ? force : PR.side !== "chat";
-    PR.openSide(open ? "chat" : null);
+    const open = force != null ? force : !PR.chatOpen();
+    if (open) PR.openSide("chat");
+    else if (PR.closeDockTab) PR.closeDockTab("chat");
+    else PR.openSide(null);
     if (open) { autoContext(); load().then(() => { render(); focusInput(); }); render(); }
   };
   const focusInput = () => setTimeout(() => { const t = PR.$("#chatInput"); t && t.focus(); }, 300);

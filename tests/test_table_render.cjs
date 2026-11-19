@@ -57,16 +57,30 @@ function render(blocks) {
   return paperEl.innerHTML;
 }
 
-test("tables keep their caption and become clickable original-page placeholders", () => {
+test("tables render as full HTML tables with alignment, indentation, sublines, and notes", () => {
   const html = render([
-    { id: "tab1", type: "table", page: 1, head: ["Method", "Score"], rows: [["A", "0.8"]], caption_zh: "表 1：結果" },
+    {
+      id: "tab1",
+      type: "table",
+      page: 1,
+      align: "lr",
+      head: ["Method", "Score"],
+      rows: [
+        ["Baseline", "0.80"],
+        ["  + Ours", "0.92\n(+0.12)"],
+        ["Note: bold indicates best.", ""],
+      ],
+      caption_zh: "表 1：結果",
+    },
     { id: "p1", type: "para", page: 1, zh: "AFTER_TABLE" },
   ]);
-  assert.match(html, /class="fig-placeholder table-placeholder" data-t="page"/);
-  assert.match(html, /表格保留於原文/);
-  assert.match(html, /表格位於原文第 1 頁（點擊查看）/);
+  assert.match(html, /<table class="tbl">/);
+  assert.match(html, /<th[^>]*>Method<\/th>/);
+  assert.match(html, /<td[^>]*style="text-align:right">0\.80<\/td>/);
+  assert.match(html, /\u00a0\u00a0\+ Ours/);
+  assert.match(html, /<span class="sub">\(&#43;0\.12\)|<span class="sub">\(\+0\.12\)/);
+  assert.match(html, /class="caption table-note"/);
   assert.match(html, /表 1<\/span>：結果/);
-  assert.doesNotMatch(html, /<table class="tbl"|Method|Score|0\.8/);
   assert.match(html, /AFTER_TABLE/);
 });
 
@@ -79,11 +93,11 @@ test("one malformed block does not blank the rest of the reader", () => {
   assert.match(html, /bad/);
 });
 
-function figureReader(block, edits = {}) {
+function figureReader(block, edits = {}, pages = []) {
   let html = '';
   const node = { classList: { contains: () => false }, querySelector: () => null, replaceWith() {} };
   const PR = {
-    state: { reader: { edits }, paper: { blocks: [block] } },
+    state: { reader: { edits }, paper: { meta: { pages }, blocks: [block] } },
     on() {}, emit() {}, esc: String, md: String, t: s => s, imageUrl: s => '/p/test/' + s, hashText: s => s,
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../easyread/web/js/reader/render.js'), 'utf8'), {
@@ -97,28 +111,40 @@ function figureReader(block, edits = {}) {
   return { PR, html };
 }
 
-test('read-first figure keeps a clickable original-page placeholder', () => {
-  const { PR, html } = figureReader({ id: 'fig1', type: 'figure', src: 'figures/a.webp', image_en: 'Accuracy', caption_en: 'Figure 1' });
-  assert.match(html, /class="fig-placeholder"/);
-  assert.match(html, /圖表保留於原文/);
-  assert.doesNotMatch(html, /src="/);
+test('figure with src renders cropped image and cropped zoom button without image translation', () => {
+  const { PR, html } = figureReader({ id: 'fig1', type: 'figure', page: 2, src: 'figures/a.webp', image_en: 'Accuracy', image_zh: '準確率', caption_en: 'Figure 1' });
+  assert.match(html, /<img src="\/p\/test\/figures\/a\.webp"/);
+  assert.match(html, /data-zoom-src="\/p\/test\/figures\/a\.webp"/);
+  assert.doesNotMatch(html, /figure-translation/);
   assert.doesNotMatch(html, /Accuracy/);
+  assert.deepEqual(Array.from(PR.blockKeys(PR.blockById.fig1)), ['fig1#caption']);
   assert.equal(PR.hasZh(PR.blockById.fig1), false);
 });
 
-test('translated figure does not render image text or reader edits', () => {
-  const { PR, html } = figureReader({ id: 'fig1', type: 'figure', image_en: 'Accuracy', image_zh: 'translated', caption_en: 'Figure 1' }, {
-    'fig1#image': { zh: 'my wording', base: 'old translation' },
-  });
-  assert.match(html, /class="fig-placeholder"/);
-  assert.doesNotMatch(html, /Accuracy|translated|my wording|stale-tag/);
-  assert.deepEqual(Array.from(PR.blockKeys(PR.blockById.fig1)), ['fig1#caption']);
-});
-
-test('legacy figure without image text retains its page placeholder', () => {
+test('figure without src falls back to page button', () => {
   const { html } = figureReader({ id: 'fig1', type: 'figure', page: 2, caption_zh: 'caption' });
-  assert.match(html, /fig-placeholder/);
-  assert.match(html, /第 \{n\} 頁/);
+  assert.match(html, /fig-missing/);
+  assert.match(html, /data-zoom-page="2"/);
   assert.doesNotMatch(html, /figure-translation/);
 });
+
+test('single-column cropped figure uses 3x native width so CSS max-width fills reading column', () => {
+  const { html } = figureReader(
+    { id: 'fig2', type: 'figure', page: 3, src: 'figures/b.webp', abox: [0.5174, 0.0816, 0.9059, 0.265] },
+    {},
+    [{ n: 3, w: 612, h: 792 }]
+  );
+  assert.match(html, /style="width:713px"/);
+});
+
+test('very tall narrow figure caps height while staying at least print width', () => {
+  const { html } = figureReader(
+    { id: 'fig_tall', type: 'figure', page: 1, src: 'figures/tall.webp', abox: [0.1, 0.05, 0.35, 0.80] },
+    {},
+    [{ n: 1, w: 612, h: 792 }]
+  );
+  // minW = 0.25 * 612 * 4/3 = 204, 3x width = 459, 3x height = 1782 -> capped at 720 * (459/1782) = 185 -> clamped up to minW 204
+  assert.match(html, /style="width:204px"/);
+});
+
 

@@ -439,3 +439,25 @@ body.pv-open .blk.pv-pair::before { background: rgba(214, 160, 40, .8); opacity:
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* 懸停預覽與圖內文字 */
+
+.media-hover { display: flex; flex-direction: column; gap: 8px; }
+.media-title { font-weight: 600; font-size: 13.5px; color: var(--ink); }
+.media-preview { display: flex; flex-direction: column; gap: 8px; }
+.media-image { display: flex; justify-content: center; background: #fff; border: 1px solid var(--rule); border-radius: 6px; padding: 6px; overflow: hidden; }
+.media-image img { display: block; max-width: 100%; max-height: 46vh; width: auto; height: auto; object-fit: contain; }
+.media-image img[hidden], .media-image-error[hidden] { display: none; }
+.media-image-error { padding: 12px; color: var(--ink-3); font-size: 12.5px; }
+.media-caption { font-size: 12.5px; line-height: 1.5; color: var(--ink-2); white-space: pre-wrap; }
+.media-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); }
+.media-footer span { margin-right: auto; }
+.media-empty { font-size: 12.5px; color: var(--ink-3); margin: 0; }
+.media-table-scroll { overflow: auto; max-height: 260px; color: var(--ink); }
+.media-table-scroll table { border-collapse: collapse; width: 100%; font: 12px/1.65 var(--ui); }
+.media-table-scroll th, .media-table-scroll td { padding: 7px 9px; border-bottom: 1px solid var(--rule); text-align: left; white-space: nowrap; }
+.media-table-scroll th { background: var(--surface-2); font-weight: 600; }
+
+.figure-translation { margin-top: 8px; padding: 8px 12px; border-radius: 6px; background: var(--surface-2, var(--bg)); border: 1px solid var(--rule); font-size: .92em; }
+.figure-translation-label { font-size: 12px; font-weight: 600; color: var(--ink-3); margin-bottom: 4px; }
+.fig-missing { display: inline-flex; align-items: center; justify-content: center; padding: 14px 18px; border-radius: 8px; border: 1px dashed var(--rule); background: var(--surface-2, var(--bg)); color: var(--ink-2); cursor: pointer; font: inherit; }

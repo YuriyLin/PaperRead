@@ -11,25 +11,24 @@
     const b = PR.blockById[id];
     if (!b) return ["", ""];
     if (field === "caption") return [b.caption_zh || "", b.caption_en || ""];
-    if (field === "image") return [b.image_zh || "", b.image_en || ""];
     if (field != null && /^\d+$/.test(field)) { const it = (Array.isArray(b.items) ? b.items : [])[+field] || {}; return [it.zh || "", it.en || ""]; }
     return [b.zh || "", b.en || ""];
   }
   PR.agentText = function (key) { const [zh, en] = fields(key); return zh || en; };
   /* 这处还没有译文、正文排的是英文原文（只读原文） */
   PR.isEnKey = function (key) { const [zh, en] = fields(key); return !zh && !!en && !PR.editOf(key); };
-  PR.hasZh = (b) => !!(b.zh || b.caption_zh || b.image_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
+  PR.hasZh = (b) => !!(b.zh || b.caption_zh || (Array.isArray(b.items) && b.items.some((i) => i && i.zh)));
   PR.editOf = function (key) { const e = (S.reader.edits || {})[key]; return e && e.zh != null ? e : null; };
   PR.textFor = function (key) { const e = PR.editOf(key); return e ? e.zh : PR.agentText(key); };
   PR.isStale = function (key) { const e = PR.editOf(key); return !!(e && e.base && e.base !== PR.hashText(PR.agentText(key))); };
   PR.blockKeys = function (b) {
     if (b.type === "list") return (Array.isArray(b.items) ? b.items : []).map((_, i) => b.id + "#" + i);
-    if (b.type === "table") return [b.id + "#caption"];
-    if (b.type === "figure") return [b.id + "#caption"];
+    if (b.type === "table" || b.type === "figure") return [b.id + "#caption"];
     if (b.type === "math" || b.type === "references" || b.type === "note") return [];
     return [b.id];
   };
 
+  let missingReferences = null;
   function buildIndex() {
     if (PR.buildFootnoteIndex) PR.buildFootnoteIndex(S.paper.blocks);
     PR.blockById = {};
@@ -49,6 +48,14 @@
       if (b.type === "heading" || b.type === "references") { if (b.num) PR.xindex.sec[b.num] = b.id; PR.headings.push(b); }
       if (b.type === "para" && b.num && (b.role === "listing" || b.role === "algorithm")) PR.xindex[b.role === "listing" ? "lst" : "alg"][b.num] = b.id;
     });
+    missingReferences = null;
+    if ((S.paper.references || []).length && !(S.paper.blocks || []).some((b) => b && b.type === "references")) {
+      let id = "__references";
+      while (PR.blockById[id]) id += "_";
+      missingReferences = { id, type: "references", level: 1, zh: PR.t("参考文献"), en: "References" };
+      PR.blockById[id] = missingReferences;
+      PR.headings.push(missingReferences);
+    }
   }
 
   function staleTag(key) { return PR.isStale(key) ? '<button class="stale-tag" data-t="stale" title="' + PR.t("你改过这段之后，译者稿又更新了") + '">' + PR.t("译者稿有更新") + "</button>" : ""; }
@@ -80,12 +87,74 @@
   }
   PR.hasPageImage = hasPageImage;
 
+  function tableRows(value) {
+    if (!Array.isArray(value) || !value.length) return [];
+    if (value.every((row) => !Array.isArray(row))) return [value];
+    return value.map((row) => (Array.isArray(row) ? row : [row]));
+  }
+  // Older translations sometimes store a whole table note in the last row's first cell.
+  PR.tableParts = function (b) {
+    const head = tableRows(b.head), rows = tableRows(b.rows);
+    const notes = [];
+    let end = rows.length;
+    if (head.some((r) => r.length > 1) || rows.some((r) => r.length > 1)) {
+      while (end) {
+        const row = rows[end - 1], note = String(row[0] ?? "").trim();
+        if (!/^(?:\*{1,2})?(?:notes?|注[释釋]?|備註|备注)\s*[:：.]/i.test(note) ||
+            row.slice(1).some((c) => String(c ?? "").trim())) break;
+        notes.unshift(note);
+        end--;
+      }
+    }
+    // HTML collapses leading ASCII spaces. Preserve row-label indentation in the
+    // display copy shared by the reader, the figure/table preview and offline HTML.
+    const displayRows = rows.slice(0, end).map((row) => {
+      const label = row[0];
+      if (typeof label !== "string" || !/^ {2,}\S/.test(label)) return row;
+      return [label.replace(/^ +/, (spaces) => "\u00a0".repeat(spaces.length)), ...row.slice(1)];
+    });
+    return { head, rows: displayRows, notes };
+  };
+  PR.tableNotesHtml = (notes, b) => notes.map((note) => '<div class="caption table-note">' +
+    PR.md(note, PR.footnoteOptions ? PR.footnoteOptions(b.id) : undefined) + "</div>").join("");
+  function cell(c, b) {
+    const opts = Object.assign({}, PR.footnoteOptions ? PR.footnoteOptions(b.id) : {}, { xref: false, cite: false });
+    return PR.md(String(c ?? ""), opts).replace(/<br>(\([^<]*\))/g, '<br><span class="sub">$1</span>');
+  }
+
   function zoomBtnHtml(b) {
-    if (!b || !b.page || !hasPageImage(b.page)) return "";
-    const label = PR.t("放大檢視原文第 {n} 頁", { n: b.page });
+    if (!b) return "";
     const icon = PR.icon ? PR.icon("search", "sm") : '<svg class="i sm" viewBox="0 0 20 20" aria-hidden="true"><path d="M9 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM13.5 13.5L17 17"/></svg>';
     const blockAttr = b.id ? ' data-zoom-block="' + PR.esc(b.id) + '"' : "";
+    if (b.type === "figure" && b.src) {
+      const label = PR.t("放大檢視圖片");
+      return '<button type="button" class="fig-zoom-btn" data-zoom-src="' + PR.esc(PR.imageUrl(b.src)) + '"' + blockAttr + ' title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '">' + icon + "</button>";
+    }
+    if (!b.page || !hasPageImage(b.page)) return "";
+    const label = PR.t("放大檢視原文第 {n} 頁", { n: b.page });
     return '<button type="button" class="fig-zoom-btn" data-zoom-page="' + b.page + '"' + blockAttr + ' title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '">' + icon + "</button>";
+  }
+  const PRINT_CSS_PX = 4 / 3;
+  const CROP_SCALE = 3;
+  const FIG_MAX_H = 720;
+  const FIG_MIN_W = 24;
+
+  function figureBox(v) {
+    return Array.isArray(v) && v.length === 4 && v.every((n) => typeof n === "number" && isFinite(n)) && v[2] > v[0] && v[3] > v[1] ? v : null;
+  }
+
+  function figureWidthStyle(b, page) {
+    const box = figureBox(b.abox) || figureBox(b.box);
+    if (!box || !page.w) return "";
+    const fracW = box[2] - box[0];
+    // 截圖以 3x DPI 產生，改用原生寬度並由 CSS max-width: 100% 貼合欄寬，避免雙欄圖過小浪費空間
+    const minW = Math.round(fracW * page.w * PRINT_CSS_PX);
+    let w = Math.round(fracW * page.w * CROP_SCALE);
+    if (page.h) {
+      const pxH = (box[3] - box[1]) * page.h * CROP_SCALE;
+      if (pxH > FIG_MAX_H && pxH > 0) w = Math.max(minW, Math.min(w, Math.round(FIG_MAX_H * (w / pxH))));
+    }
+    return w >= FIG_MIN_W ? ' style="width:' + Math.min(w, Math.round(page.w * CROP_SCALE)) + 'px"' : "";
   }
   function linkify(t) { return PR.esc(t).replace(/(https?:\/\/[^\s<]+[^\s<.,;)])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>'); }
 
@@ -105,21 +174,22 @@
     },
     math: (b) => '<div class="math-row"><div class="math-body" tabindex="0" role="button" aria-label="' + PR.t("公式，點擊可選擇螢光筆或底線") + '">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
-      const available = hasPageImage(b.page);
-      const placeholder = '<button class="fig-placeholder table-placeholder"' + (available ? ' data-t="page"' : ' disabled') + ' aria-label="' + PR.t("表格保留於原文") + '">' +
-        '<span>' + PR.t("表格保留於原文") + '</span><small>' +
-        (available ? PR.t("表格位於原文第 {n} 頁（點擊查看）", { n: b.page }) : PR.t("表格位於原文第 {n} 頁", { n: b.page })) +
-        '</small></button>';
-      const table = '<div class="figure-media">' + placeholder + (available ? zoomBtnHtml(b) : "") + '</div>';
-      return b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b);
+      const parts = PR.tableParts(b);
+      const al = (b.align || "").split("");
+      const style = (i) => (al[i] ? ' style="text-align:' + ({ l: "left", r: "right", c: "center" }[al[i]] || "left") + '"' : "");
+      const head = parts.head.map((r) => "<tr>" + r.map((c, i) => "<th" + style(i) + ">" + cell(c, b) + "</th>").join("") + "</tr>").join("");
+      const rows = parts.rows.map((r) => "<tr>" + r.map((c, i) => "<td" + style(i) + ">" + cell(c, b) + "</td>").join("") + "</tr>").join("");
+      const table = '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
+      return (b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b)) + PR.tableNotesHtml(parts.notes, b);
     },
     figure(b) {
       const available = hasPageImage(b.page);
-      const placeholder = '<button class="fig-placeholder"' + (available ? ' data-t="page"' : ' disabled') + ' aria-label="' + PR.t("圖表保留於原文") + '">' +
-        '<span>' + PR.t("圖表保留於原文") + '</span><small>' +
-        (available ? PR.t("圖見原文第 {n} 頁（點擊查看）", { n: b.page }) : PR.t("圖見原文第 {n} 頁", { n: b.page })) +
-        '</small></button>';
-      return '<div class="figure-media">' + placeholder + (available ? zoomBtnHtml(b) : "") + '</div>' + captionHtml(b);
+      const page = b.page && (S.paper.meta || {}).pages ? (S.paper.meta.pages.find((p) => p.n === b.page) || {}) : {};
+      const style = figureWidthStyle(b, page);
+      const img = b.src ? '<img src="' + PR.esc(PR.imageUrl(b.src)) + '" alt="" loading="lazy"' + style + ">"
+        : '<button class="fig-missing"' + (available ? ' data-t="page"' : " disabled") + ">" +
+          (available ? PR.t("图见原文第 {n} 页（点击查看）", { n: b.page }) : PR.t("圖見原文第 {n} 頁", { n: b.page })) + "</button>";
+      return '<div class="figure-media">' + img + zoomBtnHtml(b) + "</div>" + captionHtml(b);
     },
     note: (b) => '<div class="inline-note"><div class="lbl">' + PR.t("阅读批注（非原文）") + "</div>" + PR.mdBlocks(b.zh) + "</div>",
     references(b) {
@@ -260,6 +330,7 @@
         html += blockErrorHtml(b, error);
       }
     }
+    if (missingReferences) html += sectionHtml(missingReferences, "", false);
     PR.$("#paper").innerHTML = html + pendingHtml(lastPage);
     // 一段译文都没有（只读原文）：顶栏的“译文 / 对照”没意义，藏起来
     document.body.classList.toggle("en-only", (S.paper.blocks || []).length > 0 && !(S.paper.blocks || []).some((b) => b && PR.hasZh(b)));
@@ -326,12 +397,57 @@
   PR.on("rendered", () => PR.fitWide());
   PR.on("block-rendered", (id) => PR.fitWide(document.getElementById("b-" + id)));
 
-  /* 保持阅读位置不动地整页重排 */
+  /* 僅更新頁頭、頁數上限提示與頁尾待譯狀態，不動已渲染的正文段落 */
+  PR.renderPendingState = function () {
+    const paper = PR.$("#paper");
+    if (!paper) return;
+    PR.renderPaperHead();
+    if (PR.store && PR.store.mode === "server" && PR.pageCapHtml) {
+      const capHtml = PR.pageCapHtml(S.job);
+      const oldCap = paper.querySelector(":scope > .page-cap");
+      if (capHtml) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = capHtml;
+        if (oldCap) oldCap.replaceWith(wrap.firstChild);
+        else {
+          const head = paper.querySelector("#b-head");
+          if (head) head.insertAdjacentElement("afterend", wrap.firstChild);
+        }
+      } else if (oldCap) oldCap.remove();
+    }
+    let lastPage = 0;
+    for (const raw of S.paper.blocks || []) if (raw && raw.page) lastPage = Math.max(lastPage, raw.page);
+    const tailHtml = pendingHtml(lastPage);
+    const oldTail = paper.querySelector(":scope > .pending-pages:not(.gap), :scope > .pending");
+    if (tailHtml) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = tailHtml;
+      if (oldTail) oldTail.replaceWith(wrap.firstChild);
+      else paper.insertAdjacentElement("beforeend", wrap.firstChild);
+    } else if (oldTail) oldTail.remove();
+  };
+
+  /* 保持阅读位置不动地整页重排，并保留已测量高度与展开状态 */
   PR.rerenderKeepingPlace = function () {
     const anchor = PR.readingBlock && PR.readingBlock();
     const node = anchor && document.getElementById("b-" + anchor);
     const before = node ? node.getBoundingClientRect().top : 0;
+    const heights = new Map();
+    const states = new Map();
+    for (const el of PR.$$("#paper > .blk[data-id]")) {
+      const id = el.dataset.id;
+      if (el.offsetHeight > 0) heights.set(id, el.offsetHeight);
+      const cls = ["show-en", "notes-open", "current"].filter((c) => el.classList.contains(c));
+      if (cls.length) states.set(id, cls);
+    }
     PR.renderPaper();
+    for (const el of PR.$$("#paper > .blk[data-id]")) {
+      const id = el.dataset.id;
+      const h = heights.get(id);
+      if (h) el.style.containIntrinsicSize = "auto " + h + "px";
+      const cls = states.get(id);
+      if (cls) cls.forEach((c) => el.classList.add(c));
+    }
     const after = anchor && document.getElementById("b-" + anchor);
     if (after) window.scrollBy(0, after.getBoundingClientRect().top - before);
   };

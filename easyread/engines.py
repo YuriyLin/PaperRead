@@ -27,6 +27,11 @@ class EngineError(RuntimeError):
     pass
 
 
+class OutputLimitReached(EngineError):
+    """The provider explicitly reported an output token limit."""
+    code = "OUTPUT_TRUNCATED"
+
+
 class Cancelled(RuntimeError):
     pass
 
@@ -46,6 +51,8 @@ def run(cfg: dict, prompt: str, cwd: Path, images: list[Path] | None = None, can
         raise EngineError(bad)
     try:
         return _run(cfg, prompt, cwd, images, cancel, meter, json_mode)
+    except OutputLimitReached:
+        raise
     except EngineError as e:
         err = EngineError(netcheck.explain(cfg, str(e)))
         err.code = getattr(e, "code", "")

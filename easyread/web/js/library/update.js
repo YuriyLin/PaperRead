@@ -1,5 +1,5 @@
 /* 新版本提示：打开文献库时问一次服务（服务一天最多问一次 GitHub），有新版本就在顶栏放一个“新版本 x.y.z”，
-   第一次看到这个版本时再弹一条提示。点开看这次更新了什么，Windows、macOS 安装版和 Linux AppImage 直接点“更新”。
+   第一次看到这个版本时再弹一条提示。Windows 安装版和 Linux AppImage 可直接更新，macOS 前往发布页下载 DMG。
    顶栏问号里有“检查更新”和“自动检查新版本”开关。 */
 (function (PR) {
   "use strict";
@@ -13,8 +13,7 @@
     const dlg = PR.$("#textDlg");
     return !!(dlg && dlg.classList.contains("open") && dlg.querySelector("#upFoot"));
   }
-  /* 弹窗下半部分。安装版（Windows、macOS、Linux AppImage）：只有“关闭”和“更新”，按钮自己显示进度；下载中关掉弹窗照样下，
-     进度显示在顶栏的新版本按钮上。从源码运行的没有应用内更新，给下载链接 */
+  /* 支援应用内更新时，按钮显示下载进度；关闭弹窗后继续下载。其他安装方式使用发布页链接。 */
   function renderNativeUpdate() {
     const status = document.querySelector("#upStatus"), foot = document.querySelector("#upFoot");
     if (!status || !foot) return;

@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="/web/css/reader.css">
 <link rel="stylesheet" href="/web/css/stickers.css">
 <link rel="stylesheet" href="/web/css/figure-zoom.css">
+<link rel="stylesheet" href="/web/css/figure-crop.css">
 <link rel="stylesheet" href="/web/css/reading-language.css">
 <link rel="stylesheet" href="/web/css/sentences.css">
 <link rel="stylesheet" href="/web/css/reader-panels.css">
@@ -23,6 +24,7 @@
 <link rel="stylesheet" href="/web/css/settings.css">
 <link rel="stylesheet" href="/web/css/page-cap.css">
 <link rel="stylesheet" href="/web/css/usage.css">
+<link rel="stylesheet" href="/web/css/reader-dock.css">
 <script>try{var p=JSON.parse((localStorage.getItem("easyread-prefs")||localStorage.getItem("coread-prefs"))||"{}");var d=p.theme==="dark"||(p.theme!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){}</script>
 </head>
 <body>
@@ -49,6 +51,8 @@
   <button class="btn" data-act="notes" title="筆記面板（M）"></button>
   <button class="btn" data-act="chat" title="邊讀邊問 AI（A）"></button>
   <button class="btn" title="研究（R）" data-act="research"></button>
+
+
   <button class="btn" data-act="settings" title="字號、版心、字體（=、- 調字號）">Aa</button>
   <button class="save-state" data-act="about" title="保存状态"><i></i><span>…</span></button>
 </header>
@@ -100,6 +104,7 @@
     <button class="btn icon" data-pv="next" title="下一頁（]）">›</button>
     <span class="grow"></span>
     <label class="pv-follow" title="左右双向跟随阅读位置"><input type="checkbox" checked> 跟随</label>
+
     <a class="btn sm" data-pv="pdf" target="_blank" rel="noopener">PDF</a>
     <button class="btn icon" data-pv="close" title="關閉（O）">×</button>
   </div>
@@ -115,6 +120,7 @@
 <section id="notespanel" class="side-panel" aria-label="笔记"></section>
 <section id="chatpanel" class="side-panel" aria-label="问 AI"></section>
 <section id="researchpanel" class="side-panel" aria-label="研究知识工作区"></section>
+<aside id="readerDock" aria-label="阅读侧栏" hidden></aside>
 <div class="dialog-backdrop" id="readerDlg"><div class="dialog" role="dialog"></div></div>
 <div class="dialog-backdrop" id="settingsDlg"><div class="dialog" role="dialog" aria-label="设置"></div></div>
 <div class="dialog-backdrop" id="textDlg"><div class="dialog wide" role="dialog"></div></div>
@@ -159,6 +165,7 @@
 <script src="/web/js/reader/reading-language.js"></script>
 <script src="/web/js/reader/page-zoom.js"></script>
 <script src="/web/js/reader/pdf-panel.js"></script>
+<script src="/web/js/reader/reader-dock.js"></script>
 <script src="/web/js/reader/pdf-text.js"></script>
 <script src="/web/vendor/mind-elixir/MindElixir.iife.js"></script>
 <script src="/web/js/reader/mindmap-view.js"></script>
@@ -166,6 +173,7 @@
 <script src="/web/js/reader/side-resize.js"></script>
 <script src="/web/vendor/note-libraries.js"></script>
 <script src="/web/js/reader/paper-note-editor.js"></script>
+<script src="/web/js/reader/dock-resources.js"></script>
 <script src="/web/js/reader/paper-note-sources.js"></script>
 <script src="/web/js/reader/notespanel.js"></script>
 <script src="/web/js/reader/chat-effort.js"></script>
@@ -177,6 +185,9 @@
 <script src="/web/js/reader/find.js"></script>
 <script src="/web/js/reader/progress.js"></script>
 <script src="/web/js/reader/figure-zoom.js"></script>
+<script src="/web/js/reader/figure-crop.js"></script>
+<script src="/web/js/reader/media-preview.js"></script>
+
 <script src="/web/js/reader/keys.js"></script>
 <script src="/web/js/reader/export.js"></script>
 <script src="/web/js/reader/chat-export.js"></script>

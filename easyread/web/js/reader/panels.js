@@ -144,9 +144,7 @@
     set('[data-act="pages"]', PR.feature("pages"));
     set('[data-act="chat"]', PR.feature("chat") && PR.chatView());
     set('[data-act="research"]', PR.store.mode === "server");
-    if (!PR.feature("pages") && PR.side === "pages") PR.openSide(null);
-    if (!PR.feature("chat") && PR.side === "chat") PR.openSide(null);
-    if (PR.store.mode !== "server" && PR.side === "research") PR.openSide(null);
+    PR.syncDockFeatures?.();
   };
   PR.on("ui-changed", () => { PR.applyFeatures(); PR.updateKeyTitles && PR.updateKeyTitles(); PR.hideBlockbar && PR.hideBlockbar(); PR.renderMargin && PR.renderMargin(); });
   // chat.js is initialized later; main.js applies visibility after all modules load.
@@ -159,6 +157,7 @@
     if (!a) return;
     const act = a.dataset.act;
     if (act === "drawer") PR.toggleDrawer();
+    if (act === "dock") PR.toggleDock();
     if (act === "pages") PR.togglePages();
     if (act === "notes") PR.toggleNotesPanel();
     if (act === "chat") PR.toggleChat();

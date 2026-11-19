@@ -61,7 +61,7 @@ class TableShapeValidationTest(unittest.TestCase):
         self.assertEqual(self.ws.load("paper")["blocks"][0]["head"], [["Method", "Score"]])
 
     def test_translation_page_fails_instead_of_saving_flat_head(self):
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             return '{"blocks":[{"id":"tab1","type":"table","page":1,"head":["Method","Score"],"rows":[["A","0.8"]]}]}'
 
         cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 1, "openai": {"vision": False}}

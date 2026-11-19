@@ -36,6 +36,10 @@ class MissingPagesTest(unittest.TestCase):
         (self.ws.root / "extract" / "page-002.txt").write_text("Figure 3\n\n2\n", encoding="utf-8")
         self.assertEqual(page_check.missing_pages(self.ws, [1, 2], {"blocks": [block(1)]}), [])
 
+    def test_body_page_with_spurious_references_block_is_not_missing(self):
+        blocks = [block(2, PAGE2), {"id": "r2", "type": "references", "page": 2, "en": "Refs", "zh": "參考文獻"}]
+        self.assertEqual(page_check.missing_pages(self.ws, [2], {"blocks": blocks}), [])
+
 
 class RepairOldPapersTest(unittest.TestCase):
     """旧版本按批记完成，漏掉的页也在 done_pages 里：文献库列表里查一次，改回没译。"""

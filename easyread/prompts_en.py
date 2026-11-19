@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 from . import langs, links
-from .prompts import MATH_RULES, _context, _page_texts, _target_prompt, peek_note, rules
+from .prompts import MATH_RULES, TABLE_NOTES, _context, _page_texts, _target_prompt, peek_note, rules
 from .store import Workspace
 
 RULES_EN = """整理要求（不翻译）：
@@ -15,12 +15,13 @@ RULES_EN = """整理要求（不翻译）：
 - 本文内部引用写成链接：提到本文有编号的图、表、公式、章节、附录、算法、代码清单时，en 把指代它的文字写成 [文字](#类型:编号)。类型：fig 图，tab 表，eq 公式，sec 章节和附录，alg 算法，lst 代码清单；编号照原文（3、A1、2.1、C.1）。例如 [Figure 3](#fig:3)、Section [3.1](#sec:3.1)、Eqs. [(4)](#eq:4) and [(5)](#eq:5)、[Listing 3](#lst:3)。材料里的 [文字](#) 是 PDF 自己的内部链接，按它指的对象补上类型和编号；没标出的引用也照样写。引用别的论文里的图表不写链接；标题、作者、单位、参考文献条目、题注开头的编号（Figure 1:）里不写。
 - 保留粗体和斜体：抽取的文字里 **…** 是原文的粗体，*…* 是斜体，由程序按 PDF 字体标出。en 照录这些标记，成对出现，不放进 $公式$ 和代码；整行加粗的标题、题注开头的编号（Figure 1:）不用标，原文没有的不要自己加。有原页图时以原页为准，补上抽取文字里漏标的。
 - 保留原文的阅读顺序、章节编号、引用号 [n]。双栏论文按栏读，断在行尾的连字符单词拼回去。
-""" + MATH_RULES + """
-- 表格重排成 table 块，数字与公式原样。图使用 figure 块，只保留 page、num 与图注（caption_en / caption_zh）；不要识别、抄写或翻译图内文字，不输出 image_en、image_zh 或裁切框，不截取图片，src 留空。读者将在原 PDF 核对图片。
+""" + MATH_RULES + TABLE_NOTES + """
+- 表格重排成 table 块，表头和单元格照原文。图用 figure 块：给出归一化裁剪框 `box:[x0,y0,x1,y1]`（0 到 1，框住图本身、不含题注）；不要识别或抄写图内文字，不输出 `image_en`。没有原页图时不猜框，`src` 留空由程序裁图。
 - 参考文献列表：输出一个 references 块，条目放进 references 数组（text 是原文）。id 是这条的引用键：编号式列表写编号（"13"）；作者-年份式写作者的姓和年份，用连字符连起来，一两位作者写全部的姓，三位及以上只写第一作者的姓，姓里的空格去掉，年份带原文的 a/b 后缀，例如 Jimenez-2024、Chen-Jiang-2025、Chen-2026a、DaSilva-2025、Anthropic-2025；字母标签式写标签（JYW+24）。
 - 作者-年份式、字母标签式的文献引用写成链接 [文字](#cite:键)，键和参考文献条目的 id 同一个写法，例如 [Jimenez et al. (2024)](#cite:Jimenez-2024)；括号里有几条就各写一个链接，方括号留在链接外：[[Jimenez et al., 2024](#cite:Jimenez-2024), [Chen and Jiang, 2025](#cite:Chen-Jiang-2025)]。材料里指向参考文献的 [文字](#) 也这样补上键；一处引用被拆成几个 [文字](#)（作者和年份分开链）时合成一个链接。编号式引用照旧写 [13]，不写链接。
 - 脚注与参考文献独立：文献引用使用 [13]，脚注标记使用 [^13]（13 换成原编号；符号脚注照原符号写，如 [^*]、[^†]），en/zh 两边保持一致，不要混用。材料里程序已按 PDF 标出的 [^…] 照录在原位。脚注内容单独输出 para 块，加 "role":"footnote","num":"13"（符号脚注写 "num":"*" 这样的原符号），page 填脚注所在页；块的 en/zh 只放脚注正文，不重复编号。脚注不得放入 references 数组，也不能当页脚丢弃。同号文献与脚注可以同时存在；不确定时保留原标记，不猜。标题、作者、单位里不写脚注标记。
-- 代码和伪代码用 para 块，en 中用 Markdown 代码围栏包住代码，原样保留缩进、换行和符号；题注放在围栏外。不要输出 code 或 listing 类型，不要在代码里插句子分界 ‖。原文给它编了号（Listing 3、Algorithm 1）时，这块加 "role":"listing" 或 "role":"algorithm" 和 "num":"3"。
+- 题注标为 Fig. 或 Figure 的代码示例也要按图保留：输出带原图编号和题注的 figure 块，按图块规则处理裁剪框。
+- 其余代码和伪代码用 para 块，en 中用 Markdown 代码围栏包住代码，用空格和换行还原原页缩进，原样保留符号；题注放在围栏外。不要输出 code 或 listing 类型，不要在代码里插句子分界 ‖。原文给它编了号（Listing 3、Algorithm 1）时，这块加 "role":"listing" 或 "role":"algorithm"，num 填对应编号。
 - 看不清的地方写“[unclear, see page N]”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
 
@@ -35,14 +36,15 @@ SCHEMA_EN = """输出格式：只输出一个 JSON 对象，不要任何别的�
 - {"id":"s2-1","type":"heading","page":2,"level":1或2,"num":"2.1","en":"Independent questions"}   附录标题加 "appendix": true，摘要标题 num 留空
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
-- {"id":"tab2","type":"table","page":3,"num":"2","head":[["","Questions","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …"}
-- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","caption_en":"Figure 1: …","caption_zh":"图 1：…"}
+- {"id":"tab2","type":"table","page":3,"num":"2","head":[["Method","Questions","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …"}
+- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"caption_en":"Figure 1: …"}
 - {"id":"refs","type":"references","page":10,"en":"References"}
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
-注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的英文双引号要转义成 \\"。表格和图放在正文第一次提到它的段落之后。"""
+注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的英文双引号要转义成 \\"。表格和图按它在原页上的位置排，不要挪到提到它的段落后面。"""
 
 
-def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=()) -> str:
+def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=(),
+              page_text_override: str | None = None) -> str:
     see = ""
     if engine == "claude":
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
@@ -55,12 +57,17 @@ def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     lead = _target_prompt(f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}", target)
     rules_text = _target_prompt(RULES_EN, target)
     schema_text = _target_prompt(SCHEMA_EN, target)
+    body_text = (
+        f"===== 第 {pages[0]} 页（本页片段，仅整理这段文字；公式和表格可能是乱的；**粗体**、*斜体*、[文字](#) 内部链接、[^…] 脚注标记按 PDF 标出）=====\n"
+        + page_text_override
+        if page_text_override is not None else _page_texts(ws, pages)
+    )
     return (lead + "\n\n" + f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules_text}\n\n{schema_text}\n\n"
-            + _page_texts(ws, pages) + look)
+            + body_text + look)
 
 
 def todo(blocks: list[dict]) -> dict[str, object]:
-    """这些块里还没有中文的地方：{键: 英文}。键同页面：块 id、id#caption、id#image（图内文字）、id#序号、id#head（表头）。"""
+    """这些块里还没有中文的地方：{键: 英文}。键同页面：块 id、id#caption、id#序号、id#head（表头）。"""
     out: dict[str, object] = {}
     for b in blocks:
         t = b.get("type")
@@ -70,14 +77,15 @@ def todo(blocks: list[dict]) -> dict[str, object]:
             for i, it in enumerate(b.get("items", [])):
                 if it.get("en") and not it.get("zh"):
                     out[f"{b['id']}#{i}"] = it["en"]
-        elif t in ("table", "figure") and b.get("caption_en") and not b.get("caption_zh"):
-            out[f"{b['id']}#caption"] = b["caption_en"]
-            if t == "table" and b.get("head"):
-                out[f"{b['id']}#head"] = b["head"]
+        elif t in ("table", "figure"):
+            if b.get("caption_en") and not b.get("caption_zh"):
+                out[f"{b['id']}#caption"] = b["caption_en"]
+                if t == "table" and b.get("head"):
+                    out[f"{b['id']}#head"] = b["head"]
     return out
 
 
-def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
+def fill(ws: Workspace, pages: list[int], items: dict[str, object], custom_prompt: str = "") -> str:
     """给已经整理好的原文块补译文。"""
     urls = links.ensure(ws)
     records = [link for page in pages for link in urls.get(str(page), [])]
@@ -96,11 +104,11 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object]) -> str:
     keys_rule = _target_prompt("下面每个键都要有，一个不漏", target)
     tex_rule = _target_prompt("注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。", target)
     content_rule = _target_prompt("要翻译的内容（键 → 英文）：", target)
-    return (lead + "\n\n" + f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target)}\n" + head_rule + "\n"
+    return (lead + "\n\n" + f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target, custom_prompt=custom_prompt)}\n" + head_rule + "\n"
             + (sentence_rule + "\n" if any(isinstance(v, str) and "‖" in v for v in items.values()) else "") + "\n"
             + output_rule + "\n{\n" + meta +
             '  "glossary": [{"en": "standard error", "zh": "' + ("標準誤差" if target == "zh-TW" else "标准误差" if target == "zh" else name + "译名") + '"}],   // ' + glossary + '\n'
             '  "checks": [{"anchor": "块 id", "quote": "译文里相关的几个字（可空）", "title": "一句话：哪里不对", "body": "具体说明和依据"}],   // ' + checks + '\n'
             '  "zh": {"键": "' + name + '译文", …}   // ' + keys_rule + '\n}\n'
-            + tex_rule + ("字串內的中文引號請用「」或『』。" if target == "zh-TW" else "字符串里的中文引号用“”或「”。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
+            + tex_rule + ("字串內的中文引號請用「」或『』。" if target == "zh-TW" else "字符串里的中文引号用“”或「」。" if target == "zh" else "字符串里的英文双引号要转义。") + "\n\n"
             + content_rule + "\n" + json.dumps(items, ensure_ascii=False, indent=1))

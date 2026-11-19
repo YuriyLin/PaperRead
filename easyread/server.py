@@ -335,7 +335,7 @@ class Handler(BaseHTTPRequestHandler):
                          "engine": config.load().get("engine")}
                 # 旧论文的图按定位框补截图；等内容和版本号都取完再开始，页面轮询到 paper 变了就会重画
                 if app.location.status == "idle" and (state["job"] or {}).get("state") not in ("queued", "running"):
-                    pass  # PaperRead does not generate cropped figure assets.
+                    figures.fill_later(ws, app.location)
                 return self._json(200, state)
             if action == "versions":
                 return self._json(200, {**ws.versions(), "library_status": app.location.status})
@@ -350,7 +350,7 @@ class Handler(BaseHTTPRequestHandler):
                 lang = parse_qs(url.query).get("lang", [None])[0] or i18n.choice() or i18n.lang()
                 out = build(ws, mobile=parse_qs(url.query).get("mobile") == ["1"], lang=lang)
                 return self._download(out.read_bytes(), out.name, "text/html; charset=utf-8")
-            if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job"):
+            if action == "part" and len(parts) > 5 and parts[5] in ("paper", "discussion", "reader", "layout", "job", "item"):
                 return self._json(200, {"data": ws.load(parts[5]), "version": ws.versions()[parts[5]]})
         if path.startswith("/p/"):
             _, _, pid, rel = path.split("/", 3)
@@ -509,6 +509,11 @@ class Handler(BaseHTTPRequestHandler):
             if action == "chat-export":
                 from .chat_markdown import export
                 return self._json(200, export(ws, body))
+            if action == "figure-crop":
+                if (ws.load("job") or {}).get("state") in ("queued", "running"):
+                    raise ValueError(tr("请等本篇翻译完成后再裁图"))
+                from . import manual_crop
+                return self._json(200, manual_crop.save(ws, body))
             if action == "notehelp":
                 return notehelp.handle(self, ws, body)
             if action == "discussion_del":

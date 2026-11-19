@@ -26,6 +26,7 @@ class MathDelimiterTest(unittest.TestCase):
         for text in (r"取 $\alpha = \frac{1}{n}$。", r"取 \(\alpha\)。",
                      r"$$\frac{1}{n}$$", r"\[\frac{1}{n}\]",
                      r"`\alpha` 与 `x_{i}`", '```tex\n\\frac{1}{n}\n```',
+                     "````md\n`\\alpha`\n````",
                      r"价格 \$5 和 \$10。", r"C:\alpha\file.txt, file_name.txt, https://x.test/a_b",
                      "模型 BERT_base 的准确率为 95%。"):
             with self.subTest(text=text):

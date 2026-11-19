@@ -49,7 +49,16 @@ def missing_pages(ws: Workspace, batch: list[int], data: dict) -> list[int]:
     blocks = data.get("blocks") or []
     refs = [b.get("page") or batch[0] for b in blocks if b.get("type") == "references"]
     if refs and not data.get("references"):
-        lost = [n for n in batch if n >= min(refs) and _bibliography(ws, n)]
+        have = _letters(json.dumps(blocks, ensure_ascii=False))
+        lost = []
+        for n in batch:
+            if n < min(refs) or not _bibliography(ws, n):
+                continue
+            has_heading = bool(_REF_HEADING.search(_source(ws, n)))
+            has_body = any(b.get("page") == n and b.get("type") != "references" for b in blocks)
+            if not has_heading and has_body and _found(_letters(_source(ws, n)), have):
+                continue
+            lost.append(n)
         if lost:
             return lost
     if len(batch) < 2 or not blocks:

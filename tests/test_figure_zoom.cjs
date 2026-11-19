@@ -13,8 +13,10 @@ function setup() {
   const image = {...element(), naturalWidth: 1600, naturalHeight: 1200, complete: true};
   const viewport = {...element(), clientWidth: 800, clientHeight: 600, scrollLeft: 0, scrollTop: 0, setPointerCapture(){}};
   const label = element();
+  const pinBtn = element();
+  const pinned = [];
   const source = {...element(), src: 'figure.webp', alt: 'Figure 1', focus(){this.focused = true;}, matches(){return true;}};
-  const dialog = {...element(), querySelector(s){return s === 'img' ? image : s.includes('scroll') ? viewport : label;},
+  const dialog = {...element(), querySelector(s){return s === 'img' ? image : s.includes('scroll') ? viewport : s.includes('pin') ? pinBtn : label;},
     showModal(){this.open = true;}, close(){this.open = false; this.events.close();}};
   const document = {createElement: () => dialog, body: {appendChild(){}}, querySelectorAll: () => [source],
     addEventListener(k, fn){listeners[k] = fn;}};
@@ -23,6 +25,9 @@ function setup() {
     on(){},
     toast(){},
     imageUrl: rel => '/p/demo/' + rel,
+    blockById: {fig3: {id: 'fig3', type: 'figure'}},
+    media: {isMedia: b => !!b && (b.type === 'figure' || b.type === 'table')},
+    pinDockFigure: id => pinned.push(id),
     state: {
       paper: {meta: {pages: [{n: 3, img: 'pages/page-003.webp'}]}},
       layout: {fig3: {page: 3, box: [0.16, 0.45, 0.84, 0.85]}},
@@ -32,7 +37,7 @@ function setup() {
   const event = extra => ({preventDefault(){this.prevented = true;}, stopImmediatePropagation(){this.stopped = true;}, ...extra});
   const click = () => listeners.click(event({target:{closest: () => source}}));
   const action = key => dialog.events.click(event({target:{closest: () => ({dataset:{zoom:key}})}}));
-  return {listeners, source, image, viewport, dialog, label, event, click, action};
+  return {listeners, source, image, viewport, dialog, label, pinBtn, pinned, event, click, action};
 }
 
 test('click opens a fitted image; controls zoom, reset, and restore focus on close', () => {
@@ -83,4 +88,40 @@ test('placeholder zoom button opens the full original page in lightbox, scrolls 
   r.listeners.keydown(r.event({key: 'Escape'}));
   assert.equal(r.dialog.open, false);
   assert.equal(zoomBtn.focused, true);
+});
+
+test('cropped figure zoom button opens the cropped figure image on click and Enter', () => {
+  const r = setup();
+  const zoomBtn = {dataset: {zoomSrc: '/p/demo/figures/crop-3-abc.webp'}, getAttribute(k) { return k === 'aria-label' ? 'Figure 3' : ''; }, focus() { this.focused = true; }};
+  const ev = r.event({target: {closest: s => s === '[data-zoom-src]' ? zoomBtn : null}});
+  r.listeners.click(ev);
+  assert.equal(ev.prevented, true);
+  assert.equal(ev.stopped, true);
+  assert.equal(r.dialog.open, true);
+  assert.equal(r.image.src, '/p/demo/figures/crop-3-abc.webp');
+  assert.equal(r.image.alt, 'Figure 3');
+  assert.equal(r.viewport.scrollTop, 0);
+  r.listeners.keydown(r.event({key: 'Escape'}));
+  assert.equal(r.dialog.open, false);
+  assert.equal(zoomBtn.focused, true);
+
+  const keyEv = r.event({key: 'Enter', target: {closest: s => s === '[data-zoom-src]' ? zoomBtn : null}});
+  r.listeners.keydown(keyEv);
+  assert.equal(keyEv.prevented, true);
+  assert.equal(r.dialog.open, true);
+  assert.equal(r.image.src, '/p/demo/figures/crop-3-abc.webp');
+});
+
+test('pin button in zoom modal opens the figure in the side dock and hides for non-media images', () => {
+  const r = setup();
+  const zoomBtn = {dataset: {zoomSrc: '/p/demo/figures/crop-3-abc.webp', zoomBlock: 'fig3'}, getAttribute: () => 'Figure 3', focus(){}};
+  r.listeners.click(r.event({target: {closest: s => s === '[data-zoom-src]' ? zoomBtn : null}}));
+  assert.equal(r.dialog.open, true);
+  assert.equal(r.pinBtn.hidden, false);
+  r.action('pin');
+  assert.equal(r.dialog.open, false);
+  assert.deepEqual(r.pinned, ['fig3']);
+
+  r.click();
+  assert.equal(r.pinBtn.hidden, true);
 });

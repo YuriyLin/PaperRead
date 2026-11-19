@@ -1,6 +1,7 @@
 """翻译方对 paper.json / discussion.json 的写入：并入译文块、追加讨论。都在锁内完成。"""
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 
@@ -17,6 +18,20 @@ DISCUSSION_KINDS = {"explain", "qa", "insight", "reply", "check"}
 
 def _is_matrix(value) -> bool:
     return isinstance(value, list) and all(isinstance(row, list) for row in value)
+
+
+def _align_table_head(head: list, rows: list) -> list:
+    """模型偶尔在多列表头最前面多加一个空字符串 ""，导致表头整体右移一列；列数刚好是数据列 +1 且首格为空时裁掉。"""
+    if not _is_matrix(head) or not _is_matrix(rows) or not rows or not rows[0]:
+        return head
+    col_n = len(rows[0])
+    out = []
+    for h in head:
+        if len(h) == col_n + 1 and str(h[0]).strip() == "" and all(str(c).strip() != "" for c in h[1:]):
+            out.append(list(h[1:]))
+        else:
+            out.append(h)
+    return out
 
 
 def block_shape_problem(block: dict) -> str | None:
@@ -72,12 +87,24 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
         if replace_pages:
             drop = set(replace_pages)
             blocks[:] = [b for b in blocks if b.get("page") not in drop]
+            if paper.get("references"):
+                total = paper.get("meta", {}).get("page_count") or 0
+                full_retranslate = 1 in drop and (not total or len(drop) >= total)
+                has_incoming_refs = bool(data.get("references"))
+                paper["references"] = [
+                    r for r in paper["references"]
+                    if isinstance(r, dict) and (
+                        (r.get("page") not in drop) if r.get("page") is not None else not (full_retranslate or has_incoming_refs)
+                    )
+                ]
         if drop_ids:
             blocks[:] = [b for b in blocks if b.get("id") not in set(drop_ids)]
         n_new = n_upd = 0
         last = None  # 同一批的新块保持给定顺序，接在上一个新块后面
         for b in data.get("blocks", []):
             b = dict(b)
+            if b.get("type") == "table" and b.get("head") and b.get("rows"):
+                b["head"] = _align_table_head(b["head"], b["rows"])
             after = b.pop("_after", None)
             index = {x["id"]: i for i, x in enumerate(blocks)}
             if b["id"] in index:
@@ -124,6 +151,38 @@ def merge_blocks(ws: Workspace, data: dict, done=None, replace_pages=None, en_on
     return result
 
 
+def snapshot_page(ws: Workspace, page: int) -> dict:
+    """记下一页的块和完成状态，重译失败时用 restore_page 原样放回。"""
+    paper = ws.load("paper")
+    translation = paper.get("translation") or {}
+    return {"page": page,
+            "blocks": copy.deepcopy([b for b in paper.get("blocks", []) if b.get("page") == page]),
+            "done": page in (translation.get("done_pages") or []),
+            "en": page in (translation.get("en_pages") or [])}
+
+
+def restore_page(ws: Workspace, snap: dict) -> None:
+    """把 snapshot_page 记下的一页放回原位：先删掉这页现在的块，再按页码顺序插回旧块，完成状态一并还原。"""
+    page = snap["page"]
+
+    def toggle(values, on: bool) -> list[int]:
+        s = set(values or [])
+        (s.add if on else s.discard)(page)
+        return sorted(s)
+
+    def apply(paper):
+        blocks = paper.setdefault("blocks", [])
+        blocks[:] = [b for b in blocks if b.get("page") != page]
+        pos = next((i for i, b in enumerate(blocks) if (b.get("page") or 0) > page), len(blocks))
+        blocks[pos:pos] = copy.deepcopy(snap["blocks"])
+        translation = paper.setdefault("translation", {})
+        translation["done_pages"] = toggle(translation.get("done_pages"), snap["done"])
+        translation["en_pages"] = toggle(translation.get("en_pages"), snap["en"])
+        _scope(paper)
+
+    ws.update("paper", apply)
+
+
 def _record_page_saves(translation, pages):
     revisions = translation.setdefault("page_revisions", {})
     for page in pages:
@@ -168,8 +227,9 @@ def fill_zh(ws: Workspace, data: dict, pages: list[int], keys: set[str], sents: 
             elif field == "head":
                 if not _is_matrix(zh):
                     raise ValueError(tr("{id}：译文 table.head 必须是二维数组", id=bid))
-                if len(zh) == len(b.get("head", [])):
-                    b["head"] = zh
+                aligned = _align_table_head(zh, b.get("rows") or [])
+                if len(aligned) == len(b.get("head", [])):
+                    b["head"] = aligned
             elif field.isdigit() and int(field) < len(b.get("items", [])):
                 b["items"][int(field)]["zh"] = str(zh)
                 _set_sents(b["items"][int(field)], (sents or {}).get(key))

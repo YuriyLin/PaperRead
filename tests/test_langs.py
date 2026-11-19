@@ -72,7 +72,7 @@ class LangsTest(unittest.TestCase):
             self.assertEqual(langs.reply_language_rule({}), "用英文（English）")
 
     def test_first_translation_records_target(self):
-        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None):
+        def run(cfg, prompt, cwd, images=None, cancel=None, meter=None, json_mode=False):
             self.assertIn("译成韩语", prompt)
             return json.dumps({"blocks": [{"id": "p1-1", "type": "para", "page": 1, "en": "x", "zh": "번역"}]})
         cfg = {"engine": "openai", "batch_pages": 1, "concurrency": 1, "openai": {"vision": False}, "target": "ko"}

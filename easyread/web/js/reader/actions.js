@@ -19,7 +19,7 @@
     const b = PR.blockById[id];
     if (!b) return [];
     const keys = PR.blockKeys(b);
-    const hasEn = PR.hasZh(b) && (b.en || b.caption_en || b.image_en || (b.items || []).some((i) => i.en));  // 只读原文、没译的块正文就是英文
+    const hasEn = PR.hasZh(b) && (b.en || b.caption_en || (b.items || []).some((i) => i.en));  // 只读原文、没译的块正文就是英文
     const list = [
       { k: "note", label: PR.t("笔记"), icon: "note", fn: () => PR.startNote({ anchor: id }) },
       { k: "question", label: PR.t("提问"), icon: "question", fn: () => PR.startNote({ anchor: id, kind: "question" }) },
@@ -28,6 +28,8 @@
     if (hasEn && PR.feature("en")) list.push({ k: "en", label: (PR.originalFirst() && PR.prefs.mode !== "bi" ? PR.t("译文") : PR.t("原文")), icon: "en", fn: () => PR.toggleEn(id) });
     if (keys.length && PR.feature("edit")) list.push({ k: "edit", label: PR.t("改译文"), icon: "edit", fn: () => { if (PR.originalFirst()) PR.toggleEn(id, true); const zh = PR.$("#b-" + CSS.escape(id) + " .zh[data-key]"); zh && PR.editZh(zh); } });
     if (b.page && PR.feature("pages")) list.push({ k: "page", label: PR.t("PDF p.{page}", { page: b.page }), icon: "page", fn: () => PR.openPage(b.page, id) });
+    if (b.type === "figure" && PR.store && PR.store.mode === "server" && PR.cropFigure) list.push({ k: "crop", label: PR.t("重新截取图片"), icon: "edit", fn: () => PR.cropFigure(id) });
+    if (b.type === "figure" && PR.pinDockFigure) list.push({ k: "pinfig", label: PR.t("在侧栏打开"), icon: "page", menuOnly: true, fn: () => PR.pinDockFigure(id) });
     // 重译花 token、容易误点：默认关，开了也只放在“⋯”菜单里
     if (keys.length && PR.canAsk() && PR.feature("retranslate")) list.push({ k: "redo", label: PR.t("让模型重译这段…"), icon: "redo", menuOnly: true, fn: () => retranslate(id) });
     list.forEach((a) => { a.kbd = PR.keyOf ? PR.keyOf(a.k) : ""; });
@@ -90,7 +92,7 @@
   }
   function copyBlock(id, lang) {
     const b = PR.blockById[id];
-    const t = lang === "en" ? ([b.en, b.caption_en, b.image_en, ...(b.items || []).map((i) => i.en)].filter(Boolean).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
+    const t = lang === "en" ? ([b.en, b.caption_en, ...(b.items || []).map((i) => i.en)].filter(Boolean).join("\n")) : PR.blockKeys(b).map(PR.textFor).join("\n");
     navigator.clipboard.writeText(PR.plain(t || (b.tex ? "$$" + b.tex + "$$" : ""))).then(() => PR.toast(PR.t("已复制")));
   }
 
@@ -170,7 +172,13 @@
     const a = e.target.closest && e.target.closest("a.cite, a.xref");
     if (!a) return;
     clearTimeout(hoverT);
-    hoverT = setTimeout(() => PR.popover(a, refCard(a)), 180);
+    hoverT = setTimeout(() => {
+      if (a.classList.contains("xref") && a.dataset.kind === "fig" && PR.media) {
+        const b = PR.blockById[PR.xindex[a.dataset.kind][a.dataset.key]];
+        if (b && b.type === "figure") { PR.media.hover(a, b); return; }
+      }
+      PR.popover(a, refCard(a));
+    }, 180);
   });
   document.addEventListener("mouseout", (e) => { if (e.target.closest && e.target.closest("a.cite, a.xref")) { clearTimeout(hoverT); PR.hidePopoverSoon(); } });
   document.addEventListener("click", (e) => {

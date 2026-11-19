@@ -9,33 +9,22 @@
 
   /* 右侧面板开关：pages | notes | null */
   /* 面板滑出的同时正文就让位：重排只要几十毫秒（fitWide 不再重量公式），不必等面板滑完再跳一下。 */
-  PR.side = null;
-  PR.openSide = function (name) {
-    if (name) PR.closeStickerPanel?.();
-    if (PR.side === "notes" && name !== "notes" && PR.finishPanelNote) PR.finishPanelNote();
-    PR.side = name;
-    body.classList.toggle("pv-open", name === "pages");
-    body.classList.toggle("np-open", name === "notes");
-    body.classList.toggle("ch-open", name === "chat");
-    body.classList.toggle("rp-open", name === "research");
-    PR.$('[data-act="chat"]').classList.toggle("on", name === "chat");
-    PR.$('[data-act="pages"]').classList.toggle("on", name === "pages");
-    PR.$('[data-act="notes"]').classList.toggle("on", name === "notes");
-    const researchButton = PR.$('[data-act="research"]');
-    if (researchButton) researchButton.classList.toggle("on", name === "research");
-    if (name) { const t = PR.$("#toast"); if (t) t.classList.remove("open"); }  // 提示条别挡住面板底部的输入框
-    if (body.classList.contains("side-open") === !!name) return;  // 面板之间切换：正文宽度不变
+  PR.setSideSpace = function (open) {
+    if (body.classList.contains("side-open") === open) return;
     const anchor = PR.readingBlock && PR.readingBlock();
     const node = anchor && document.getElementById("b-" + anchor);
     const before = node ? node.getBoundingClientRect().top : 0;
-    body.classList.toggle("side-open", !!name);
+    body.classList.toggle("side-open", open);
     PR.fitWide(); PR.renderMargin();
     if (node) window.scrollBy(0, node.getBoundingClientRect().top - before);  // 重排后还停在刚才读的地方
   };
 
+  const isPagesOpen = () => (PR.dockVisible ? PR.dockVisible("pages") : PR.side === "pages");
+
   PR.togglePages = function (force) {
-    const open = force != null ? force : PR.side !== "pages";
-    PR.openSide(open ? "pages" : null);
+    const open = force != null ? force : !isPagesOpen();
+    if (open) { if (PR.openSide) PR.openSide("pages"); else PR.side = "pages"; }
+    else { if (PR.closeDockTab) PR.closeDockTab("pages"); else PR.side = null; }
     if (open) PR.syncPage(true); else pair(null);
   };
   PR.openPage = function (page, blockId) {
@@ -44,7 +33,7 @@
       return;
     }
     pvBlock = blockId || null;
-    if (PR.side !== "pages") PR.openSide("pages");
+    if (!isPagesOpen()) { if (PR.openSide) PR.openSide("pages"); else PR.side = "pages"; }
     showPage(page, blockId);
   };
 
@@ -144,7 +133,7 @@
     window.scrollTo({ top: Math.max(0, window.scrollY + rect.top + fraction * rect.height - window.innerHeight * 0.3), behavior: "instant" });
   }
   scroller.addEventListener("scroll", () => {
-    if (!pageNodes.length || PR.side !== "pages") return;
+    if (!pageNodes.length || !isPagesOpen()) return;
     // Native scrollbar drags can emit scroll without a DOM pointerdown.
     if (Date.now() >= programmaticUntil) panelInput = true;
     if (panelInput) holdUntil = Date.now() + 2000;
@@ -204,7 +193,7 @@
   }
   PR.on("block-rendered", (id) => { if (id === paired) { paired = null; pair(id); } });  // 段落重画后补回标记
   PR.on("rendered", () => { const id = paired; paired = null; pair(id); });
-  PR.on("remote", (changed) => { if (PR.side === "pages" && changed.includes("layout")) showPage(pvPage, pvBlock); });
+  PR.on("remote", (changed) => { if (isPagesOpen() && changed.includes("layout")) showPage(pvPage, pvBlock); });
 
   /* 点原页上的某一段 → 正文跳到那段译文（排版特殊、看不出语序时，从原文找回去） */
   function blockAt(x, y, page = pvPage) {
@@ -231,7 +220,7 @@
   }
 
   PR.syncPage = function (force) {
-    if (PR.side !== "pages") return;
+    if (!isPagesOpen()) return;
     if (!force && (!PR.$(".pv-follow input").checked || Date.now() < holdUntil)) return;
     const reading = PR.readingBlock();
     // Selection controls an explicit click; scrolling follows the viewport.

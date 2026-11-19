@@ -35,6 +35,7 @@ DEFAULTS = {
     "check_updates": False,      # 個人 fork 未設定自己的發佈庫前，不檢查或套用 upstream 更新
     "batch_pages": 2,            # 每次交给模型的页数
     "page_cap": 60,              # 全文超过多少页先确认；0 表示不限
+    "custom_prompt": "",         # 自訂翻譯補充指令（附加於規則之後）
     "concurrency": 0,            # 同时译几段（分段并行，见 segments.py）；0 是自动，每段约 2 批、最多 4 段；手动最多 8 段
     "concurrency_v": 2,          # 1.3.1 起 concurrency 的意思变了，旧配置的 1 当成自动，见 load
     "claude": {"command": "claude", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},

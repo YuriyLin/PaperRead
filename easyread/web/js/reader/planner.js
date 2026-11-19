@@ -2,11 +2,13 @@
 (function (PR) {
   "use strict";
   const S = PR.state, API = "/api/research/v2";
-  PR.researchOpen = () => PR.side === "research";
+  PR.researchOpen = () => (PR.dockVisible ? PR.dockVisible("research") : PR.side === "research");
   PR.toggleResearch = function (force) {
     const wasOpen = PR.researchOpen();
     const open = force == null ? !wasOpen : Boolean(force);
-    PR.openSide(open ? "research" : null);
+    if (open) PR.openSide("research");
+    else if (PR.closeDockTab) PR.closeDockTab("research");
+    else PR.openSide(null);
     if (open && (!wasOpen || !PR.$("#researchpanel")?.children.length)) render();
   };
 
@@ -386,6 +388,7 @@
       }
     };
   }
+  PR.renderResearchPanel = render;
   document.addEventListener("click", (event) => { if (event.target.closest("[data-rp-close]")) PR.toggleResearch(false); });
 
   if (typeof PR.on === "function") {

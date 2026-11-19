@@ -222,15 +222,27 @@
       if (!outbox.length) setStatus("offline", PR.t("未连上本地服务（只读）"));
       return;
     }
+    const candidates = [];
+    for (const name of ["paper", "discussion", "layout", "reader", "job", "item"]) if (v[name] && v[name] !== S.versions[name]) candidates.push(name);
+    if (!candidates.length) return;
     const changed = [];
-    for (const name of ["paper", "discussion", "layout", "reader", "job", "item"]) if (v[name] && v[name] !== S.versions[name]) changed.push(name);
-    if (!changed.length) return;
-    for (const name of changed) {
+    S.readerEditsChanged = false;
+    for (const name of candidates) {
       if (name === "reader" && (flushing || outbox.length)) continue; // 自己正在写，等写完
-      const d = await (await fetch(base() + "/part/" + name, { cache: "no-store" })).json();
+      const resp = await fetch(base() + "/part/" + name, { cache: "no-store" });
+      if (!resp.ok) continue;
+      const d = await resp.json();
+      if (!d || d.version == null) continue;
       S.versions[name] = d.version;
-      if (name === "reader") { serverReader = d.data; rebuildReader(); } else S[name] = d.data || {};
+      if (name === "reader") {
+        const prevEdits = JSON.stringify((serverReader && serverReader.edits) || {});
+        serverReader = d.data || {};
+        S.readerEditsChanged = prevEdits !== JSON.stringify(serverReader.edits || {});
+        rebuildReader();
+      } else S[name] = d.data || {};
+      changed.push(name);
     }
+    if (!changed.length) return;
     if (changed.includes("paper") || changed.includes("item")) {
       const ov = (S.item || {}).meta_override || {};
       for (const [k, val] of Object.entries(ov)) if (val) S.paper.meta[k] = val;

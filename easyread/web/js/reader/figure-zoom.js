@@ -1,8 +1,8 @@
 /* View original figure or page pixels without changing paper layout or saved notes. */
 (function (PR) {
   "use strict";
-  const selector = "#paper .figure-media img, #paper .orig-page img";
-  let dialog, image, viewport, label, origin, scale = 1, drag, pendingPage = false, pendingBox = null;
+  const selector = "#paper .figure-media img, #paper .orig-page img, .dock-resource .media-image img";
+  let dialog, image, viewport, label, pinBtn, origin, scale = 1, drag, pendingPage = false, pendingBox = null, currentBlockId = "";
   function setScale(next, center) {
     if (!image.naturalWidth) return;
     const old = scale;
@@ -52,17 +52,19 @@
     dialog = document.createElement("dialog");
     dialog.className = "figure-viewer";
     dialog.setAttribute("aria-label", PR.t("查看图片"));
-    dialog.innerHTML = '<div class="figure-viewer-tools"><button class="btn icon" data-zoom="out" aria-label="' + PR.t("缩小图片") + '">−</button><span class="figure-viewer-scale" aria-live="polite"></span><button class="btn icon" data-zoom="in" aria-label="' + PR.t("放大图片") + '">+</button><button class="btn sm" data-zoom="fit">' + PR.t("适合窗口") + '</button><button class="btn sm" data-zoom="actual">100%</button><span class="grow"></span><button class="btn icon" data-zoom="close" aria-label="' + PR.t("关闭") + '">×</button></div><div class="figure-viewer-scroll" tabindex="0"><div class="figure-viewer-canvas"><img alt="" draggable="false"></div></div>';
+    dialog.innerHTML = '<div class="figure-viewer-tools"><button class="btn icon" data-zoom="out" aria-label="' + PR.t("缩小图片") + '">−</button><span class="figure-viewer-scale" aria-live="polite"></span><button class="btn icon" data-zoom="in" aria-label="' + PR.t("放大图片") + '">+</button><button class="btn sm" data-zoom="fit">' + PR.t("适合窗口") + '</button><button class="btn sm" data-zoom="actual">100%</button><span class="grow"></span><button class="btn sm line" data-zoom="pin" hidden>' + PR.t("在侧栏打开") + '</button><button class="btn icon" data-zoom="close" aria-label="' + PR.t("关闭") + '">×</button></div><div class="figure-viewer-scroll" tabindex="0"><div class="figure-viewer-canvas"><img alt="" draggable="false"></div></div>';
     document.body.appendChild(dialog);
     image = dialog.querySelector("img");
     viewport = dialog.querySelector(".figure-viewer-scroll");
     label = dialog.querySelector(".figure-viewer-scale");
+    pinBtn = dialog.querySelector('[data-zoom="pin"]');
     image.onload = applyInitialView;
     image.onerror = () => { dialog.close(); PR.toast(PR.t("图片未能加载，请查看原页")); };
     dialog.addEventListener("close", () => { drag = null; origin?.focus({ preventScroll: true }); });
     dialog.addEventListener("click", e => {
       const action = e.target.closest("[data-zoom]")?.dataset.zoom;
       if (action === "close") dialog.close();
+      else if (action === "pin") { const id = currentBlockId; dialog.close(); if (id) PR.pinDockFigure?.(id); }
       else if (action === "fit") fit();
       else if (action === "actual") setScale(1);
       else if (action) setScale(scale * (action === "in" ? 1.25 : .8));
@@ -113,11 +115,16 @@
       Math.max(...boxes.map(b => Number(b[3]))),
     ];
   }
-  function open(source, customSrc, customAlt, isPage, focusBox) {
+  function open(source, customSrc, customAlt, isPage, focusBox, blockId) {
     if (!dialog) create();
     origin = source;
     pendingPage = !!isPage;
     pendingBox = focusBox || null;
+    currentBlockId = blockId || source?.dataset?.zoomBlock || source?.closest?.("[data-media-block]")?.dataset?.mediaBlock || source?.closest?.(".blk")?.dataset?.id || "";
+    if (pinBtn) {
+      const canPin = !!(currentBlockId && PR.pinDockFigure && PR.media?.isMedia(PR.blockById?.[currentBlockId]));
+      pinBtn.hidden = !canPin;
+    }
     image.alt = customAlt || source.alt || PR.t("查看图片");
     image.src = customSrc || source.currentSrc || source.src;
     scale = 1;
@@ -135,6 +142,12 @@
   PR.on("rendered", prepare);
   PR.on("block-rendered", prepare);
   document.addEventListener("click", e => {
+    const zoomSrcBtn = e.target.closest?.("[data-zoom-src]");
+    if (zoomSrcBtn && zoomSrcBtn.dataset && zoomSrcBtn.dataset.zoomSrc) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      open(zoomSrcBtn, zoomSrcBtn.dataset.zoomSrc, zoomSrcBtn.getAttribute("aria-label") || PR.t("查看图片"), false, null);
+      return;
+    }
     const zoomBtn = e.target.closest?.("[data-zoom-page]");
     if (zoomBtn && zoomBtn.dataset && zoomBtn.dataset.zoomPage) {
       const pageNum = Number(zoomBtn.dataset.zoomPage);
@@ -161,6 +174,12 @@
         if (e.key === "0") fit(); else setScale(scale * (e.key === "-" ? .8 : 1.25));
       }
     } else if (["Enter", " "].includes(e.key)) {
+      const zoomSrcBtn = e.target.closest?.("[data-zoom-src]");
+      if (zoomSrcBtn && zoomSrcBtn.dataset && zoomSrcBtn.dataset.zoomSrc) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        open(zoomSrcBtn, zoomSrcBtn.dataset.zoomSrc, zoomSrcBtn.getAttribute("aria-label") || PR.t("查看图片"), false, null);
+        return;
+      }
       const zoomBtn = e.target.closest?.("[data-zoom-page]");
       if (zoomBtn && zoomBtn.dataset && zoomBtn.dataset.zoomPage) {
         const pageNum = Number(zoomBtn.dataset.zoomPage);

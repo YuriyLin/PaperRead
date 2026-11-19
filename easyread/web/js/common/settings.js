@@ -217,6 +217,7 @@
     collect(state) {
       const c = state.cfg, o = c.openai, a = c.antigravity || {};
       return { engine: c.engine, batch_pages: c.batch_pages, concurrency: c.concurrency, page_cap: c.page_cap, auto_translate: c.auto_translate,
+        custom_prompt: String(c.custom_prompt || "").slice(0, 2000),
         claude: { model: c.claude.model, command: c.claude.command, reasoning_effort: c.claude.reasoning_effort || "" },
         codex: { model: c.codex.model, command: c.codex.command, reasoning_effort: c.codex.reasoning_effort || "", service_tier: c.codex.service_tier || "" },
         antigravity: { model: a.model || "", command: a.command || "agy", reasoning_effort: a.reasoning_effort || "" },

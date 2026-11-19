@@ -93,14 +93,24 @@
   PR.on("remote", (changed) => {
     if (changed.includes("job")) PR.renderJobState();
     const after = () => {
-      if (changed.includes("paper") || changed.includes("reader") || changed.includes("item")) {
+      const needPaper = changed.includes("paper") || (changed.includes("reader") && S.readerEditsChanged);
+      if (needPaper) {
         PR.rerenderKeepingPlace();
         PR.updateTitle();
-    PR.updateKeyTitles && PR.updateKeyTitles();
+        PR.updateKeyTitles && PR.updateKeyTitles();
         if (changed.includes("item") && PR.renderPaperHead) PR.renderPaperHead();
-      } else if (changed.includes("job")) {
-        const pend = PR.$(".pending-pages .pending, .page-cap");
-        if (pend || (S.job || {}).state === "confirm") PR.rerenderKeepingPlace();
+      } else {
+        if (changed.includes("item")) {
+          PR.updateTitle();
+          PR.renderPaperHead && PR.renderPaperHead();
+        }
+        if (changed.includes("job")) {
+          if (PR.renderPendingState) PR.renderPendingState();
+          else {
+            const pend = PR.$(".pending-pages .pending, .page-cap");
+            if (pend || (S.job || {}).state === "confirm") PR.rerenderKeepingPlace();
+          }
+        }
       }
       PR.applyMarks(); PR.renderMargin();
       if (PR.notesPanelOpen()) PR.renderNotesPanel();
@@ -138,6 +148,8 @@
     if (PR.store.mode === "static") PR.$("#backBtn").style.display = "none";
     else PR.libraryNav.readerBack(PR.pid);
     PR.applyFeatures();
+    const dockToggle = PR.$('[data-act="dock"]');
+    if (dockToggle) dockToggle.disabled = false;
     PR.updateTitle();
     PR.updateKeyTitles && PR.updateKeyTitles();
     PR.ls.get("pr-seen-" + PR.paperKey, (S.discussion.entries || []).map((e) => e.id)).forEach((id) => seen.add(id));

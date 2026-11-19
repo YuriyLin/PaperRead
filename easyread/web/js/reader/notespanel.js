@@ -7,10 +7,12 @@
   let editing = null;
   const panel = () => PR.$("#notespanel");
 
-  PR.notesPanelOpen = () => PR.side === "notes";
+  PR.notesPanelOpen = () => (PR.dockVisible ? PR.dockVisible("notes") : PR.side === "notes");
   PR.toggleNotesPanel = function (force) {
-    const open = force != null ? force : PR.side !== "notes";
-    PR.openSide(open ? "notes" : null);
+    const open = force != null ? force : !PR.notesPanelOpen();
+    if (open) PR.openSide("notes");
+    else if (PR.closeDockTab) PR.closeDockTab("notes");
+    else PR.openSide(null);
     if (open) PR.renderNotesPanel();
     else editing = null;
   };

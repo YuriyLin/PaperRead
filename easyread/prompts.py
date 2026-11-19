@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import emphasis, langs, links, sentences, xrefs
+from . import emphasis, langs, links, running_text, sentences, xrefs
 from .store import Workspace
 
 
@@ -20,9 +20,14 @@ def _target_prompt(text: str, target: str) -> str:
     return _tw_prompt(text) if target == "zh-TW" else text
 
 MATH_RULES = r"""- 行内数学一律写成 $TeX$（KaTeX 能渲染的 LaTeX）：即使只有一个变量，也必须有成对的 $；变量、下标、上标都用 TeX，不要直接照抄 PDF 抽取出的散乱字符或用 Unicode 拼。
-- en 和 zh、标题、列表、表头、单元格、图内文字及题注都遵守同一公式规则。例如：原文 "Let $x_i \in \mathbb{R}^d$."，译文 "令 $x_i \in \mathbb{R}^d$。"；不要输出裸露的 x_i、\alpha 或 \frac{a}{b}，不要把整句正文包进 $。
+- en 和 zh、标题、列表、表头、单元格及题注都遵守同一公式规则。例如：原文 "Let $x_i \in \mathbb{R}^d$."，译文 "令 $x_i \in \mathbb{R}^d$。"；不要输出裸露的 x_i、\alpha 或 \frac{a}{b}，不要把整句正文包进 $。
 - 行间公式单独成 math 块，tex 只放公式内容（不带 $、$$ 或 \[\]），照原页保留上下标、分式、矩阵和运算符，原编号放 tag。看不清时标明待核对，不猜公式。
 - 代码围栏、行内代码、路径和网址保持原样，不为其中的符号添加数学定界符；普通金额的美元符号写成 \$。输出前逐项检查公式是否有定界符、是否成对，JSON 中的 TeX 反斜杠必须写两个。"""
+
+TABLE_NOTES = """
+- 表格第一列的行标签若有清楚可见的父子缩进，在子项标签前保留缩进（每层两个普通空格），如 "Sorting"、"  By Price"。只按原页或抽取文字中可辨认的缩进记录；同一格内的换行不另算子项，数字对齐用 align。
+- 表下的 Note、Notes、注、显著性说明等属于表注。逐条保留为紧随 table 的独立 para 块，role 用 table_note，保留原标签；不要放进 head、rows 或 references，也不要当页脚省略。"""
+
 RULES = """翻译要求：
 - 忠实：保留原文的论证顺序、章节编号、公式、表格、引用号 [n]、限定词（may/suggest/likely/at least）、否定和比较对象。可以调整中文语序、拆长句，读起来要像中文母语者写的学术文字。
 - 只翻译，不解释、不总结、不加原文没有的内容。原文的笔误照录，不要改。
@@ -31,12 +36,13 @@ RULES = """翻译要求：
 - 保留粗体和斜体：材料（抽取的文字、英文原文）里 **…** 是原文的粗体，*…* 是斜体，由程序按 PDF 字体标出。en 照录这些标记，译文在对应的词句上用同样的标记；标记成对出现，不跨句子分界 ‖，不放进 $公式$ 和代码。整行加粗的标题、题注开头的编号（Figure 1:）不用标；原文没有粗体或斜体的地方不要自己加。有原页图时以原页为准，补上抽取文字里漏标的。
 - 但要留心原文自己的问题：数字前后对不上（表和正文、两张表之间）、公式和文字说的不一致、符号用错、明显的笔误。发现了就写进 checks，正文照录不改；没有就不写，不要为了写而写，也不要写翻译说明。
 - 术语全文统一；首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。
-""" + MATH_RULES + """
-- 表格重排成 table 块，数字与公式原样。图使用 figure 块，只保留 page、num 与图注（caption_en / caption_zh）；不要识别、抄写或翻译图内文字，不输出 image_en、image_zh 或裁切框，不截取图片，src 留空。读者将在原 PDF 核对图片。
+""" + MATH_RULES + TABLE_NOTES + """
+- 表格重排成 table 块，表头译成中文，数字原样。图用 figure 块：尽量给出图在原页中的归一化裁剪框 `box:[x0,y0,x1,y1]`（左上和右下坐标，范围 0 到 1，框住图本身、不含题注）；不要识别、抄写或翻译图内文字，不输出 `image_en`、`image_zh`；没有原页图时不猜裁剪框。`src` 留空，由程序按 `box` 从原 PDF 裁图。
 - 参考文献列表不翻译：输出一个 references 块，条目放进 references 数组（text 是原文）。id 是这条的引用键：编号式列表写编号（"13"）；作者-年份式写作者的姓和年份，用连字符连起来，一两位作者写全部的姓，三位及以上只写第一作者的姓，姓里的空格去掉，年份带原文的 a/b 后缀，例如 Jimenez-2024、Chen-Jiang-2025、Chen-2026a、DaSilva-2025、Anthropic-2025；字母标签式写标签（JYW+24）。
 - 作者-年份式、字母标签式的文献引用写成链接 [文字](#cite:键)，键和参考文献条目的 id 同一个写法；en 照原文的字，译文按译法写字，键不变。例如 Jimenez et al. (2024) → [Jimenez et al. (2024)](#cite:Jimenez-2024)、[Jimenez 等人（2024）](#cite:Jimenez-2024)；括号里有几条就各写一个链接，方括号留在链接外：[[Jimenez 等人（2024）](#cite:Jimenez-2024)，[Chen 与 Jiang（2025）](#cite:Chen-Jiang-2025)]。材料里指向参考文献的 [文字](#) 也这样补上键；一处引用被拆成几个 [文字](#)（作者和年份分开链）时合成一个链接。编号式引用照旧写 [13]，不写链接。
 - 脚注与参考文献独立：文献引用使用 [13]，脚注标记使用 [^13]（13 换成原编号；符号脚注照原符号写，如 [^*]、[^†]），en/zh 两边保持一致，不要混用。材料里程序已按 PDF 标出的 [^…] 照录在原位。脚注内容单独输出 para 块，加 "role":"footnote","num":"13"（符号脚注写 "num":"*" 这样的原符号），page 填脚注所在页；块的 en/zh 只放脚注正文，不重复编号。脚注不得放入 references 数组，也不能当页脚丢弃。同号文献与脚注可以同时存在；不确定时保留原标记，不猜。标题、作者、单位里不写脚注标记。
-- 代码和伪代码用 para 块，en/zh 中用 Markdown 代码围栏包住代码，保留缩进、换行、标识符和字符串；只翻译题注及自然语言注释。题注放在围栏外，不要输出 code 或 listing 类型，不要在代码里插句子分界 ‖。原文给它编了号（Listing 3、Algorithm 1）时，这块加 "role":"listing" 或 "role":"algorithm" 和 "num":"3"。
+- 题注标为 Fig. 或 Figure 的代码示例也要按图保留：输出带原图编号和题注的 figure 块，按图块规则处理裁剪框。
+- 其余代码和伪代码用 para 块，en/zh 中用 Markdown 代码围栏包住代码，用空格和换行还原原页缩进，保留标识符和字符串；只翻译题注及自然语言注释。题注放在围栏外，不要输出 code 或 listing 类型，不要在代码里插句子分界 ‖。原文给它编了号（Listing 3、Algorithm 1）时，这块加 "role":"listing" 或 "role":"algorithm"，num 填对应编号。
 - 看不清的地方写“此处识别不清，请核对原文第 N 页”，不要猜。
 - 页眉、页脚、页码、arXiv 侧边水印不要输出。"""
 
@@ -53,12 +59,12 @@ SCHEMA = """输出格式：只输出一个 JSON 对象，不要任何别的文�
 - {"id":"s2-1","type":"heading","page":2,"level":1或2,"num":"2.1","en":"Independent questions","zh":"相互独立的题目"}   附录标题加 "appendix": true，摘要标题 num 留空
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…","zh":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
-- {"id":"tab2","type":"table","page":3,"num":"2","head":[["","题目数","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …","caption_zh":"表 2：…"}
-- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","caption_en":"Figure 1: …","caption_zh":"图 1：…"}
+- {"id":"tab2","type":"table","page":3,"num":"2","head":[["方法","题目数","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …","caption_zh":"表 2：…"}
+- {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"caption_en":"Figure 1: …","caption_zh":"图 1：…"}
 - {"id":"refs","type":"references","page":10,"zh":"参考文献","en":"References"}
 句子对齐：para 和 list 的每一项，en 和 zh 都在两边对应的句子交界处各插一个 ‖，两边 ‖ 个数必须相同。只在两边都断句的地方插：中文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句中文时，这两句中文之间也不插。只有一句就不插。‖ 不要放进 $公式$ 里，标题、表格、图、题注都不插。
 id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式 eq{编号} 或 eq-p{页}-{序号}，表 tab{编号}，图 fig{编号}。
-注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。表格和图放在正文第一次提到它的段落之后。"""
+注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。字符串里的中文引号用“”或「」，不要出现没转义的英文双引号 "。表格和图按它在原页上的位置排，不要挪到提到它的段落之后。"""
 
 
 # 译成中文以外的语言时，把只适用于中文的说法换掉；中文的提示词保持原样
@@ -74,7 +80,7 @@ _SCHEMA_SWAP = [
     ('{"en": "standard error", "zh": "标准误差"}', '{"en": "standard error", "zh": "{L}译名"}'),
     ('"zh":"中文译文第一句。‖第二句。"', '"zh":"{L}译文 … ‖ …"'),
     ('"zh":"相互独立的题目"', '"zh":"…"'),
-    ('"head":[["","题目数","…"]]', '"head":[["","…","…"]]'),
+    ('"head":[["方法","题目数","…"]]', '"head":[["…","…","…"]]'),
     ('"caption_zh":"表 2：…"', '"caption_zh":"…"'),
     ('"caption_zh":"图 1：…"', '"caption_zh":"…"'),
     ('"zh":"参考文献"', '"zh":"…"'),
@@ -91,14 +97,24 @@ def _swap(text: str, pairs, target: str) -> str:
     return text
 
 
-def rules(target: str = "zh") -> str:
+def _append_custom(text: str, custom_prompt: str, target: str) -> str:
+    extra = (custom_prompt or "").strip()[:2000]
+    if not extra:
+        return text
+    header = _target_prompt("补充翻译要求（不得违反上述 JSON 输出格式与字段规则）：", target)
+    return f"{text}\n\n{header}\n{extra}"
+
+
+def rules(target: str = "zh", custom_prompt: str = "") -> str:
     if target == "zh-TW":
-        return _tw_prompt(RULES) + "\n- 所有譯文欄位一律使用繁體中文與臺灣學術用語；保留模型、資料集及指標的英文名稱，不可使用簡體字。"
-    if target == "zh":
-        return RULES
-    name = langs.prompt_name(target)
-    return (_swap(RULES, _RULES_SWAP, target) +
-            f"\n- 译文语言是{name}：zh、caption_zh、image_zh、title_zh 这些字段名是历史叫法，里面一律写{name}，不要写中文。")
+        out = _tw_prompt(RULES) + "\n- 所有譯文欄位一律使用繁體中文與臺灣學術用語；保留模型、資料集及指標的英文名稱，不可使用簡體字。"
+    elif target == "zh":
+        out = RULES
+    else:
+        name = langs.prompt_name(target)
+        out = (_swap(RULES, _RULES_SWAP, target) +
+               f"\n- 译文语言是{name}：zh、caption_zh、title_zh 这些字段名是历史叫法，里面一律写{name}，不要写中文。")
+    return _append_custom(out, custom_prompt, target)
 
 
 def schema(target: str = "zh") -> str:
@@ -112,7 +128,7 @@ _NOTE_PLAIN = re.compile(r"^\s*\d{1,2}\s?[A-Z][a-z]")
 
 
 def _is_note(b: dict) -> bool:
-    if b.get("role") == "footnote":
+    if b.get("role") in ("footnote", "table_note"):
         return True
     text = b.get("en") or ""
     if _NOTE.search(text):
@@ -121,6 +137,26 @@ def _is_note(b: dict) -> bool:
 
 
 _ENDS = (".", "?", "!", ":", ";", "。", "？", "！", "：", ")", "]", "\"", "”", "’")
+_REF_HEADING = re.compile(r"^\s*(\d+\.?\s*)?(references|bibliography|参考文献)\s*$", re.I | re.M)  # i18n-ok
+
+# 术语表很长时（后半篇常有上百条），只带这几页原文里出现的术语，外加最近登记的几条（刚定的译法最容易跟着用到）。
+# 短术语表全部带上：省下的 token 不多，还可能漏掉换了说法的术语。
+GLOSSARY_FILTER_ABOVE = 25
+GLOSSARY_KEEP_RECENT = 10
+
+
+def _relevant_glossary(ws: Workspace, pages: list[int], glossary: list[dict]) -> list[dict]:
+    if len(glossary) <= GLOSSARY_FILTER_ABOVE:
+        return glossary
+    raw = "\n".join(p.read_text(encoding="utf-8", errors="replace")
+                    for p in (ws.root / "extract" / f"page-{n:03d}.txt" for n in pages) if p.exists())
+    recent = {id(g) for g in glossary[-GLOSSARY_KEEP_RECENT:]}
+
+    def used(g: dict) -> bool:
+        en = str(g.get("en") or "").strip()
+        return bool(en) and re.search(r"(?<!\w)" + re.escape(en) + r"(?!\w)", raw, re.I) is not None
+
+    return [g for g in glossary if id(g) in recent or used(g)]
 
 
 def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head: bool = False) -> str:
@@ -130,12 +166,24 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
     lines = [f"论文：{meta.get('title_en') or meta.get('source', '')}，共 {meta.get('page_count', '?')} 页。"]
-    gl = paper.get("glossary", [])
+    gl = _relevant_glossary(ws, pages, paper.get("glossary", []))
     if gl:
         lines.append("已有术语表（必须沿用）：" + "；".join(f"{g['en']} = {g['zh']}" for g in gl))
     heads = [f"{b.get('num', '')} {b.get('zh') or b.get('en', '')}".strip() for b in blocks if b.get("type") == "heading"]
     if heads:
         lines.append("已有的章节：" + " / ".join(heads))
+    extract_dir = ws.root / "extract"
+    if extract_dir.exists():
+        for pf in sorted(extract_dir.glob("page-*.txt")):
+            m_pg = re.search(r"page-(\d+)\.txt$", pf.name)
+            if m_pg and _REF_HEADING.search(pf.read_text(encoding="utf-8", errors="replace")):
+                ref_start = int(m_pg.group(1))
+                if pages[0] >= ref_start:
+                    lines.append(
+                        f"第 {ref_start} 页起为参考文献列表（References）。请把参考文献条目按英文原文放进顶层 "
+                        '"references": [{"id": "作者-年份或编号", "text": "完整文献原文"}]，不要输出成 para 块，也不要跳过参考文献。'
+                    )
+                break
     if not new_blocks:
         return "\n".join(lines)
     ids = [b["id"] for b in blocks]
@@ -172,13 +220,15 @@ def _context(ws: Workspace, pages: list[int], new_blocks: bool = True, skip_head
 
 def page_text(ws: Workspace, n: int, sources: tuple | None = None) -> str:
     """给模型看的第 n 页抽取文字：按 PDF 标出粗体斜体、本文内部链接和脚注标记、外部链接（磁盘上的 .txt 不变）。
+    页首页尾在多页重复出现的页眉、页脚、水印去掉（见 running_text）。
     sources：一批里好几页时传 (links, emphasis, xrefs) 免得每页重读缓存。"""
     urls, styles, refs = sources or (links.ensure(ws), emphasis.ensure(ws), xrefs.ensure(ws))
     p = ws.root / "extract" / f"page-{n:03d}.txt"
     text = p.read_text(encoding="utf-8") if p.exists() else ""
     text = emphasis.insert(text, styles.get(str(n), []))
     text = xrefs.insert(text, refs.get(str(n), []))
-    return links.insert(text, urls.get(str(n), []))
+    text = links.insert(text, urls.get(str(n), []))
+    return running_text.strip(text, ws.root / "extract")
 
 
 def _page_texts(ws: Workspace, pages: list[int]) -> str:
@@ -204,7 +254,8 @@ def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
     return "\n" + "\n".join(out) if out else ""
 
 
-def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=(), front: str = "") -> str:
+def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=(), front: str = "",
+              custom_prompt: str = "") -> str:
     """front：分段并行时每段第一批的前文参考（见 front_context）。"""
     look = ""
     if next_head:
@@ -219,7 +270,8 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     target = langs.of_paper(ws.load("paper").get("meta"))
     lead = _target_prompt(f"你在把一篇学术论文译成{langs.prompt_name(target)}，这次只处理第 {', '.join(map(str, pages))} 页。{see}", target)
     return (lead + "\n\n"
-            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target)}\n\n{schema(target)}\n\n" + (front + "\n\n" if front else "")
+            f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target, custom_prompt=custom_prompt)}\n\n{schema(target)}\n\n"
+            + (front + "\n\n" if front else "")
             + _page_texts(ws, pages) + look)
 
 
