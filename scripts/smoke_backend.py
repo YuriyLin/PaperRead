@@ -37,7 +37,7 @@ def probe_pdf() -> bytes:
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    exe = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "build" / "backend" / ("easyread-backend.exe" if os.name == "nt" else "easyread-backend")
+    exe = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "build" / "backend" / "easyread-backend" / ("easyread-backend.exe" if os.name == "nt" else "easyread-backend")
     with tempfile.TemporaryDirectory(prefix="easyread-frozen-smoke-") as tmp:
         home = Path(tmp)
         pdf = home / "probe.pdf"
@@ -81,7 +81,7 @@ def main():
                     if width < 1468:  # the 612 pt source was rendered at 2.4x
                         assert (ws / "pages" / f"w{width}" / "page-001.webp").is_file(), "resizing did not run"
             finally:
-                if os.name == "nt":  # onefile 在 Windows 上是两层进程，只杀外层的话里层还占着 easyread.log，临时目录删不掉
+                if os.name == "nt":  # 保守起见仍杀整个进程树：残留的子进程会占着 easyread.log，临时目录删不掉
                     subprocess.run(["taskkill", "/pid", str(proc.pid), "/t", "/f"], capture_output=True)
                 if proc.poll() is None:
                     proc.terminate()

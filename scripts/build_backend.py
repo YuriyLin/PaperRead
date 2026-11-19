@@ -50,13 +50,14 @@ def main() -> None:
             old.unlink()
         elif old.is_dir():
             shutil.rmtree(old)
-    cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
+    # onedir 把资源放在安装目录里；onefile 每次启动都解压到系统临时目录，被系统清理后会丢资源
+    cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", "--onedir",
                     "--name", "easyread-backend", "--distpath", str(OUT),
                     "--workpath", str(WORK), "--specpath", str(WORK),
                     *[arg for module in REQUIRED for arg in ("--collect-all", module)],
                     str(ROOT / "scripts" / "backend_entry.py")]
     subprocess.run(cmd, cwd=ROOT, check=True)
-    print(f"后端已生成：{OUT / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")
+    print(f"后端已生成：{OUT / 'easyread-backend' / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")
 
 
 if __name__ == "__main__":
