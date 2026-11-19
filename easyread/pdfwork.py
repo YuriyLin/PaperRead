@@ -210,7 +210,7 @@ def _locate(root: Path) -> dict:
         if not bid or not page:
             continue
         manual = {"page": page, "box": block["box"], "src": "manual"} if block.get("box") else None
-        if manual and block.get("type") != "figure":
+        if manual and (block.get("type") != "figure" or block.get("box_source") == "mineru"):
             layout[bid] = manual
             continue
         if block.get("type") in ("para", "list"):

@@ -44,7 +44,7 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 
 
 def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=(),
-              page_text_override: str | None = None) -> str:
+              page_text_override: str | dict[int, str] | None = None) -> str:
     see = ""
     if engine == "claude":
         imgs = "、".join(f"extract/page-{n:03d}.jpg" for n in pages)
@@ -57,17 +57,21 @@ def structure(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     lead = _target_prompt(f"你在把一篇学术论文的 PDF 整理成便于阅读的结构化原文（读者要直接读英文，不要翻译），这次只处理第 {', '.join(map(str, pages))} 页。{see}", target)
     rules_text = _target_prompt(RULES_EN, target)
     schema_text = _target_prompt(SCHEMA_EN, target)
-    body_text = (
-        f"===== 第 {pages[0]} 页（本页片段，仅整理这段文字；公式和表格可能是乱的；**粗体**、*斜体*、[文字](#) 内部链接、[^…] 脚注标记按 PDF 标出）=====\n"
-        + page_text_override
-        if page_text_override is not None else _page_texts(ws, pages)
-    )
+    if isinstance(page_text_override, dict):
+        body_text = _page_texts(ws, pages, overrides=page_text_override)
+    elif page_text_override is not None:
+        body_text = (
+            f"===== 第 {pages[0]} 页（本页片段，仅整理这段文字；公式和表格可能是乱的；**粗体**、*斜体*、[文字](#) 内部链接、[^…] 脚注标记按 PDF 标出）=====\n"
+            + page_text_override
+        )
+    else:
+        body_text = _page_texts(ws, pages)
     return (lead + "\n\n" + f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules_text}\n\n{schema_text}\n\n"
             + body_text + look)
 
 
 def todo(blocks: list[dict]) -> dict[str, object]:
-    """这些块里还没有中文的地方：{键: 英文}。键同页面：块 id、id#caption、id#序号、id#head（表头）。"""
+    """这些块里还没有中文的地方：{键: 英文}。键同页面：块 id、id#caption、id#序号（表格仅翻译题注，表头与单元格保留原文）。"""
     out: dict[str, object] = {}
     for b in blocks:
         t = b.get("type")
@@ -80,8 +84,6 @@ def todo(blocks: list[dict]) -> dict[str, object]:
         elif t in ("table", "figure"):
             if b.get("caption_en") and not b.get("caption_zh"):
                 out[f"{b['id']}#caption"] = b["caption_en"]
-                if t == "table" and b.get("head"):
-                    out[f"{b['id']}#head"] = b["head"]
     return out
 
 
@@ -96,7 +98,6 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object], custom_promp
     meta = ('  "meta": {"title_zh": "", "short_zh": "' + ("不超过 12 字的短标题" if target in ("zh", "zh-TW") else "不超过 6 个词的短标题") + '"},   // 论文英文标题：'
             + json.dumps(ws.load("paper").get("meta", {}).get("title_en", ""), ensure_ascii=False) + "\n") if first else ""
     lead = _target_prompt(f"你在把一篇学术论文译成{name}。原文已经整理成块，这次只翻译第 {', '.join(map(str, pages))} 页上下面这些键对应的文字。", target)
-    head_rule = _target_prompt(f"- 表头（键以 #head 结尾）是二维数组：保持行列数不变，把文字译成{name}，数字和符号原样。", target)
     sentence_rule = _target_prompt(f"- 英文里的 ‖ 是句子分界：译文在对应的句子交界处也插 ‖，个数和这条英文的一样。两句英文在{name}里要合成一句时，也在合并后最接近的位置插上。", target)
     output_rule = _target_prompt("输出格式：只输出一个 JSON 对象，不要任何别的文字。", target)
     glossary = _target_prompt("本批新出现的核心术语", target)
@@ -104,7 +105,7 @@ def fill(ws: Workspace, pages: list[int], items: dict[str, object], custom_promp
     keys_rule = _target_prompt("下面每个键都要有，一个不漏", target)
     tex_rule = _target_prompt("注意 JSON 里 TeX 的反斜杠要写两个（\\\\frac、\\\\text、\\\\bar）。", target)
     content_rule = _target_prompt("要翻译的内容（键 → 英文）：", target)
-    return (lead + "\n\n" + f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target, custom_prompt=custom_prompt)}\n" + head_rule + "\n"
+    return (lead + "\n\n" + f"{_context(ws, pages, new_blocks=False)}\n\n{rules(target, custom_prompt=custom_prompt)}\n"
             + (sentence_rule + "\n" if any(isinstance(v, str) and "‖" in v for v in items.values()) else "") + "\n"
             + output_rule + "\n{\n" + meta +
             '  "glossary": [{"en": "standard error", "zh": "' + ("標準誤差" if target == "zh-TW" else "标准误差" if target == "zh" else name + "译名") + '"}],   // ' + glossary + '\n'

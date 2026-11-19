@@ -37,7 +37,7 @@ RULES = """翻译要求：
 - 但要留心原文自己的问题：数字前后对不上（表和正文、两张表之间）、公式和文字说的不一致、符号用错、明显的笔误。发现了就写进 checks，正文照录不改；没有就不写，不要为了写而写，也不要写翻译说明。
 - 术语全文统一；首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。
 """ + MATH_RULES + TABLE_NOTES + """
-- 表格重排成 table 块，表头译成中文，数字原样。图用 figure 块：尽量给出图在原页中的归一化裁剪框 `box:[x0,y0,x1,y1]`（左上和右下坐标，范围 0 到 1，框住图本身、不含题注）；不要识别、抄写或翻译图内文字，不输出 `image_en`、`image_zh`；没有原页图时不猜裁剪框。`src` 留空，由程序按 `box` 从原 PDF 裁图。
+- 表格重排成 table 块，表头（head）与单元格（rows）文字均保留原文，数字和符号原样，只翻译表注（caption_en -> caption_zh）及表下 Note（role: table_note）。图用 figure 块：尽量给出图在原页中的归一化裁剪框 `box:[x0,y0,x1,y1]`（左上和右下坐标，范围 0 到 1，框住图本身、不含题注）；不要识别、抄写或翻译图内文字，不输出 `image_en`、`image_zh`；没有原页图时不猜裁剪框。`src` 留空，由程序按 `box` 从原 PDF 裁图。
 - 参考文献列表不翻译：输出一个 references 块，条目放进 references 数组（text 是原文）。id 是这条的引用键：编号式列表写编号（"13"）；作者-年份式写作者的姓和年份，用连字符连起来，一两位作者写全部的姓，三位及以上只写第一作者的姓，姓里的空格去掉，年份带原文的 a/b 后缀，例如 Jimenez-2024、Chen-Jiang-2025、Chen-2026a、DaSilva-2025、Anthropic-2025；字母标签式写标签（JYW+24）。
 - 作者-年份式、字母标签式的文献引用写成链接 [文字](#cite:键)，键和参考文献条目的 id 同一个写法；en 照原文的字，译文按译法写字，键不变。例如 Jimenez et al. (2024) → [Jimenez et al. (2024)](#cite:Jimenez-2024)、[Jimenez 等人（2024）](#cite:Jimenez-2024)；括号里有几条就各写一个链接，方括号留在链接外：[[Jimenez 等人（2024）](#cite:Jimenez-2024)，[Chen 与 Jiang（2025）](#cite:Chen-Jiang-2025)]。材料里指向参考文献的 [文字](#) 也这样补上键；一处引用被拆成几个 [文字](#)（作者和年份分开链）时合成一个链接。编号式引用照旧写 [13]，不写链接。
 - 脚注与参考文献独立：文献引用使用 [13]，脚注标记使用 [^13]（13 换成原编号；符号脚注照原符号写，如 [^*]、[^†]），en/zh 两边保持一致，不要混用。材料里程序已按 PDF 标出的 [^…] 照录在原位。脚注内容单独输出 para 块，加 "role":"footnote","num":"13"（符号脚注写 "num":"*" 这样的原符号），page 填脚注所在页；块的 en/zh 只放脚注正文，不重复编号。脚注不得放入 references 数组，也不能当页脚丢弃。同号文献与脚注可以同时存在；不确定时保留原标记，不猜。标题、作者、单位里不写脚注标记。
@@ -59,7 +59,7 @@ SCHEMA = """输出格式：只输出一个 JSON 对象，不要任何别的文�
 - {"id":"s2-1","type":"heading","page":2,"level":1或2,"num":"2.1","en":"Independent questions","zh":"相互独立的题目"}   附录标题加 "appendix": true，摘要标题 num 留空
 - {"id":"p2-5","type":"list","page":2,"ordered":true,"items":[{"en":"…","zh":"…"}]}
 - {"id":"eq1","type":"math","page":3,"tex":"…","tag":"1"}   没有编号不写 tag；多行用 \\begin{aligned}…\\end{aligned}
-- {"id":"tab2","type":"table","page":3,"num":"2","head":[["方法","题目数","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …","caption_zh":"表 2：…"}
+- {"id":"tab2","type":"table","page":3,"num":"2","head":[["Method","Questions","…"]],"rows":[["MATH","5,000","65.5%\\n(0.7%)"]],"align":"lrr","caption_en":"Table 2: …","caption_zh":"表 2：…"}
 - {"id":"fig1","type":"figure","page":4,"num":"1","src":"","box":[0.1,0.2,0.9,0.8],"caption_en":"Figure 1: …","caption_zh":"图 1：…"}
 - {"id":"refs","type":"references","page":10,"zh":"参考文献","en":"References"}
 句子对齐：para 和 list 的每一项，en 和 zh 都在两边对应的句子交界处各插一个 ‖，两边 ‖ 个数必须相同。只在两边都断句的地方插：中文把两句英文合成一句时，这两句英文之间不插；一句英文拆成两句中文时，这两句中文之间也不插。只有一句就不插。‖ 不要放进 $公式$ 里，标题、表格、图、题注都不插。
@@ -71,7 +71,6 @@ id 规则：段落 p{页}-{序号}，标题 s{编号，点换成横线}，公式
 _RULES_SWAP = [
     ("可以调整中文语序、拆长句，读起来要像中文母语者写的学术文字。", "可以调整语序、拆长句，读起来要像{L}母语者写的学术文字。"),
     ("首次出现的核心术语写“中文（English）”。已有术语表必须遵守。统计学里 standard error 译“标准误差”。", "首次出现的核心术语写“{L}译名（English）”。已有术语表必须遵守。"),
-    ("表头译成中文", "表头译成{L}"),
     ("看不清的地方写“此处识别不清，请核对原文第 N 页”", "看不清的地方写“[unclear, see page N]”"),
 ]
 _SCHEMA_SWAP = [
@@ -80,7 +79,6 @@ _SCHEMA_SWAP = [
     ('{"en": "standard error", "zh": "标准误差"}', '{"en": "standard error", "zh": "{L}译名"}'),
     ('"zh":"中文译文第一句。‖第二句。"', '"zh":"{L}译文 … ‖ …"'),
     ('"zh":"相互独立的题目"', '"zh":"…"'),
-    ('"head":[["方法","题目数","…"]]', '"head":[["…","…","…"]]'),
     ('"caption_zh":"表 2：…"', '"caption_zh":"…"'),
     ('"caption_zh":"图 1：…"', '"caption_zh":"…"'),
     ('"zh":"参考文献"', '"zh":"…"'),
@@ -231,10 +229,21 @@ def page_text(ws: Workspace, n: int, sources: tuple | None = None) -> str:
     return running_text.strip(text, ws.root / "extract")
 
 
-def _page_texts(ws: Workspace, pages: list[int]) -> str:
+def _page_texts(ws: Workspace, pages: list[int], overrides: dict[int, str] | None = None) -> str:
     sources = (links.ensure(ws), emphasis.ensure(ws), xrefs.ensure(ws))
-    return "\n\n".join(f"===== 第 {n} 页（抽取的文字，公式和表格可能是乱的；**粗体**、*斜体*、[文字](#) 内部链接、[^…] 脚注标记按 PDF 标出）=====\n"
-                       + page_text(ws, n, sources) for n in pages)
+    out = []
+    for n in pages:
+        if overrides and n in overrides:
+            out.append(
+                f"===== 第 {n} 页（仅处理 References 以外的正文，参考文献已由程序本机解析，请勿输出 references 块或参考文献条目）=====\n"
+                + overrides[n]
+            )
+        else:
+            out.append(
+                f"===== 第 {n} 页（抽取的文字，公式和表格可能是乱的；**粗体**、*斜体*、[文字](#) 内部链接、[^…] 脚注标记按 PDF 标出）=====\n"
+                + page_text(ws, n, sources)
+            )
+    return "\n\n".join(out)
 
 
 def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
@@ -255,7 +264,7 @@ def peek_note(engine: str, pages: list[int], peek: list[int]) -> str:
 
 
 def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip_head: bool = False, peek=(), front: str = "",
-              custom_prompt: str = "") -> str:
+              custom_prompt: str = "", page_text_override: dict[int, str] | None = None) -> str:
     """front：分段并行时每段第一批的前文参考（见 front_context）。"""
     look = ""
     if next_head:
@@ -272,7 +281,7 @@ def translate(ws: Workspace, pages: list[int], engine: str, next_head: str, skip
     return (lead + "\n\n"
             f"{_context(ws, pages, skip_head=skip_head)}\n\n{rules(target, custom_prompt=custom_prompt)}\n\n{schema(target)}\n\n"
             + (front + "\n\n" if front else "")
-            + _page_texts(ws, pages) + look)
+            + _page_texts(ws, pages, overrides=page_text_override) + look)
 
 
 def consistency(items: list[dict], agree: dict[str, int], target_name: str) -> str:
@@ -366,6 +375,71 @@ def retranslate(ws: Workspace, key: str, hint: str) -> tuple[str, tuple | None]:
             + labels[2] + "\n" + en + "\n\n" + labels[3] + "\n" + zh + "\n\n"
             + (hint_text + hint + "\n\n" if hint else "")
             + (align + "\n\n" if ends else "") + tail), ends
+
+
+def retranslate_table(ws: Workspace, key: str, hint: str, engine_mode: str = "text") -> str:
+    """要求模型（配合原頁圖或原文與使用者補充提示）重新切分與解析單個表格區塊。"""
+    links.refresh(ws)
+    paper = ws.load("paper")
+    bid = key.partition("#")[0]
+    blocks = paper.get("blocks", [])
+    idx = next(i for i, b in enumerate(blocks) if b.get("id") == bid and b.get("type") == "table")
+    b = blocks[idx]
+    page_n = b.get("page")
+    target = langs.of_paper(paper.get("meta"))
+    en_pages = set((paper.get("translation") or {}).get("en_pages") or [])
+    read_only = bool(page_n in en_pages and not b.get("caption_zh"))
+    near = "\n".join(_block_text(x) for x in blocks[max(0, idx - 2): idx + 3] if x is not b)
+    gl = "；".join(f"{g['en']} = {g['zh']}" for g in paper.get("glossary", []))
+    see = ""
+    if page_n:
+        if engine_mode == "claude":
+            see = f"\n先用 Read 工具查看第 {page_n} 頁原頁圖 extract/page-{int(page_n):03d}.jpg，以原頁表格排版與上下標為準。"
+        elif engine_mode == "attached":
+            see = f"\n已附上第 {page_n} 頁原頁圖，請直接對照原頁中的這個表格，核對跨欄表頭階層、欄位切分、儲存格對齊與上下標。"
+    raw_page = ""
+    if page_n:
+        try:
+            raw_page = page_text(ws, int(page_n))
+        except Exception:  # noqa: BLE001
+            raw_page = ""
+    cur_table = {
+        "num": b.get("num", ""),
+        "head": b.get("head", []),
+        "rows": b.get("rows", []),
+        "align": b.get("align", ""),
+        "caption_en": b.get("caption_en", ""),
+        "caption_zh": b.get("caption_zh", ""),
+        "caption_pos": b.get("caption_pos", "below"),
+    }
+    lead = _target_prompt(
+        f"請重新解析並重排論文第 {page_n or '?'} 頁中的表格（區塊 ID：{bid}）。{see}",
+        target,
+    )
+    table_rules = _target_prompt(
+        "表格重解規則：\n"
+        "- head 與 rows 必須是二維字串陣列，且每一列的欄數完全一致；若只有一欄表頭則 head 為單列二維陣列 `[[...]]`。\n"
+        "- 多層表頭必須「由上而下」排列：上層跨欄父標題放第一列（跨多欄時可重複父標題或留空輔助對齊，絕不可把子欄位放上面、父標題放下面）；下層細項放後續列。\n"
+        "- 表頭與儲存格預設保留論文原文語言（僅在下方「使用者補充指示」明確要求翻譯時才翻譯）。\n"
+        "- 儲存格與圖說中的數學符號、希臘字母、上下標（例如 Refcoco_{val}、\\Delta_{RL-SFT}）請用 $TeX$ 包起來，JSON 字串內反斜線要寫兩個（如 \\\\Delta、\\\\text{}）。\n"
+        + ("- 此頁目前為只讀原文模式，caption_zh 請輸出空字串 \"\"。"
+           if read_only else f"- 若有 caption_en，caption_zh 請翻成流暢的{langs.prompt_name(target)}（保留圖號「表 {b.get('num') or ''}」與術語一致）。"),
+        target,
+    )
+    hint_sec = (_target_prompt("使用者補充指示（請優先依此重分表格或調整）：\n", target) + hint + "\n\n") if hint else ""
+    tail = _target_prompt(
+        '只輸出一個 JSON 物件：{"head": [[...]], "rows": [[...]], "align": "lrr...", "caption_en": "...", "caption_zh": "...", "caption_pos": "below"}',
+        target,
+    )
+    return (
+        f"{lead}\n{rules(target)}\n{table_rules}\n\n"
+        + (f"術語表：{gl}\n\n" if gl else "")
+        + (f"前後文參考：\n{near}\n\n" if near else "")
+        + (f"該頁 PDF 抽取文字參考（第 {page_n} 頁）：\n{raw_page}\n\n" if raw_page else "")
+        + f"目前有問題的表格資料：\n{json.dumps(cur_table, ensure_ascii=False, indent=1)}\n\n"
+        + hint_sec
+        + tail
+    )
 
 
 def dump(obj) -> str:

@@ -167,7 +167,7 @@
   });
   document.addEventListener("mousedown", (e) => {
     if (!e.target.closest("#settings, [data-act=settings]")) PR.$("#settings").classList.remove("open");
-    if (!e.target.closest("#popover, a.cite, a.xref, mark.hl, .stale-tag, #blockbar")) PR.hidePopover();
+    if (!e.target.closest("#popover, a.cite, a.xref, mark.hl, .stale-tag, #blockbar, .tbl-reparse-btn")) PR.hidePopover();
   });
   PR.on("status", ({ s, text }) => {
     const el = PR.$(".save-state");

@@ -147,4 +147,102 @@ test('very tall narrow figure caps height while staying at least print width', (
   assert.match(html, /style="width:204px"/);
 });
 
+test('table renders reparse button when PR.canAsk() is true and omits when false', () => {
+  const blocks = [{ id: 'tab1', type: 'table', page: 1, align: 'lr', head: [['A', 'B']], rows: [['1', '2']], caption_zh: '表 1' }];
+  assert.doesNotMatch(render(blocks), /tbl-reparse-btn/);
+  const { PR, html } = (() => {
+    const paperEl = { innerHTML: '' };
+    const p = {
+      t: s => s, icon: n => `<i data-i="${n}"></i>`, titleOf: m => m.title_en || '',
+      state: { paper: { meta: { title_en: 'T', pages: [{ n: 1 }] }, translation: { done_pages: [1] }, blocks }, reader: { edits: {} }, discussion: { entries: [] }, layout: {}, item: {}, job: {} },
+      $: sel => sel === '#paper' ? paperEl : null, $$: () => [], esc: String, md: String, plain: String,
+      textFor: () => '表 1', agentText: () => '表 1', editOf: () => null, isEnKey: () => false, hasZh: () => true,
+      blockKeys: b => [b.id + '#caption'], imageUrl: s => s, canAsk: () => true, pageCapHtml: () => '', store: { mode: 'server' },
+      usageShort: () => '', emit() {}, on() {}, fitWide() {},
+    };
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../easyread/web/js/common/markup.js'), 'utf8'), { window: { PR: p } });
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../easyread/web/js/reader/render.js'), 'utf8'), {
+      window: { PR: p },
+      document: { documentElement: { dataset: {} }, body: { classList: { toggle() {} } }, getElementById: () => null, createElement: () => ({ innerHTML: '', firstChild: null, classList: { contains: () => false, add() {} }, querySelector: () => null }) },
+      console,
+    });
+    p.renderPaper();
+    return { PR: p, html: paperEl.innerHTML };
+  })();
+  assert.match(html, /class="table-media"/);
+  assert.match(html, /class="tbl-reparse-btn" data-t="reparse-table"/);
+});
+
+test('generic short nouns, formula labels, and data-table row names stay single-line while prose and sublines wrap', () => {
+  const proseHtml = render([
+    {
+      id: 'tab_prose',
+      type: 'table',
+      page: 1,
+      head: [['司法管轄區', '社會法律語境中之定義', '在 AI 治理之應用']],
+      rows: [
+        ['Singapore', 'Model AI Governance Framework on Agentic AI with long explanation.', 'Human agency and oversight principles.'],
+      ],
+    },
+    {
+      id: 'tab_concept',
+      type: 'table',
+      page: 1,
+      head: [['Component', 'Definition', 'Application']],
+      rows: [
+        ['Relational order', 'The level of society constituted by emergent interactions.', 'Governing the space between human and machine.'],
+      ],
+    },
+    {
+      id: 'tab_wide',
+      type: 'table',
+      page: 1,
+      align: 'lrrrrrr',
+      head: [['Reward', 'mAP', 'GP', 'GR', 'Cel', 'Logo', 'OVDEval']],
+      rows: [
+        ['Base 3B', '11.4', '45.33', '31.85', '7.7', '13.8', '21.46'],
+        ['$s_{ovd} \\cdot \\mathrm{mAP}$', '21.1', '67.34', '43.84', '55.0', '34.6', '31.01'],
+        ['$s_{ovd}$', '0.92\n(+0.12)', '1.0', '1.0', '1.0', '1.0', '1.0'],
+      ],
+    },
+  ]);
+  assert.match(proseHtml, /<th class="cell-nowrap">司法管轄區<\/th>/);
+  assert.match(proseHtml, /<th>社會法律語境中之定義<\/th>/);
+  assert.match(proseHtml, /<td class="cell-nowrap">Singapore<\/td>/);
+  assert.match(proseHtml, /<td>Model AI Governance Framework/);
+  assert.match(proseHtml, /<td>Relational order<\/td>/);
+  assert.match(proseHtml, /<th class="cell-nowrap" style="text-align:left">Reward<\/th>/);
+  assert.match(proseHtml, /<th class="cell-nowrap" style="text-align:right">OVDEval<\/th>/);
+  assert.match(proseHtml, /<td class="cell-nowrap" style="text-align:left">Base 3B<\/td>/);
+  assert.match(proseHtml, /<td class="cell-nowrap" style="text-align:left"><code[^>]*>s_\{ovd\} \\cdot \\mathrm\{mAP\}<\/code><\/td>/);
+  assert.match(proseHtml, /<td style="text-align:right">0\.92/);
+});
+
+test('multi-group academic tables emit tbl-group row dividers without affecting short tables', () => {
+  const shortHtml = render([{
+    id: 'tab_short',
+    type: 'table',
+    page: 1,
+    head: [['Method', 'Score']],
+    rows: [['Baseline', '80.0'], ['Ours', '90.0']],
+  }]);
+  assert.doesNotMatch(shortHtml, /tbl-group/);
+
+  const multiGroupHtml = render([{
+    id: 'tab_t3',
+    type: 'table',
+    page: 9,
+    head: [['', 'N', 'PPL', 'BLEU']],
+    rows: [
+      ['base', '6', '4.92', '25.8'],
+      ['(A)', '1', '5.29', '24.9'],
+      ['', '4', '5.00', '25.5'],
+      ['(B)', '16', '5.16', '25.1'],
+      ['', '32', '5.01', '25.4'],
+      ['big', '6', '4.33', '26.4'],
+    ],
+  }]);
+  assert.match(multiGroupHtml, /<tbody><tr><td[^>]*>base<\/td>.*?<tr class="tbl-group"><td[^>]*>\(A\)<\/td>.*?<tr><td><\/td><td[^>]*>4<\/td>.*?<tr class="tbl-group"><td[^>]*>\(B\)<\/td>.*?<tr><td><\/td><td[^>]*>32<\/td>.*?<tr class="tbl-group"><td[^>]*>big<\/td>/);
+});
+
 

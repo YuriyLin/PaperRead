@@ -279,10 +279,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, bulk_api.get(app, path))
         if path == "/api/library":
             cfg = config.load()
+            mu = cfg.get("mineru") or {}
             return self._json(200, {"items": lib.list(), "token": app.token, "jobs": app.jobs.small_status(),
                                     "research_statuses": planning_store.statuses(lib.root),
                                     "library_status": app.location.status, "other_device": app.location.marker.other_device(),
                                     "engine": cfg.get("engine"), "engine_label": cli_models.engine_label(cfg),
+                                    "mineru_cloud": bool(mu.get("enabled") and (mu.get("mode") or "cloud") == "cloud"),
                                     "first_run": config.is_first_run(), "version": __version__, "trash": len(trash.items(lib.root)) + planning_store.summary_trash_count(lib.root)})
         if path == "/api/update":  # 有没有新版本（一天最多问一次 GitHub）
             return self._json(200, updates.check(force=parse_qs(url.query).get("force") == ["1"]))
@@ -561,6 +563,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, app.jobs.submit_small("answer", ws.id, note=body["note"]))
             if action == "retranslate":
                 return self._json(200, app.jobs.submit_small("retranslate", ws.id, key=body["key"], hint=body.get("hint", "")))
+            if action == "retranslate-table":
+                return self._json(200, app.jobs.submit_small("retranslate-table", ws.id, key=body["key"], hint=body.get("hint", "")))
             if action == "delete":
                 app.jobs.cancel(ws.id)
                 return self._json(200, {"trash": str(lib.trash(ws.id))})

@@ -110,11 +110,25 @@
   PR.$("#importBtn").onclick = () => PR.openImport();
   PR.$("#fileInput").addEventListener("change", (e) => { importFiles(Array.from(e.target.files)); e.target.value = ""; });
 
+  PR.confirmMineruCloudUpload = async function () {
+    if (!(L && L.mineruCloud) || PR.ls.get("easyread-mineru-cloud-ack", false) === true) return true;
+    const ok = await PR.confirm({
+      title: PR.t("雲端解析模式提醒"),
+      body: PR.t("您目前使用的是雲端解析模式，檔案將傳送至外部伺服器處理，請確認檔案不包含機密或敏感個資。"),
+      ok: PR.t("我已確認，繼續上傳"),
+      center: true,
+    });
+    if (!ok) return false;
+    PR.ls.set("easyread-mineru-cloud-ack", true);
+    return true;
+  };
+
   async function importFiles(files) {
     const pdfs = files.filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
     if (!pdfs.length) return PR.toast(PR.t("只支持 PDF 文件"));
     close();
     let o = opts();
+    if (o.translate && !(await PR.confirmMineruCloudUpload())) return;
     // 一次拖进来很多篇：默认先只导入，免得按上次的设置把额度一下子用光
     if (pdfs.length > BULK && o.translate) {
       const pick = await PR.confirm({
@@ -141,10 +155,11 @@
   async function importRef(ref) {
     ref = (ref || "").trim();
     if (!ref) return;
+    const o = opts();
+    if (o.translate && !(await PR.confirmMineruCloudUpload())) return;
     const btn = PR.$("#arxivGo");
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> ' + PR.t("查找中"); }
     else PR.toast('<span class="spin"></span> ' + PR.t("正在查找并下载 {ref}", { ref: PR.esc(ref) }), null, 60000);
-    const o = opts();
     try {
       const r = await PR.api("/api/import-url", { method: "POST", body: { ref, translate: o.translate, read: o.read, model: o.model, scope: o.scope, target: o.target } });
       close();

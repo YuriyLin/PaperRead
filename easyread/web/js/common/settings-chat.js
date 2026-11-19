@@ -161,6 +161,121 @@
       '<label class="field"><span>' + PR.t("超过多少页先问我") + '</span><select class="input" data-k="page_cap">' + PR.opt([30, 60, 100, 200].map((n) => [n, PR.t("{n} 页", { n })]).concat([[0, PR.t("不限")]]), c.page_cap == null ? 60 : c.page_cap) + "</select></label></div>" +
       '<label class="field" style="margin:8px 0 10px"><span>' + PR.t("自訂翻譯補充指令（選填）") + '</span><textarea class="input" rows="2" maxlength="2000" data-k="custom_prompt" placeholder="' + PR.esc(PR.t("例：法學論述請維持台灣法律用語，專有名詞首次出現附上原文")) + '">' + PR.esc(c.custom_prompt || "") + "</textarea></label>" +
       '<div class="test-line"><button class="btn sm line" id="testBtn">' + PR.icon("sparkle", "sm") + PR.t("试译一句") + '</button><span class="test-result" id="testRes"></span></div>';
+    h += mineruHtml(c);
+    return h;
+  }
+  const MINERU_AGENT_PROMPT = 'Install or update the global `mineru` skill. First, run `npx skills add opendatalab/MinerU --skill mineru --global --yes`. If `npx` is unavailable, fetch https://gcore.jsdelivr.net/gh/opendatalab/MinerU/skills/mineru/SKILL.md, use its content as `mineru/SKILL.md`, and save it under the appropriate global skills directory for the current agent, not in the current project. Also check both global and project-level skills for other installed skills whose names contain `mineru`. Report any matches and ask before removing them. If global memory is available, record this preference there: "Whenever a PDF, image, or Office document needs to be read or parsed, prefer the `mineru` Skill." Do not write this preference to the current project.';
+
+  async function copyPlainText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (_) {}
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText = "position:fixed;left:-9999px;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) {}
+    ta.remove();
+    return ok;
+  }
+
+  function mineruModeNotesHtml() {
+    return '<div class="mineru-mode-notes">' +
+      "<div>" + PR.t("• 雲端模式：免本機算力與環境設定，但檔案將加密傳輸至第三方雲端伺服器（位於中國大陸）進行解析且受網路傳輸與排隊影響，建議勿上傳機密或敏感文件。") + "</div>" +
+      "<div>" + PR.t("• 本地模式：所有解析皆於本機（或指定內網）完成，省去檔案上傳與 API 等待時間（搭配 GPU 速度最快）、資料不外流，適合重視效率與機密的文件。") + "</div>" +
+      "</div>";
+  }
+
+  function mineruGuideHtml() {
+    const ext = ' target="_blank" rel="noopener noreferrer"';
+    return '<div class="mg-head"><h2 id="mineruGuideTitle">' + PR.t("PDF 結構解析（MinerU）說明與設定教學") + '</h2>' +
+      '<button type="button" class="mg-x" data-close aria-label="' + PR.esc(PR.t("关闭")) + '">' + PR.icon("x", "sm") + "</button></div>" +
+      '<div class="mg-body">' +
+      '<p class="mg-lead">' + PR.t("MinerU 是專為學術論文與複雜文件設計的開源 PDF 結構解析引擎，能先精準辨識數學公式（轉為 LaTeX）、跨欄／跨頁／合併儲存格表格與圖片座標，再交由模型純文字翻譯，大幅減少排版錯亂與漏譯。") + "</p>" +
+      '<div class="mg-links">' +
+      '<a href="https://mineru.net"' + ext + ">" + PR.icon("link", "sm") + "<span>" + PR.t("前往 MinerU 官網（mineru.net）") + "</span></a>" +
+      '<a href="https://github.com/opendatalab/mineru"' + ext + ">" + PR.icon("link", "sm") + "<span>" + PR.t("GitHub 專案（opendatalab/mineru）") + "</span></a>" +
+      "</div>" +
+      mineruModeNotesHtml() +
+      '<figure class="mg-figure"><div class="mg-img-wrap"><img src="/web/img/mineru-showcase.jpg" alt="' + PR.esc(PR.t("MinerU 解析效果示意圖")) + '"></div>' +
+      '<figcaption class="mg-img-cap">' + PR.t("解析效果示意：智慧辨識複雜／跨頁／旋轉表格、精準轉換長公式與嵌套數學結構，並支援分子式與圖表結構化萃取。") + "</figcaption></figure>" +
+      '<details class="mg-step"><summary>' + PR.t("方式一：註冊並取得 MinerU Cloud API Token（免架設）") + "</summary><div class=\"mg-step-in\">" +
+      '<ol class="mg-steps">' +
+      "<li>" + PR.t("前往 {link} 登入或註冊帳號。", { link: '<a href="https://mineru.net"' + ext + ">mineru.net</a>" }) + "</li>" +
+      "<li>" + PR.t("點擊上方導覽列的 API，再從左側選單進入 API Management。") + "</li>" +
+      "<li>" + PR.t("點擊右側「+ Create Token」建立並複製你的 API Token。") + "</li>" +
+      "<li>" + PR.t("回到設定頁，在「MinerU API Token」貼上權杖，即可按「測試 MinerU 連線」確認。") + "</li>" +
+      "</ol>" +
+      '<figure class="mg-figure" style="margin-bottom:0"><div class="mg-img-wrap"><img src="/web/img/mineru-api-token.png" alt="' + PR.esc(PR.t("MinerU API Management 建立 Token 示意圖")) + '"></div>' +
+      '<figcaption class="mg-img-cap">' + PR.t("操作位置示意：登入後點擊上方「API」→ 左側「API Management」→ 右側「+ Create Token」。") + "</figcaption></figure>" +
+      "</div></details>" +
+      '<details class="mg-step"><summary>' + PR.t("方式二：本地自架 MinerU API（閱讀 GitHub README 或交給 Agent 安裝）") + "</summary><div class=\"mg-step-in\">" +
+      '<ol class="mg-steps" style="margin-bottom:8px">' +
+      "<li>" + PR.t("手動部署：前往 {link} 依 README 說明啟動本機 API 服務。", { link: '<a href="https://github.com/opendatalab/mineru"' + ext + ">GitHub (opendatalab/mineru)</a>" }) + "</li>" +
+      "<li>" + PR.t("啟動後將本設定頁的解析方式改為「本機 / 自架 API」，並填入位址（如 http://127.0.0.1:8000）。") + "</li>" +
+      "</ol>" +
+      '<div class="mg-agent-box">' +
+      '<div class="mg-agent-bar"><b>' + PR.t("或交給 Agent 自動安裝（Agent Workflow）") + '</b><button type="button" class="btn sm line" id="mineruAgentCopyBtn">' + PR.icon("copy", "sm") + PR.t("複製提示詞") + "</button></div>" +
+      '<p class="mg-agent-note">' + PR.t("若你使用支援 Skill 的 Coding Agent，可複製以下訊息傳送給 Agent，請它安裝全域 mineru skill 並協助部署：") + "</p>" +
+      '<pre class="mg-code" data-no-i18n="1">' + PR.esc(MINERU_AGENT_PROMPT) + "</pre>" +
+      "</div></div></details>" +
+      "</div>" +
+      '<div class="actions mg-foot"><button type="button" class="btn" data-close>' + PR.t("关闭") + "</button></div>";
+  }
+
+  function openMineruGuide() {
+    let box = document.getElementById("mineruGuideDlg");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "mineruGuideDlg";
+      box.className = "dialog-backdrop mineru-guide-backdrop";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      box.setAttribute("aria-labelledby", "mineruGuideTitle");
+      box.innerHTML = '<div class="dialog mineru-guide-dlg"></div>';
+      document.body.appendChild(box);
+      box.addEventListener("click", async (ev) => {
+        if (ev.target === box || ev.target.closest("[data-close]")) {
+          box.classList.remove("open");
+          return;
+        }
+        const cp = ev.target.closest("#mineruAgentCopyBtn");
+        if (cp) {
+          const ok = await copyPlainText(MINERU_AGENT_PROMPT);
+          if (ok) PR.toast(PR.t("已複製給 Agent 的安裝提示詞"));
+          else PR.toast(PR.t("複製失敗，請手動選取複製"));
+        }
+      });
+    }
+    box.querySelector(".mineru-guide-dlg").innerHTML = mineruGuideHtml();
+    requestAnimationFrame(() => box.classList.add("open"));
+  }
+
+  function mineruHtml(c) {
+    const mu = Object.assign({ enabled: false, mode: "cloud", token: "", base_url: "" }, c.mineru || {});
+    let h = '<div class="settings-sec"><h4 class="set-h set-h-row"><span>' + PR.t("PDF 結構解析（MinerU，選配）") + '</span>' +
+      '<button type="button" class="help-ico" id="mineruHelpBtn" title="' + PR.esc(PR.t("查看 MinerU 說明與設定教學")) + '" aria-label="' + PR.esc(PR.t("查看 MinerU 說明與設定教學")) + '">' + PR.icon("question", "sm") + '</button></h4>' +
+      '<label class="check" style="margin:0 0 6px"><input type="checkbox" data-k="mineru.enabled"' + (mu.enabled ? " checked" : "") + ">" + PR.t("使用 MinerU 解析 PDF 結構後再由模型翻譯") + "</label>" +
+      '<p class="hint" style="margin:0 0 8px">' + PR.t("先擷取公式、三線表與圖片座標再純文字翻譯；若連不上或超額會自動回退至內建流程。") + "</p>";
+    if (!mu.enabled) return h + "</div>";
+    const modeField = '<label class="field"><span>' + PR.t("解析方式") + '</span><select class="input" data-k="mineru.mode">' + PR.opt([["cloud", PR.t("MinerU Cloud（mineru.net）")], ["local", PR.t("本機 / 自架 API")]], mu.mode) + "</select></label>";
+    const tokLabel = mu.mode === "local" ? PR.t("存取權杖（選填）") : PR.t("MinerU API Token");
+    const tokPh = mu.mode === "local" ? PR.t("無驗證時可留空") : PR.t("填入 mineru.net API Token");
+    const tokField = '<label class="field"><span>' + tokLabel + '</span><input class="input" type="password" autocomplete="off" data-k="mineru.token" placeholder="' + PR.esc(tokPh) + '" value="' + PR.esc(mu.token || "") + '"></label>';
+    if (mu.mode === "local") {
+      h += '<div class="grid2">' + modeField +
+        '<label class="field"><span>' + PR.t("本機服務位址（base URL）") + '</span><input class="input" type="url" data-k="mineru.base_url" placeholder="http://127.0.0.1:8000" value="' + PR.esc(mu.base_url || "") + '"></label></div>' +
+        '<div style="margin-top:8px">' + tokField + "</div>";
+    } else {
+      h += '<div class="grid2">' + modeField + tokField + "</div>";
+    }
+    h += '<div class="test-line" style="margin-top:8px"><button class="btn sm line" id="mineruTestBtn">' + PR.icon("sparkle", "sm") + PR.t("測試 MinerU 連線") + '</button><button class="btn sm line" id="mineruParseTestBtn" title="' + PR.esc(PR.t("實際送出 1 頁測試 PDF 檢查後端模型與解析流程（Cloud 模式將消耗 1 頁額度）")) + '">' + PR.t("實測解析 1 頁") + '</button><span class="test-result" id="mineruTestRes"></span></div></div>';
     return h;
   }
   /* 页面上翻译那几项的值读回 cfg（存的时候 settings.js 从 cfg 取） */
@@ -168,7 +283,7 @@
     PR.$$("[data-k]", root()).forEach((el) => {
       const [a, b] = el.dataset.k.split(".");
       const v = el.type === "checkbox" ? el.checked : el.value;
-      if (b) s.cfg[a][b] = v;
+      if (b) (s.cfg[a] = s.cfg[a] || {})[b] = v;
       else if (a === "custom_prompt") s.cfg[a] = String(v || "").slice(0, 2000);
       else s.cfg[a] = ["batch_pages", "concurrency", "page_cap"].includes(a) ? +v : v;
     });
@@ -212,7 +327,11 @@
     },
     sync(s) { readForm(s); readTranslation(s); },
     change(e, s) {
-      if (e.target.dataset.k) { readTranslation(s); PR.saveModelSettings(); return false; }
+      if (e.target.dataset.k) {
+        readTranslation(s);
+        PR.saveModelSettings();
+        return e.target.dataset.k === "mineru.enabled" || e.target.dataset.k === "mineru.mode";
+      }
       if (e.target.dataset.reasoning) { readForm(s); autoSaveForm(s); return true; }
       if (s.form && isApi(s.form.kind)) {
         if (e.target.dataset.af === "preset") {
@@ -236,6 +355,24 @@
         try {
           await PR.api("/api/config", { method: "POST", body: T.engine.collect(s) });
           const r = await PR.api("/api/config/test", { method: "POST", body: { engine: s.cfg.engine } });
+          res.className = "test-result " + (r.ok ? "ok" : "bad"); res.textContent = (r.ok ? "✓ " : "✗ ") + r.message;
+        } catch (err) { res.className = "test-result bad"; res.textContent = err.message; }
+        return false;
+      }
+      if (e.target.closest("#mineruHelpBtn")) {
+        openMineruGuide();
+        return false;
+      }
+      if (e.target.closest("#mineruTestBtn") || e.target.closest("#mineruParseTestBtn")) {
+        const smoke = !!e.target.closest("#mineruParseTestBtn");
+        readTranslation(s);
+        const res = PR.$("#mineruTestRes");
+        res.className = "test-result";
+        res.innerHTML = '<span class="spin"></span> ' + (smoke ? PR.t("正在實測解析 1 頁 PDF…") : PR.t("正在測試 MinerU 連線…"));
+        try {
+          const saved = await PR.api("/api/config", { method: "POST", body: T.engine.collect(s) });
+          if (saved && saved.config) s.cfg = saved.config;
+          const r = await PR.api("/api/mineru/test", { method: "POST", body: { mineru: s.cfg.mineru, smoke } });
           res.className = "test-result " + (r.ok ? "ok" : "bad"); res.textContent = (r.ok ? "✓ " : "✗ ") + r.message;
         } catch (err) { res.className = "test-result bad"; res.textContent = err.message; }
         return false;

@@ -68,6 +68,7 @@
     modelSaveQueue = modelSaveQueue.then(async () => {
       await PR.api("/api/chat/models", { method: "POST", body: chat });
       await PR.api("/api/config", { method: "POST", body: config });
+      if (PR.lib) PR.lib.mineruCloud = !!(config.mineru && config.mineru.enabled && (config.mineru.mode || "cloud") === "cloud");
       if (revision === saveRevision) setSaveStatus("saved", PR.t("已保存"));
       PR.onSettingsSaved && PR.onSettingsSaved();
       PR.emit("settings-saved", st);
@@ -81,8 +82,10 @@
   async function save() {
     await modelSaveQueue;
     sync();
-    const r = await PR.api("/api/config", { method: "POST", body: PR.settingsTabs.engine.collect(st) });
+    const cfgPayload = PR.settingsTabs.engine.collect(st);
+    const r = await PR.api("/api/config", { method: "POST", body: cfgPayload });
     st.cfg = r.config;
+    if (PR.lib) PR.lib.mineruCloud = !!(cfgPayload.mineru && cfgPayload.mineru.enabled && (cfgPayload.mineru.mode || "cloud") === "cloud");
     if (st.chat) st.chat = await PR.api("/api/chat/models", { method: "POST", body: { models: st.chat.models, default: st.chat.default, keys: st.chatKeys || {} } });
     PR.applyUi(st.ui, true);
     if (window.parent && window.parent !== window && window.parent.easyreadTabs?.setAutoHide) {
@@ -206,6 +209,8 @@
     if (t && t.change && t.change(e, st, dlg())) render();
   });
   document.addEventListener("keydown", (e) => {
+    const mg = PR.$("#mineruGuideDlg.open");
+    if (mg && e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); mg.classList.remove("open"); return; }
     if (!dlg().classList.contains("open")) return;
     const t = PR.settingsTabs[st.tab];
     if (st.recording && t && t.key) { e.preventDefault(); e.stopImmediatePropagation(); if (t.key(e, st)) render(); return; }
@@ -215,9 +220,10 @@
   /* ---------- 翻译设置：存的时候从 cfg 取（页面在 settings-chat.js，改动随时写回 cfg） ---------- */
   PR.settingsTabs.engine = {
     collect(state) {
-      const c = state.cfg, o = c.openai, a = c.antigravity || {};
+      const c = state.cfg, o = c.openai, a = c.antigravity || {}, m = c.mineru || {};
       return { engine: c.engine, batch_pages: c.batch_pages, concurrency: c.concurrency, page_cap: c.page_cap, auto_translate: c.auto_translate,
         custom_prompt: String(c.custom_prompt || "").slice(0, 2000),
+        mineru: { enabled: !!m.enabled, mode: m.mode || "cloud", token: m.token || "", base_url: m.base_url || "", model_version: "vlm" },
         claude: { model: c.claude.model, command: c.claude.command, reasoning_effort: c.claude.reasoning_effort || "" },
         codex: { model: c.codex.model, command: c.codex.command, reasoning_effort: c.codex.reasoning_effort || "", service_tier: c.codex.service_tier || "" },
         antigravity: { model: a.model || "", command: a.command || "agy", reasoning_effort: a.reasoning_effort || "" },

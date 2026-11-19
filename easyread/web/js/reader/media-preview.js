@@ -18,8 +18,16 @@
   function tableHtml(b, compact = false) {
     if (typeof PR.tableParts === "function") {
       const { head, rows, notes } = PR.tableParts(b);
-      const cells = (rs, tag) => rs.map((r) => "<tr>" + r.map((c) => "<" + tag + ">" + PR.md(String(c ?? ""), { cite: false, xref: false }) + "</" + tag + ">").join("") + "</tr>").join("");
-      return '<div class="media-table-scroll"' + (compact ? "" : ' tabindex="0"') + "><table><thead>" + cells(head, "th") + "</thead><tbody>" + cells(compact ? rows.slice(0, 4) : rows, "td") + "</tbody></table></div>" + (compact || !PR.tableNotesHtml ? "" : PR.tableNotesHtml(notes, b));
+      const colCount = Math.max(0, ...head.map((r) => r.length), ...rows.map((r) => r.length));
+      const dataTable = typeof PR.isDataTable === "function" ? PR.isDataTable(rows, colCount) : false;
+      const cellAttr = (c, isHead, i) => {
+        const cls = typeof PR.tableCellClass === "function" ? PR.tableCellClass(c, isHead, i, colCount, dataTable) : "";
+        return cls ? ' class="' + cls + '"' : "";
+      };
+      const bodyRows = compact ? rows.slice(0, 4) : rows;
+      const groups = typeof PR.tableGroupRows === "function" ? PR.tableGroupRows(bodyRows) : new Set();
+      const cells = (rs, tag, isBody) => rs.map((r, rIdx) => "<tr" + (isBody && groups.has(rIdx) ? ' class="tbl-group"' : "") + ">" + r.map((c, i) => "<" + tag + cellAttr(c, tag === "th", i) + ">" + PR.md(String(c ?? ""), { cite: false, xref: false }) + "</" + tag + ">").join("") + "</tr>").join("");
+      return '<div class="media-table-scroll"' + (compact ? "" : ' tabindex="0"') + "><table><thead>" + cells(head, "th", false) + "</thead><tbody>" + cells(bodyRows, "td", true) + "</tbody></table></div>" + (compact || !PR.tableNotesHtml ? "" : PR.tableNotesHtml(notes, b));
     }
     return '<p class="media-empty">' + PR.t("表格位於原文第 {n} 頁", { n: b.page || "?" }) + "</p>";
   }

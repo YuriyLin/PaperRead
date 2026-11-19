@@ -212,6 +212,7 @@ window.PR = window.PR || {};
     sparkle: "M10 3v4M10 13v4M3 10h4M13 10h4M5.5 5.5l2 2M12.5 12.5l2 2M14.5 5.5l-2 2M7.5 12.5l-2 2",
     question: "M7.5 7.5a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.4v.8M10 14.5v.01M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
     paperclip: "M17.9 9.2l-7.7 7.7a5 5 0 0 1-7.1-7.1l7.1-7.1a3.3 3.3 0 0 1 4.7 4.7l-7.2 7.1a1.7 1.7 0 0 1-2.4-2.4l7.1-7.1",
+    table: "M3.5 5h13v10h-13zM3.5 9h13M9 9v6",
   };
   PR.HL_COLORS = [["yellow", PR.t("黄")], ["green", PR.t("绿")], ["blue", PR.t("蓝")], ["pink", PR.t("红")]];  // pink 历史上叫粉，现在画成红
   PR.logo = (cls) => '<img class="mark' + (cls ? " " + cls : "") + '" src="/web/paperread-mark.png" width="26" height="26" alt="">';

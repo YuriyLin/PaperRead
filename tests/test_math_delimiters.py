@@ -85,8 +85,9 @@ class MathRepairTest(unittest.TestCase):
         original = {"zh": {"p1": r"令 $\alpha$。", "tab1#caption": "结果。", "tab1#head": [[r"\alpha"]]}}
         fixed = copy.deepcopy(original)
         fixed["zh"]["tab1#head"] = [[r"$\alpha$"]]
+        items = {"p1": r"Let $\alpha$.", "tab1#caption": "Results.", "tab1#head": [[r"$\alpha$"]]}
         with mock.patch.object(translate.engines, "run", side_effect=[json.dumps(original), json.dumps(fixed)]) as run:
-            translate._fill_batch(self.ws, self.cfg, [1], threading.Event(), lambda *a: None)
+            translate._fill_items(self.ws, self.cfg, [1], self.ws.load("paper")["blocks"], items, threading.Event(), lambda *a: None)
         self.assertEqual(run.call_count, 2)
         self.assertEqual(self.ws.load("paper")["blocks"][0]["zh"], fixed["zh"]["p1"])
         self.assertEqual(self.ws.load("paper")["blocks"][1]["head"], fixed["zh"]["tab1#head"])

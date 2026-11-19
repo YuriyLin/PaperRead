@@ -29,6 +29,7 @@
     if (keys.length && PR.feature("edit")) list.push({ k: "edit", label: PR.t("改译文"), icon: "edit", fn: () => { if (PR.originalFirst()) PR.toggleEn(id, true); const zh = PR.$("#b-" + CSS.escape(id) + " .zh[data-key]"); zh && PR.editZh(zh); } });
     if (b.page && PR.feature("pages")) list.push({ k: "page", label: PR.t("PDF p.{page}", { page: b.page }), icon: "page", fn: () => PR.openPage(b.page, id) });
     if (b.type === "figure" && PR.store && PR.store.mode === "server" && PR.cropFigure) list.push({ k: "crop", label: PR.t("重新截取图片"), icon: "edit", fn: () => PR.cropFigure(id) });
+    if (b.type === "table" && PR.canAsk && PR.canAsk()) list.push({ k: "retab", label: PR.t("重新解析表格"), icon: "table", fn: () => retranslateTable(id) });
     if (b.type === "figure" && PR.pinDockFigure) list.push({ k: "pinfig", label: PR.t("在侧栏打开"), icon: "page", menuOnly: true, fn: () => PR.pinDockFigure(id) });
     // 重译花 token、容易误点：默认关，开了也只放在“⋯”菜单里
     if (keys.length && PR.canAsk() && PR.feature("retranslate")) list.push({ k: "redo", label: PR.t("让模型重译这段…"), icon: "redo", menuOnly: true, fn: () => retranslate(id) });
@@ -128,6 +129,7 @@
       if (!PR.hasPageImage || PR.hasPageImage(b.page)) PR.openPage(b.page, id);
       else PR.toast(PR.t("此版本未收錄原頁圖"));
     }
+    if (t.dataset.t === "reparse-table" && b && b.type === "table") retranslateTable(id, t);
     if (t.dataset.t === "pin") host.classList.toggle("notes-open");
     if (t.dataset.t === "stale") PR.showStale(t.closest(".zh"));
     if (t.dataset.t === "retry-failed") PR.api("/api/p/" + PR.pid + "/translate", { method: "POST", body: { failed: true } }).then(() => { PR.toast(PR.t("正在重试，译好后自动替换")); PR.poll(); });
@@ -157,11 +159,52 @@
       } catch (err) { el.classList.remove("busy"); PR.toast(PR.t("没能提交：{msg}", { msg: PR.esc(err.message) })); }
     };
   }
+  function retranslateTable(id, anchorEl) {
+    const el = document.getElementById("b-" + id);
+    if (!el) return;
+    const anchor = anchorEl || el.querySelector(".tbl-reparse-btn") || el.querySelector(".tbl-wrap") || el;
+    PR.popover(anchor, '<div class="hd">' + PR.t("讓模型重新解析這個表格") + "</div>" +
+      '<textarea class="input" id="rtTableHint" rows="3" placeholder="' + PR.esc(PR.t("可輸入調整要求（選填），例如：修正雙層表頭順序、將 Training Steps 置於上方、上下標改用 $TeX$、或將表頭翻成中文")) + '"></textarea>' +
+      '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px"><button class="btn sm" data-rt="cancel">' + PR.t("取消") + '</button><button class="btn sm accent" data-rt="go">' + PR.t("送出重新解析") + "</button></div>", { sticky: true, wide: true });
+    setTimeout(() => { const inp = PR.$("#rtTableHint"); inp && inp.focus(); }, 30);
+    const submit = async () => {
+      const inp = PR.$("#rtTableHint");
+      const hint = inp ? inp.value.trim() : "";
+      PR.hidePopover();
+      el.classList.add("busy");
+      try {
+        await PR.ask("retranslate-table", { key: id, hint });
+        PR.toast(PR.t("正在重新解析表格，完成後會自動更新"));
+      } catch (err) {
+        el.classList.remove("busy");
+        PR.toast(PR.t("没能提交：{msg}", { msg: PR.esc(err.message) }));
+      }
+    };
+    PR.$("#popover").onclick = (ev) => {
+      const b = ev.target.closest("[data-rt]");
+      if (!b) return;
+      if (b.dataset.rt === "go") submit();
+      else PR.hidePopover();
+    };
+    PR.$("#popover").onkeydown = (ev) => {
+      if ((ev.ctrlKey || ev.metaKey) && ev.key === "Enter") { ev.preventDefault(); submit(); }
+    };
+  }
   PR.on("job-finished", (j) => {
-    if (j.kind !== "retranslate") return;
+    if (j.kind !== "retranslate" && j.kind !== "retranslate-table") return;
     const id = (j.key || "").split("#")[0];
     const el = document.getElementById("b-" + id);
     el && el.classList.remove("busy");
+    if (j.kind === "retranslate-table") {
+      if (j.state === "error") PR.toast(PR.t("表格重新解析失敗：{msg}", { msg: PR.esc(j.message) }));
+      else {
+        PR.renderBlock && PR.renderBlock(id);
+        PR.applyMarks && PR.applyMarks(id);
+        PR.toast(PR.t("表格已重新解析"));
+        setTimeout(() => { const n = document.getElementById("b-" + id); n && n.classList.add("flash"); }, 300);
+      }
+      return;
+    }
     if (j.state === "error") PR.toast(PR.t("重译失败：{msg}", { msg: PR.esc(j.message) }));
     else { PR.toast(PR.t("这段已重译")); setTimeout(() => { const n = document.getElementById("b-" + id); n && n.classList.add("flash"); }, 300); }
   });

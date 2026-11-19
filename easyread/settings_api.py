@@ -1,7 +1,7 @@
 """设置页的保存类接口（POST）。server.py 按路径转过来，每个函数收请求体、返回要回给页面的 JSON。"""
 from __future__ import annotations
 
-from . import chat_models, config, engines, langs, openai_api
+from . import chat_models, config, engines, langs, mineru, openai_api
 from .i18n import tr
 
 
@@ -9,10 +9,14 @@ def save_config(patch: dict) -> dict:
     patch.pop("library_dir", None)
     if "page_cap" in patch and (type(patch["page_cap"]) is not int or patch["page_cap"] < 0):
         raise ValueError(tr("页数确认上限必须是非负整数"))
+    if "local_references" in patch:
+        patch["local_references"] = bool(patch["local_references"])
     if "target" in patch:
         patch["target"] = langs.valid(patch["target"])
     if isinstance(patch.get("openai"), dict):
         patch["openai"] = config.with_key(patch["openai"])
+    if isinstance(patch.get("mineru"), dict):
+        patch["mineru"] = config.with_mineru_token(patch["mineru"])
     return {"config": config.public(config.save(patch))}
 
 
@@ -58,5 +62,15 @@ def list_models(body: dict) -> dict:
         return {"ok": False, "message": str(e)[:300]}
 
 
+def test_mineru(body: dict) -> dict:
+    cfg = config.load()
+    mcfg = dict(cfg.get("mineru") or {})
+    if isinstance(body.get("mineru"), dict):
+        incoming = config.with_mineru_token(body["mineru"])
+        mcfg.update(incoming)
+    return mineru.test_connection(mcfg, smoke=bool(body.get("smoke")))
+
+
 POST = {"/api/config": save_config, "/api/chat/models": save_chat_models,
-        "/api/config/test": test_engine, "/api/models/list": list_models}
+        "/api/config/test": test_engine, "/api/models/list": list_models,
+        "/api/mineru/test": test_mineru}

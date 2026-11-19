@@ -9,13 +9,13 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from . import batch_repair, blank_pages, codeblocks, consistency, engines, figures, footnotes, front_context, langs, netcheck, numbered_listings, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, timing, xrefs
+from . import batch_repair, blank_pages, codeblocks, consistency, engines, figures, footnotes, front_context, langs, local_references, mineru, netcheck, numbered_listings, page_check, pdfwork, prompts, prompts_en, segments, sentences, sources, terms, timing, xrefs
 from .checks import block_problems, tex_problems
 from .repair_guard import retains_content
 from .figures import normalize_figure, prepare_figures
 from .i18n import lang, tr
 from .log import log
-from .paperdata import BLOCK_TYPES, add_discussion, fill_zh, merge_blocks, restore_page, set_block_text, snapshot_page
+from .paperdata import BLOCK_TYPES, add_discussion, fill_zh, merge_blocks, restore_page, set_block_text, set_table_block, snapshot_page
 from .store import Workspace, now_iso
 
 _merge_lock = threading.Lock()  # 并发翻译时，并入 paper.json 和重算原页定位一次只做一个
@@ -220,6 +220,57 @@ def _fill_problems(zh: dict) -> list[str]:
     return _problems({"blocks": blocks})
 
 
+_TARGET_SCRIPT_RE = {
+    "zh-TW": re.compile(r"[\u4e00-\u9fff]"),
+    "zh": re.compile(r"[\u4e00-\u9fff]"),
+    "ja": re.compile(r"[\u3040-\u30ff\u4e00-\u9fff]"),
+    "ko": re.compile(r"[\uac00-\ud7af\u1100-\u11ff]"),
+}
+
+
+def _drop_untranslated_echoes(ws: Workspace, cfg: dict, blocks: list[dict],
+                              items: dict[str, object], zh_map: dict) -> list[str]:
+    """Drop keys where the model echoed long English prose verbatim into `zh` so retry translates them."""
+    target = langs.of_paper((ws.load("paper") or {}).get("meta"), cfg)
+    script_re = _TARGET_SCRIPT_RE.get(target)
+    blk_map = {str(b.get("id") or ""): b for b in blocks if isinstance(b, dict)}
+    dropped: list[str] = []
+    for k, en_val in items.items():
+        zh_val = zh_map.get(k)
+        if not isinstance(en_val, str) or not isinstance(zh_val, str):
+            continue
+        blk = blk_map.get(k) or {}
+        if blk.get("role") in ("authors", "affiliations", "bib", "table_note") or blk.get("type") == "formula":
+            continue
+        if "```" in en_val:
+            continue
+        en_clean = " ".join(en_val.replace("‖", " ").split()).strip()
+        zh_clean = " ".join(zh_val.replace("‖", " ").split()).strip()
+        if not en_clean or not zh_clean:
+            continue
+        if en_clean.startswith("$$") and en_clean.endswith("$$"):
+            continue
+        en_words = re.findall(r"[A-Za-z]{2,}", en_clean)
+        if len(en_words) < 8 or sum(len(w) for w in en_words) < 35:
+            continue
+        if script_re is not None:
+            if script_re.search(zh_clean):
+                continue
+            if zh_clean.lower() == en_clean.lower():
+                zh_map.pop(k, None)
+                dropped.append(k)
+                continue
+            zh_words = {w.lower() for w in re.findall(r"[A-Za-z]{2,}", zh_clean)}
+            en_word_set = {w.lower() for w in en_words}
+            if en_word_set and len(zh_words & en_word_set) / len(en_word_set) >= 0.8:
+                zh_map.pop(k, None)
+                dropped.append(k)
+        elif zh_clean.lower() == en_clean.lower():
+            zh_map.pop(k, None)
+            dropped.append(k)
+    return dropped
+
+
 def _fill_items(ws: Workspace, cfg: dict, batch: list[int], blocks: list[dict], items: dict[str, object],
                 cancel, say, meter=None, custom_prompt: str = "", final_pages: list[int] | None = None,
                 retry_missing: bool = True) -> None:
@@ -263,12 +314,16 @@ def _fill_items(ws: Workspace, cfg: dict, batch: list[int], blocks: list[dict], 
         except engines.EngineError as e:
             pg_lbl = f"Pages {batch[0]}–{batch[-1]}" if len(batch) > 1 else f"Page {batch[0]}"
             journal(ws, f"{pg_lbl} fix failed, original translation kept: {e}")
+    echo_dropped = _drop_untranslated_echoes(ws, cfg, blocks, items, data["zh"]) if retry_missing else []
+    if echo_dropped:
+        pg_lbl = f"Pages {batch[0]}–{batch[-1]}" if len(batch) > 1 else f"Page {batch[0]}"
+        journal(ws, f"{pg_lbl}: retrying {len(echo_dropped)} untranslated item(s) ({', '.join(echo_dropped[:3])})")
     with timing.merge_lock(meter, _merge_lock):
         _unify_terms(ws, data, batch, {k: v if isinstance(v, str) else json.dumps(v, ensure_ascii=False) for k, v in items.items()})
         missing = fill_zh(ws, data, final_pages or [], set(items), sentences.unmark_fill(data["zh"], ends))
         _save_checks(ws, data.get("checks"), batch)
     if missing:
-        if retry_missing and 0 < len(missing) < len(items):
+        if retry_missing and (0 < len(missing) < len(items) or echo_dropped):
             rem = {k: items[k] for k in missing if k in items}
             if rem:
                 _fill_items(ws, cfg, batch, blocks, rem, cancel, say, meter, custom_prompt, final_pages, False)
@@ -497,7 +552,8 @@ def _locate_quietly(ws: Workspace) -> None:
 
 
 def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, cancel, say, meter=None, read=False,
-               skip_head=False, peek=(), front=False, compact: bool = False) -> None:
+               skip_head=False, peek=(), front=False, compact: bool = False,
+               ref_plan: local_references.PagePlan | None = None) -> None:
     """read：只读原文，整理成块但不翻译。skip_head：上一页由另一段同时在译，页首续文归它。
     peek：分段交界处顺便看一眼的相邻页（见 prompts.peek_note）。front：带上前文参考（每段第一批，见 front_context）。
     compact：输出上限很紧时用（单页分两步）：不带前文参考，下一页只给开头，省下输入给输出。"""
@@ -505,13 +561,26 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     images = [pdfwork.engine_image(ws.root, n) for n in sorted({*batch, *peek})] if mode != "text" else []
     nxt = batch[-1] + 1
     # 分段交界、引擎不能看图：前一段最后一批拿下一页全文补完跨页那段（后一段第一批会跳过页首续文，这里补不全就丢了）
-    head = _next_head(ws, nxt, whole=mode == "text" and nxt in peek and not compact) if nxt <= total_pages else ""
+    if ref_plan and nxt in ref_plan.pure_ref_pages:
+        head = ""
+    elif ref_plan and nxt in ref_plan.split_pages:
+        prose_before = ref_plan.split_pages[nxt].get("prose_before", "")
+        if not prose_before:
+            head = ""
+        else:
+            head_raw = prose_before if (mode == "text" and nxt in peek and not compact) else prose_before[:1500]
+            cut = re.search(r"\[[^\[\]\n]*(?:\]\([^)\n]*)?$", head_raw) if not (mode == "text" and nxt in peek and not compact) else None
+            head = head_raw[:cut.start()] if cut else head_raw
+    else:
+        head = _next_head(ws, nxt, whole=mode == "text" and nxt in peek and not compact) if nxt <= total_pages else ""
+    overrides = {p: ref_plan.split_pages[p]["llm_text"] for p in batch if ref_plan and p in ref_plan.split_pages}
     custom_prompt = str(cfg.get("custom_prompt") or "")[:2000]
     if read:
-        prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek)
+        prompt = prompts_en.structure(ws, batch, mode, head, skip_head, peek, page_text_override=overrides or None)
     else:
         front_text = front_context.build(ws.root, batch[0]) if (front and not compact) else ""
-        prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_text, custom_prompt=custom_prompt)
+        prompt = prompts.translate(ws, batch, mode, head, skip_head, peek, front_text, custom_prompt=custom_prompt,
+                                   page_text_override=overrides or None)
     listing_figures = {(page, number): caption for page in batch
                        for number, (_, caption) in numbered_listings.read_listings(ws.root / "extract", page).items()}
     if listing_figures:
@@ -537,7 +606,19 @@ def _one_batch(ws: Workspace, cfg: dict, batch: list[int], total_pages: int, can
     with timing.merge_lock(meter, _merge_lock):
         data = _normalize(data, batch, _taken(ws, batch), ws.root / "extract")  # 并发时别的批可能刚占用了同名 id
         _drop_premature_references(ws, data, batch)
-        _collect_reference_blocks(ws, data, batch)
+        split_in_batch = [p for p in batch if ref_plan and p in ref_plan.split_pages]
+        if split_in_batch:
+            split_set = set(split_in_batch)
+            data["blocks"] = [b for b in data["blocks"] if not (b.get("type") == "references" and b.get("page") in split_set)]
+            if data.get("references"):
+                data["references"] = [r for r in data["references"] if r.get("page") not in split_set]
+            non_split = [p for p in batch if p not in split_set]
+            if non_split:
+                _collect_reference_blocks(ws, data, non_split)
+            for sp in split_in_batch:
+                local_references.parse_split_page(ws, sp, ref_plan, data, cfg)
+        else:
+            _collect_reference_blocks(ws, data, batch)
         missing = page_check.missing_pages(ws, batch, data)  # 有的页有内容、有的页整页漏了：漏的页不算译完
         keep = [n for n in batch if n not in missing]
         prepare_figures(ws.root, data["blocks"], total_pages)
@@ -604,14 +685,14 @@ def _batches(pages: list[int], size: int, en_pages: set[int]) -> list[list[int]]
 
 
 def _staged_single_page(ws: Workspace, cfg: dict, page_n: int, total_pages: int, cancel, say, meter,
-                        skip_head: bool, peek) -> None:
+                        skip_head: bool, peek, ref_plan: local_references.PagePlan | None = None) -> None:
     """单页一次译完会超出输出上限：先整理原文（只输出英文结构），再按块补译文，每次的输出都小一半以上。
     这页原来已有译文时先留快照，中途失败就还原，重译失败不会让读者丢掉旧译文；
     全新的页失败时留下已整理好的原文（记在 en_pages），下次直接补译文。"""
     with timing.merge_lock(meter, _merge_lock):
         snap = snapshot_page(ws, page_n)
     try:
-        _one_batch(ws, cfg, [page_n], total_pages, cancel, say, meter, True, skip_head, peek, False, compact=True)
+        _one_batch(ws, cfg, [page_n], total_pages, cancel, say, meter, True, skip_head, peek, False, compact=True, ref_plan=ref_plan)
         if cancel.is_set():
             raise engines.Cancelled()
         _fill_batch(ws, cfg, [page_n], cancel, say, meter)
@@ -634,16 +715,68 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
         with timing.merge_lock(meter, _merge_lock):
             merge_blocks(ws, {"blocks": []}, done=blank)
         pages = [n for n in pages if n not in blank]
+
+    local_refs_done: list[int] = []
+    ref_plan: local_references.PagePlan | None = None
+    if cfg.get("local_references", True) and pages:
+        ref_plan = local_references.analyze_paper(ws, pages)
+        pure_res = local_references.apply_pure_pages(ws, ref_plan, cfg)
+        if pure_res:
+            ref_data, pure_pages, drop_ids = pure_res
+            with timing.merge_lock(meter, _merge_lock):
+                merge_blocks(ws, ref_data, done=pure_pages, replace_pages=pure_pages, en_only=False, drop_ids=drop_ids)
+            journal(ws, f"Local references parser handled {len(pure_pages)} reference pages (0 LLM calls)")
+            local_refs_done = pure_pages
+            pages = [n for n in pages if n not in set(pure_pages)]
+
+    auto_done = len(blank) + len(local_refs_done)
     if not pages:
-        report(len(blank), len(blank), tr("结束，全部成功"))
+        report(auto_done, auto_done, tr("结束，全部成功"))
         return {}
-    if blank:
+    if auto_done:
         original_report = report
-        report = lambda done, total, message: original_report(done + len(blank), total + len(blank), message)
+        report = lambda done, total, message: original_report(done + auto_done, total + auto_done, message)
+
     cfg = engines.for_translation(cfg)  # 本机 CLI 不加载用户的 MCP、多余的工具定义（问 AI 不走这里）
     paper = ws.load("paper")
     total_pages = paper.get("meta", {}).get("page_count") or 0
     en_pages = set() if read else set(paper.get("translation", {}).get("en_pages", []))
+
+    mineru_ok_pages: list[int] = []
+    if mineru.is_enabled(cfg):
+        pending_mineru = [n for n in pages if n not in en_pages]
+        if pending_mineru:
+            try:
+                report(0, len(pages), tr("正在使用 MinerU 解析 PDF 结构…"))
+                mineru_ok_pages, mineru_data = mineru.extract_to_workspace(
+                    ws,
+                    cfg,
+                    pending_mineru,
+                    total_pages,
+                    cancel,
+                    split_pages=ref_plan.split_pages if ref_plan else None,
+                    ref_plan=ref_plan,
+                )
+                if mineru_ok_pages:
+                    with timing.merge_lock(meter, _merge_lock):
+                        drop = _one_references(ws, mineru_data, mineru_ok_pages)
+                        merge_blocks(ws, mineru_data, done=mineru_ok_pages, replace_pages=mineru_ok_pages, en_only=True, drop_ids=drop)
+                        _locate_quietly(ws)
+                    journal(ws, f"MinerU extracted structure for {len(mineru_ok_pages)} pages ({mineru.mode_label(cfg)})")
+                    paper = ws.load("paper")
+                    if read:
+                        pages = [n for n in pages if n not in set(mineru_ok_pages)]
+                        if not pages:
+                            report(len(mineru_ok_pages), len(mineru_ok_pages), tr("结束，全部成功"))
+                            return {}
+                    else:
+                        en_pages = set(paper.get("translation", {}).get("en_pages", []))
+            except engines.Cancelled:
+                raise
+            except Exception as exc:  # noqa: BLE001 —— MinerU 失敗時自動回退至內建 LLM 流程
+                log.warning("MinerU 解析失敗 %s，改用內建 LLM 流程: %s", ws.id, exc)
+                journal(ws, f"MinerU unavailable, falling back to built-in LLM pipeline: {str(exc)[:300]}")
+
     size = max(1, int(cfg.get("batch_pages") or 2))
     # 分段并行：切成几段连续的页同时译，段内一批接一批（见 segments.py）
     k = segments.workers(cfg.get("concurrency"), len(_batches(pages, size, en_pages)))
@@ -712,13 +845,13 @@ def translate_pages(ws: Workspace, cfg: dict, pages: list[int], cancel, report, 
         for attempt in range(2):
             try:
                 if stage_single_page:
-                    _staged_single_page(ws, cfg, todo[0], total_pages, cancel, say, meter, skip_head, peek)
+                    _staged_single_page(ws, cfg, todo[0], total_pages, cancel, say, meter, skip_head, peek, ref_plan=ref_plan)
                 elif todo[0] in en_pages:
                     _fill_batch(ws, cfg, todo, cancel, say, meter)
                 elif todo is batch:
-                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head, peek, front)
+                    _one_batch(ws, cfg, batch, total_pages, cancel, say, meter, read, skip_head, peek, front, ref_plan=ref_plan)
                 else:  # 只重译这批里漏掉的页：前面的页已经并进去了，不用再跳过页首续文
-                    _one_batch(ws, cfg, todo, total_pages, cancel, say, meter, read)
+                    _one_batch(ws, cfg, todo, total_pages, cancel, say, meter, read, ref_plan=ref_plan)
                 with lock:
                     state["ok"].update(todo)
                 journal(ws, f"{en_page_range(todo)} completed")
@@ -806,3 +939,28 @@ def retranslate(ws: Workspace, cfg: dict, key: str, hint: str, cancel) -> None:
         raise engines.EngineError(tr("模型没有给出新译文"))
     zh, sents = sentences.zh_sents(*en_ends, zh) if en_ends else (sentences.strip(zh), None)
     set_block_text(ws, key, zh, sents)
+
+
+def retranslate_table(ws: Workspace, cfg: dict, key: str, hint: str, cancel) -> None:
+    """讓翻譯模型（可搭配原頁圖與補充提示）重新切分並解析單個表格區塊。"""
+    trans_cfg = engines.for_translation(cfg)
+    mode = engines.image_mode(trans_cfg)
+    bid = key.partition("#")[0]
+    paper = ws.load("paper") or {}
+    blk = next((b for b in paper.get("blocks", []) if b.get("id") == bid and b.get("type") == "table"), None)
+    if not blk:
+        raise KeyError(bid)
+    images = []
+    if mode != "text" and blk.get("page"):
+        try:
+            images = [pdfwork.engine_image(ws.root, int(blk["page"]))]
+        except Exception:  # noqa: BLE001
+            images = []
+    prompt = prompts.retranslate_table(ws, bid, hint, mode)
+    data = engines.parse_json(engines.run(trans_cfg, prompt, ws.root, images, cancel, json_mode=True))
+    if not isinstance(data, dict) or not (isinstance(data.get("head"), list) or isinstance(data.get("rows"), list)):
+        raise engines.EngineError(tr("模型沒有輸出有效的表格內容"))
+    try:
+        set_table_block(ws, bid, data)
+    except ValueError as e:
+        raise engines.EngineError(str(e)) from None

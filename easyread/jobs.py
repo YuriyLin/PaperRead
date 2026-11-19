@@ -302,6 +302,8 @@ class Jobs:
                     translate.answer(ws, cfg, job["note"], None)
                 elif job["kind"] == "retranslate":
                     translate.retranslate(ws, cfg, job["key"], job.get("hint", ""), None)
+                elif job["kind"] == "retranslate-table":
+                    translate.retranslate_table(ws, cfg, job["key"], job.get("hint", ""), cancel)
                 elif job["kind"] == "smart-annotate":
                     from . import smart_annotations
 

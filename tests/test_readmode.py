@@ -75,8 +75,8 @@ class ReadModeTest(unittest.TestCase):
         tab = next(b for b in paper["blocks"] if b["id"] == "tab1")
         self.assertEqual(p1["zh"], "中文 p1-1")
         self.assertEqual(tab["caption_zh"], "中文 tab1#caption")
-        self.assertEqual(tab["head"], [["模型", "准确率"]])
-        self.assertEqual(calls[0], ["p1-1", "tab1#caption", "tab1#head"])
+        self.assertEqual(tab["head"], [["Model", "Acc"]])
+        self.assertEqual(calls[0], ["p1-1", "tab1#caption"])
 
     def test_missing_key_retried_only_for_rest(self):
         self.read_all()

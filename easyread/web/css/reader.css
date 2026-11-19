@@ -190,10 +190,20 @@ body.en-only #paper { font-family: var(--serif-en); }  /* 只读英文原文：�
 
 /* 表格：三线表 */
 .blk-table { margin: 1.8em 0 2em; }
+.table-media { position: relative; }
+.tbl-reparse-btn { position: absolute; top: -30px; right: 0; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--rule); border-radius: 7px; background: var(--surface); color: var(--ink-3); cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / .05); opacity: .68; transition: opacity .15s ease, color .15s ease, border-color .15s ease, background-color .15s ease, transform .15s ease; z-index: 2; }
+.blk-table:hover .tbl-reparse-btn, .tbl-reparse-btn:hover, .tbl-reparse-btn:focus-visible { opacity: 1; }
+.tbl-reparse-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); transform: scale(1.05); }
+.tbl-reparse-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tbl-wrap { overflow-x: auto; }
 table.tbl { margin: 0 auto; max-width: 100%; border-collapse: collapse; font-size: .86em; line-height: 1.5; font-variant-numeric: tabular-nums lining-nums; font-family: var(--serif-en), var(--serif-zh); border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
-table.tbl th { font-family: var(--serif-zh); font-weight: 600; border-bottom: .75px solid var(--ink-2); }
+table.tbl th { font-family: var(--serif-zh); font-weight: 600; text-align: left; text-wrap: balance; border-bottom: .75px solid var(--ink-2); }
 table.tbl th, table.tbl td { padding: .45em .85em; vertical-align: top; white-space: normal; overflow-wrap: break-word; }
+table.tbl .cell-nowrap, .media-table-scroll .cell-nowrap { white-space: nowrap; }
+table.tbl th.cell-nowrap { text-wrap: nowrap; }
+table.tbl tbody tr + tr td { border-top: 1px solid color-mix(in srgb, var(--rule) 55%, transparent); }
+table.tbl tbody tr.tbl-group td, .media-table-scroll tbody tr.tbl-group td { border-top: .75px solid var(--ink-2); }
+table.tbl tbody tr:hover td { background: color-mix(in srgb, var(--ink) 3.5%, transparent); }
 table.tbl td:first-child, table.tbl th:first-child { padding-left: .3em; }
 table.tbl td:last-child, table.tbl th:last-child { padding-right: .3em; }
 table.tbl td .sub { color: var(--ink-3); }

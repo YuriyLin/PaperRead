@@ -22,8 +22,8 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; marg
 .hint .bad, .bad { color: var(--danger); }
 .hint code { font: 11.5px var(--mono); background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 12px; }
-.test-line { display: flex; align-items: center; margin: 4px 0 4px; min-height: 30px; }
-.test-line .test-result { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.test-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 4px; min-height: 30px; }
+.test-line .test-result { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
 .logview { font: 12px/1.6 var(--mono); background: var(--bg); padding: 12px 14px; border-radius: 10px; max-height: 60vh; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 0; color: var(--ink-2); }
 .preset-tiles.grouped { display: grid; gap: 8px; }
 .preset-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -150,3 +150,40 @@ label.check input { accent-color: var(--accent); width: 15px; height: 15px; marg
 @media (max-width: 560px) { .engine-cards:not(.mc-cards) { grid-template-columns: 1fr; } }
 .mc-cards .mc-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; padding-top: 8px; }
 .mc-cards .mc-tags .badge { margin: 0; }
+
+/* MinerU 說明按鈕與圖文教學視窗 */
+.set-h-row { display: flex; align-items: center; gap: 6px; }
+.help-ico { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; color: var(--ink-3); cursor: pointer; transition: color .15s, background .15s; }
+.help-ico:hover { color: var(--accent); background: var(--accent-soft); }
+.mineru-guide-backdrop { z-index: 92; }
+.dialog.mineru-guide-dlg { width: min(680px, 95vw); max-height: 88vh; display: flex; flex-direction: column; padding: 0; }
+.mg-head { display: flex; align-items: center; gap: 10px; padding: 16px 22px 12px; border-bottom: 1px solid var(--rule); flex: none; }
+.mg-head h2 { margin: 0; font-size: 17.5px; flex: 1; }
+.mg-x { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; }
+.mg-x:hover { background: var(--accent-soft); color: var(--ink); }
+.mg-body { padding: 16px 22px 10px; overflow-y: auto; flex: 1; font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
+.mg-lead { margin: 0 0 10px; }
+.mg-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.mg-links a { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; color: var(--accent); background: var(--accent-soft); text-decoration: none; }
+.mg-links a:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+.mg-figure { margin: 0 0 14px; }
+.mg-img-wrap { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--rule); background: var(--bg); pointer-events: none; user-select: none; }
+.mg-img-wrap img { display: block; width: 100%; height: auto; }
+.mineru-mode-notes { margin: 8px 0 10px; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--rule); font-size: 12px; line-height: 1.6; color: var(--ink-3); display: grid; gap: 3px; }
+.mg-img-cap { font-size: 12px; color: var(--ink-3); margin-top: 6px; line-height: 1.5; }
+.mg-step { border: 1px solid var(--rule); border-radius: 10px; background: var(--bg); margin-bottom: 10px; overflow: hidden; }
+.mg-step > summary { cursor: pointer; padding: 10px 14px; font-size: 13.5px; font-weight: 600; color: var(--ink); user-select: none; list-style: none; display: flex; align-items: center; gap: 8px; }
+.mg-step > summary::-webkit-details-marker { display: none; }
+.mg-step > summary::before { content: "▸"; font-size: 12px; color: var(--ink-3); transition: transform .15s; }
+.mg-step[open] > summary::before { transform: rotate(90deg); }
+.mg-step[open] > summary { border-bottom: 1px solid var(--rule); }
+.mg-step-in { padding: 12px 14px 14px; background: var(--surface); }
+.mg-steps { margin: 0 0 12px; padding-left: 20px; }
+.mg-steps li { margin-bottom: 5px; }
+.mg-steps a, .mg-agent-note a { color: var(--accent); }
+.mg-agent-box { margin-top: 10px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--rule); background: var(--bg); }
+.mg-agent-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.mg-agent-bar b { font-size: 13px; color: var(--ink); flex: 1; }
+.mg-agent-note { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-3); }
+.mg-code { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--rule); font: 12px/1.55 var(--mono); color: var(--ink-2); white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; }
+.mg-foot { padding: 10px 22px 14px; margin: 0; border-top: 1px solid var(--rule); display: flex; justify-content: flex-end; }

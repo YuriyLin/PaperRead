@@ -113,6 +113,7 @@
     if (!cached) PR.token = d.token;
     L.engine = d.engine;
     L.engineLabel = d.engine_label;
+    L.mineruCloud = !!d.mineru_cloud;
     L.firstRun = d.first_run;
     L.version = d.version;
     L.trashCount = d.trash || 0;

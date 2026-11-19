@@ -140,5 +140,51 @@ class RepairGuardTest(unittest.TestCase):
         self.assertTrue(retains_content(original, fixed))
 
 
+class TableRetranslateTest(unittest.TestCase):
+    def setUp(self):
+        self.ws = make_ws(1)
+        self.cfg = {"engine": "codex", "codex": {"model": "gpt-5.4", "command": "codex"}}
+
+    def tearDown(self):
+        shutil.rmtree(self.ws.root, ignore_errors=True)
+
+    def test_retranslate_table_updates_structure_with_hint_and_page_image(self):
+        self.ws.update("paper", lambda p: p.update({
+            "meta": {"target": "zh-TW", "pages": [{"n": 1}]},
+            "blocks": [{
+                "id": "tab2", "type": "table", "page": 1, "num": "2",
+                "head": [["Method", "0"], ["", "Steps"]],
+                "rows": [["SFT", "88.7"]],
+                "align": "lr",
+                "caption_en": "Table 2. Raw.",
+                "caption_zh": "表 2。舊圖說。",
+            }],
+        }))
+        fake_img = self.ws.root / "extract" / "page-001.jpg"
+        fake_img.write_bytes(b"jpg")
+        seen = {}
+
+        def fake_run(cfg, prompt, cwd, images=None, *a, **kw):
+            seen["prompt"] = prompt
+            seen["images"] = images
+            return json.dumps({
+                "head": [["Method", "Training Steps"], ["Method", "0"]],
+                "rows": [[r"$\mathrm{Refcoco}_{\mathrm{val}}$", "88.7"]],
+                "align": "lr",
+                "caption_zh": r"表 2。$\Delta_{\mathrm{RL-SFT}}$ 比較。",
+            }, ensure_ascii=False)
+
+        with mock.patch("easyread.translate.pdfwork.engine_image", return_value=fake_img), \
+             mock.patch.object(engines, "run", side_effect=fake_run):
+            translate.retranslate_table(self.ws, self.cfg, "tab2", "把 Training Steps 放在第一列", None)
+
+        self.assertIn("把 Training Steps 放在第一列", seen["prompt"])
+        self.assertEqual(seen["images"], [fake_img])
+        tab = self.ws.load("paper")["blocks"][0]
+        self.assertEqual(tab["head"], [["Method", "Training Steps"], ["Method", "0"]])
+        self.assertEqual(tab["rows"], [[r"$\mathrm{Refcoco}_{\mathrm{val}}$", "88.7"]])
+        self.assertIn(r"$\Delta_{\mathrm{RL-SFT}}$", tab["caption_zh"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -38,11 +38,14 @@ DEFAULTS = {
     "custom_prompt": "",         # 自訂翻譯補充指令（附加於規則之後）
     "concurrency": 0,            # 同时译几段（分段并行，见 segments.py）；0 是自动，每段约 2 批、最多 4 段；手动最多 8 段
     "concurrency_v": 2,          # 1.3.1 起 concurrency 的意思变了，旧配置的 1 当成自动，见 load
+    "local_references": True,    # 本机解析参考文献页，免除参考文献页的 LLM 呼唤
     "claude": {"command": "claude", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     "codex": {"command": "codex", "model": "", "reasoning_effort": "", "service_tier": "", "extra_args": [], "timeout": 1200},
     "antigravity": {"command": "agy", "model": "", "reasoning_effort": "", "extra_args": [], "timeout": 1200},
     # api：chat（/chat/completions）| responses（/responses），见 openai_api.py
     "openai": {"preset": "", "base_url": "", "api": "chat", "api_key": "", "model": "", "vision": False, "timeout": 600},
+    # mineru：可選 PDF 結構解析引擎（cloud=mineru.net v4 / local=自建 FastAPI）
+    "mineru": {"enabled": False, "mode": "cloud", "token": "", "base_url": "", "model_version": "vlm", "timeout": 300},
     # 阅读页右侧“问 AI”的模型名单和默认模型，见 chat_models.py
     "chat": copy.deepcopy(DEFAULT_CHAT),
 }
@@ -151,6 +154,20 @@ def with_key(o: dict) -> dict:
     return o
 
 
+def with_mineru_token(m: dict) -> dict:
+    """保留未修改的打码 MinerU Token；只有提交新 Token 时才覆盖。"""
+    cur = load().get("mineru") or {}
+    out = dict(m)
+    out.pop("has_token", None)
+    if "token" in out:
+        tok = str(out.get("token") or "").strip()
+        if tok.startswith("••••"):
+            out["token"] = cur.get("token", "")
+        else:
+            out["token"] = tok
+    return out
+
+
 def public(cfg: dict) -> dict:
     """给页面看的配置：密钥只露后四位。"""
     out = copy.deepcopy(cfg)
@@ -158,6 +175,10 @@ def public(cfg: dict) -> dict:
     out["openai"]["api_key"] = ("••••" + key[-4:]) if key else ""
     out["openai"]["has_key"] = bool(key)
     out["openai"]["saved_keys"] = [k for k, v in (out["openai"].pop("keys", None) or {}).items() if v]
+    m = out.setdefault("mineru", copy.deepcopy(DEFAULTS["mineru"]))
+    mtok = str(m.get("token") or "")
+    m["token"] = ("••••" + mtok[-4:]) if mtok else ""
+    m["has_token"] = bool(mtok)
     return out
 
 

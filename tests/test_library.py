@@ -162,5 +162,28 @@ class FolderPickTest(unittest.TestCase):
         self.assertNotIn("FolderBrowserDialog", folder_pick._PS)
 
 
+class AbstractExtractionTest(unittest.TestCase):
+    def test_abstract_skips_heading_block_and_reads_paragraph(self):
+        from easyread import chat
+        root = Path(tempfile.mkdtemp())
+        ws = Library(root).ws("aabbccddeeff") if False else Workspace(root / "aabbccddeeff")
+        ws.root.mkdir(parents=True, exist_ok=True)
+        write_json_atomic(ws.root / "paper.json", {
+            "meta": {"title_en": "Test Paper", "pages": [{"n": 1}], "page_count": 1},
+            "blocks": [
+                {"id": "s-abstract", "type": "heading", "page": 1, "level": 1, "en": "Abstract", "zh": "摘要", "role": "abstract"},
+                {"id": "p1-1", "type": "para", "page": 1, "en": "Full English abstract body.", "zh": "這是完整的中文摘要內文。", "role": "abstract"},
+            ],
+            "translation": {"done_pages": [1]},
+        })
+        write_json_atomic(ws.root / "item.json", {"id": "aabbccddeeff", "added": "2026-11-19T00:00:00Z"})
+        lib = Library(root)
+        items = lib.list()
+        self.assertEqual(items[0]["abstract"], "這是完整的中文摘要內文。")
+        ctx = chat._context(ws, "p1-1", "")
+        self.assertIn("摘要：這是完整的中文摘要內文。", ctx)
+        self.assertNotIn("摘要：摘要\n", ctx)
+
+
 if __name__ == "__main__":
     unittest.main()

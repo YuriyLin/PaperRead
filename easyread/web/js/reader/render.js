@@ -121,6 +121,63 @@
     const opts = Object.assign({}, PR.footnoteOptions ? PR.footnoteOptions(b.id) : {}, { xref: false, cite: false });
     return PR.md(String(c ?? ""), opts).replace(/<br>(\([^<]*\))/g, '<br><span class="sub">$1</span>');
   }
+  const _TEX_WRAP_RE = /\\(?:text|mathrm|mathbf|mathit|operatorname|textbf|textit)\{([^{}]*)\}/g;
+  const _FULLWIDTH_RE = /[\u3000-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+  function _cellVisInfo(raw) {
+    const s = String(raw ?? "").trim();
+    if (!s || s.includes("\n")) return null;
+    const hasMath = /\$[^$\n]+\$/.test(s);
+    let vis = s.replace(/\[([^\]\n]+)\]\([^)\n]+\)/g, "$1").replace(/\*\*|__|`/g, "");
+    vis = vis.replace(_TEX_WRAP_RE, "$1").replace(_TEX_WRAP_RE, "$1");
+    vis = vis.replace(/\\[A-Za-z]+/g, "x").replace(/[$^{}_]/g, "").replace(/\s+/g, " ").trim();
+    let w = 0;
+    for (const ch of vis) w += _FULLWIDTH_RE.test(ch) ? 2 : 1;
+    return { w, hasMath, hasSpace: /\s/.test(vis), words: vis ? vis.split(" ").length : 0 };
+  }
+  PR.isDataTable = function (rows, colCount) {
+    if (colCount >= 5) return true;
+    let short = 0, total = 0;
+    for (const row of rows || []) {
+      for (let i = 1; i < row.length; i++) {
+        const s = String(row[i] ?? "").trim();
+        if (!s) continue;
+        total++;
+        const firstLine = s.split("\n")[0];
+        const info = _cellVisInfo(firstLine);
+        if (info && info.w <= 14) short++;
+      }
+    }
+    return total > 0 && short / total >= 0.5;
+  };
+  PR.tableCellClass = function (raw, isHead, colIdx, colCount, dataTable) {
+    const info = _cellVisInfo(raw);
+    if (!info) return "";
+    if (!info.hasSpace && info.w <= 14) return "cell-nowrap";
+    if (info.hasMath && info.w <= 18 && info.words <= 3) return "cell-nowrap";
+    if (!isHead && dataTable && colIdx === 0 && info.w <= 18 && info.words <= 3) return "cell-nowrap";
+    return "";
+  };
+  PR.tableGroupRows = function (rows) {
+    const out = new Set();
+    if (!Array.isArray(rows) || rows.length < 4) return out;
+    const c0 = rows.map((r) => String((r && r[0]) ?? "").trim());
+    const c1 = rows.map((r) => String((r && r[1]) ?? "").trim());
+    const deltaRe = /^(?:\$?\\?(?:Delta|Sigma|sum)\b|[ΔΣ±])/i;
+    const isMod = (r) => /^(?:[\u00a0 ]{2,}\S|(?:w\/o?|with(?:out)?|\+|-|└|├)\s)/i.test(String((r && r[0]) ?? ""));
+    if (c0.some((v) => !v) && c0.filter(Boolean).length >= 2) {
+      for (let i = 1; i < rows.length; i++) if (c0[i]) out.add(i);
+    } else if ((rows[0] || []).length >= 3 && c0.every(Boolean) && c1.some((v) => !v) && c1.filter(Boolean).length >= 2) {
+      for (let i = 1; i < rows.length; i++) if (c1[i] || deltaRe.test(c0[i])) out.add(i);
+    } else if (rows.some(isMod)) {
+      for (let i = 1; i < rows.length; i++) {
+        if (!isMod(rows[i]) && (isMod(rows[i - 1]) || (i + 1 < rows.length && isMod(rows[i + 1])))) out.add(i);
+      }
+    }
+    for (let i = 1; i < rows.length; i++) {
+      if (deltaRe.test(c0[i]) && !deltaRe.test(c0[i - 1])) out.add(i);
+    }
+    return out;
+  };
 
   function zoomBtnHtml(b) {
     if (!b) return "";
@@ -175,11 +232,23 @@
     math: (b) => '<div class="math-row"><div class="math-body" tabindex="0" role="button" aria-label="' + PR.t("公式，點擊可選擇螢光筆或底線") + '">' + PR.tex(b.tex, true) + "</div>" + (b.tag ? '<div class="math-tag">(' + PR.esc(b.tag) + ")</div>" : "") + "</div>",
     table(b) {
       const parts = PR.tableParts(b);
+      const colCount = Math.max(0, ...parts.head.map((r) => r.length), ...parts.rows.map((r) => r.length));
+      const dataTable = PR.isDataTable(parts.rows, colCount);
       const al = (b.align || "").split("");
-      const style = (i) => (al[i] ? ' style="text-align:' + ({ l: "left", r: "right", c: "center" }[al[i]] || "left") + '"' : "");
-      const head = parts.head.map((r) => "<tr>" + r.map((c, i) => "<th" + style(i) + ">" + cell(c, b) + "</th>").join("") + "</tr>").join("");
-      const rows = parts.rows.map((r) => "<tr>" + r.map((c, i) => "<td" + style(i) + ">" + cell(c, b) + "</td>").join("") + "</tr>").join("");
-      const table = '<div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>";
+      const cellAttrs = (c, isHead, i) => {
+        const cls = PR.tableCellClass(c, isHead, i, colCount, dataTable);
+        const clsAttr = cls ? ' class="' + cls + '"' : "";
+        const stAttr = al[i] ? ' style="text-align:' + ({ l: "left", r: "right", c: "center" }[al[i]] || "left") + '"' : "";
+        return clsAttr + stAttr;
+      };
+      const groups = PR.tableGroupRows(parts.rows);
+      const head = parts.head.map((r) => "<tr>" + r.map((c, i) => "<th" + cellAttrs(c, true, i) + ">" + cell(c, b) + "</th>").join("") + "</tr>").join("");
+      const rows = parts.rows.map((r, rIdx) => "<tr" + (groups.has(rIdx) ? ' class="tbl-group"' : "") + ">" + r.map((c, i) => "<td" + cellAttrs(c, false, i) + ">" + cell(c, b) + "</td>").join("") + "</tr>").join("");
+      const label = PR.t("讓模型重新解析此表格（可輸入提示詞）");
+      const reparseBtn = PR.canAsk && PR.canAsk()
+        ? '<button type="button" class="tbl-reparse-btn" data-t="reparse-table" title="' + PR.esc(label) + '" aria-label="' + PR.esc(label) + '">' + PR.icon("redo", "sm") + "</button>"
+        : "";
+      const table = '<div class="table-media"><div class="tbl-wrap"><table class="tbl"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>" + reparseBtn + "</div>";
       return (b.caption_pos === "above" ? captionHtml(b) + table : table + captionHtml(b)) + PR.tableNotesHtml(parts.notes, b);
     },
     figure(b) {

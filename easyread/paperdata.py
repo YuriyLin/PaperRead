@@ -339,5 +339,59 @@ def set_block_text(ws: Workspace, key: str, zh: str, sents=None) -> None:
         log.exception("智慧標註來源同步失敗 %s", ws.id)
 
 
+def set_table_block(ws: Workspace, bid: str, table: dict) -> None:
+    """重解表格後寫回 `head`/`rows`/`align`（以及可選的題注）。"""
+    def _coerce_matrix(val) -> list[list[str]]:
+        if not isinstance(val, list):
+            raise ValueError(tr("{id}：table 必須是二維陣列", id=bid))
+        out: list[list[str]] = []
+        for row in val:
+            if not isinstance(row, list):
+                raise ValueError(tr("{id}：table 每一列必須是陣列", id=bid))
+            out.append(["" if c is None else str(c) for c in row])
+        return out
+
+    head = _coerce_matrix(table.get("head", []))
+    rows = _coerce_matrix(table.get("rows", []))
+    if not head and not rows:
+        raise ValueError(tr("{id}：表格不能為空", id=bid))
+    head = _align_table_head(head, rows)
+    col_n = max([len(r) for r in head] + [len(r) for r in rows] + [0])
+
+    def _norm_align(raw: object) -> str:
+        s = "".join(ch for ch in str(raw or "").lower() if ch in ("l", "c", "r"))
+        if not col_n:
+            return s
+        if not s:
+            return "l" + "r" * max(0, col_n - 1)
+        if len(s) < col_n:
+            return s + s[-1] * (col_n - len(s))
+        return s[:col_n]
+
+    align = _norm_align(table.get("align"))
+
+    def apply(paper):
+        for b in paper.get("blocks", []):
+            if b.get("id") != bid or b.get("type") != "table":
+                continue
+            b["head"] = head
+            b["rows"] = rows
+            b["align"] = align or b.get("align", "")
+            for field in ("caption_zh", "caption_en"):
+                if field in table and isinstance(table[field], str):
+                    b[field] = table[field]
+            if table.get("caption_pos") in ("above", "below"):
+                b["caption_pos"] = table["caption_pos"]
+            return
+        raise KeyError(bid)
+
+    ws.update("paper", apply)
+    try:
+        from .smart_annotations import refresh_after_translation
+        refresh_after_translation(ws, {bid})
+    except Exception:  # noqa: BLE001 —— 標註同步失敗不阻斷既有翻譯
+        log.exception("智慧標註來源同步失敗 %s", ws.id)
+
+
 def dumps(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=1)

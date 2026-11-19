@@ -55,7 +55,20 @@ class Library:
                 log.exception("核对已译页失败 %s", ws.id)
         notes = [n for n in reader.get("notes", {}).values() if not n.get("deleted")]
         replied = {e.get("reply_to") for e in disc.get("entries", []) if e.get("reply_to")}
-        abstract = next((b.get("zh") or b.get("en") for b in paper.get("blocks", []) if b.get("role") == "abstract"), "") or meta.get("abstract_en", "")
+        blocks = paper.get("blocks", [])
+        abs_parts = [
+            (b.get("zh") or b.get("en") or "").strip()
+            for b in blocks
+            if b.get("role") == "abstract" and b.get("type") != "heading" and (b.get("zh") or b.get("en") or "").strip()
+        ]
+        if not abs_parts:
+            for idx, b in enumerate(blocks[:-1]):
+                if b.get("type") == "heading" and (b.get("role") == "abstract" or str(b.get("en") or "").strip().lower() == "abstract"):
+                    nxt = blocks[idx + 1]
+                    if nxt.get("type") == "para" and (nxt.get("zh") or nxt.get("en") or "").strip():
+                        abs_parts = [(nxt.get("zh") or nxt.get("en") or "").strip()]
+                        break
+        abstract = "\n".join(abs_parts) or meta.get("abstract_en", "")
         return {
             "id": ws.id,
             "title_zh": meta.get("title_zh", ""), "title_en": meta.get("title_en", ""), "short_zh": meta.get("short_zh", ""), "target": meta.get("target", ""),

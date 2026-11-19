@@ -37,7 +37,9 @@ def _context(ws: Workspace, anchor: str | None, quote: str, refs: list[dict] | N
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
     lines = [f"論文：《{meta.get('title_zh') or ''}》{meta.get('title_en') or ''}，{meta.get('authors', '')[:200]}。"]  # i18n-ok
-    abstract = next((_block_text(b) for b in blocks if b.get("role") == "abstract"), "")
+    abstract = "\n".join(
+        _block_text(b) for b in blocks if b.get("role") == "abstract" and b.get("type") != "heading"
+    ).strip()
     if abstract:
         lines.append("摘要：" + abstract[:1500])  # i18n-ok
     idx = next((i for i, b in enumerate(blocks) if b.get("id") == anchor), None)

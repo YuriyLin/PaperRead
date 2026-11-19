@@ -253,6 +253,86 @@ def _inline_md(text: str, math_map: dict[str, str] | None = None, ref_ids: set[s
     return s
 
 
+_TBL_TEX_WRAP_RE = re.compile(r"\\(?:text|mathrm|mathbf|mathit|operatorname|textbf|textit)\{([^{}]*)\}")
+_TBL_FULLWIDTH_RE = re.compile(r"[\u3000-\u9fff\uf900-\ufaff\uff00-\uffef]")
+_TBL_LINK_RE = re.compile(r"\[([^\]\n]+)\]\([^)\n]+\)")
+_TBL_MATH_RE = re.compile(r"\$[^$\n]+\$")
+
+
+def _table_cell_vis_info(raw) -> tuple[int, bool, bool, int] | None:
+    s = str("" if raw is None else raw).strip()
+    if not s or "\n" in s:
+        return None
+    has_math = bool(_TBL_MATH_RE.search(s))
+    vis = _TBL_LINK_RE.sub(r"\1", s).replace("**", "").replace("__", "").replace("`", "")
+    vis = _TBL_TEX_WRAP_RE.sub(r"\1", _TBL_TEX_WRAP_RE.sub(r"\1", vis))
+    vis = re.sub(r"\\[A-Za-z]+", "x", vis)
+    vis = re.sub(r"[$^{}_]", "", vis)
+    vis = " ".join(vis.split())
+    w = sum(2 if _TBL_FULLWIDTH_RE.match(ch) else 1 for ch in vis)
+    return w, has_math, any(ch.isspace() for ch in vis), (len(vis.split()) if vis else 0)
+
+
+def _is_data_table(rows: list[list], col_count: int) -> bool:
+    if col_count >= 5:
+        return True
+    short = total = 0
+    for row in rows or []:
+        for val in row[1:]:
+            s = str("" if val is None else val).strip()
+            if not s:
+                continue
+            total += 1
+            info = _table_cell_vis_info(s.split("\n", 1)[0])
+            if info and info[0] <= 14:
+                short += 1
+    return total > 0 and short / total >= 0.5
+
+
+def _table_cell_nowrap(raw, is_head: bool, col_idx: int, col_count: int, data_table: bool) -> bool:
+    info = _table_cell_vis_info(raw)
+    if not info:
+        return False
+    w, has_math, has_space, words = info
+    if not has_space and w <= 14:
+        return True
+    if has_math and w <= 18 and words <= 3:
+        return True
+    if not is_head and data_table and col_idx == 0 and w <= 18 and words <= 3:
+        return True
+    return False
+
+
+_TBL_DELTA_RE = re.compile(r"^(?:\$?\\?(?:Delta|Sigma|sum)\b|[ΔΣ±])", re.I)
+_TBL_MOD_RE = re.compile(r"^(?:[\u00a0 ]{2,}\S|(?:w/o?|with(?:out)?|\+|-|└|├)\s)", re.I)
+
+
+def _table_group_rows(rows: list[list]) -> set[int]:
+    out: set[int] = set()
+    if not isinstance(rows, list) or len(rows) < 4:
+        return out
+    c0 = [str("" if (not r or r[0] is None) else r[0]).strip() for r in rows]
+    c1 = [str("" if (not r or len(r) < 2 or r[1] is None) else r[1]).strip() for r in rows]
+    def _is_mod(r) -> bool:
+        return bool(r and _TBL_MOD_RE.match(str("" if r[0] is None else r[0])))
+    if any(not v for v in c0) and sum(bool(v) for v in c0) >= 2:
+        for i in range(1, len(rows)):
+            if c0[i]:
+                out.add(i)
+    elif len(rows[0] or []) >= 3 and all(c0) and any(not v for v in c1) and sum(bool(v) for v in c1) >= 2:
+        for i in range(1, len(rows)):
+            if c1[i] or _TBL_DELTA_RE.match(c0[i]):
+                out.add(i)
+    elif any(_is_mod(r) for r in rows):
+        for i in range(1, len(rows)):
+            if not _is_mod(rows[i]) and (_is_mod(rows[i - 1]) or (i + 1 < len(rows) and _is_mod(rows[i + 1]))):
+                out.add(i)
+    for i in range(1, len(rows)):
+        if _TBL_DELTA_RE.match(c0[i]) and not _TBL_DELTA_RE.match(c0[i - 1]):
+            out.add(i)
+    return out
+
+
 def _prerender_paper(paper: dict, reader: dict, images: dict, mobile: bool = False, lang: str | None = None) -> str:
     meta = paper.get("meta", {})
     blocks = paper.get("blocks", [])
@@ -361,23 +441,31 @@ def _prerender_paper(paper: dict, reader: dict, images: dict, mobile: bool = Fal
                         break
                     table_notes.insert(0, note_txt)
                     end -= 1
+            body_display = body_rows[:end]
+            col_count = max([len(r) for r in head_rows] + [len(r) for r in body_display] + [0])
+            data_table = _is_data_table(body_display, col_count)
             align = str(b.get("align") or "")
             def _tstyle(i):
                 ch = align[i] if i < len(align) else ""
                 if not ch:
                     return ""
                 return f' style="text-align:{ {"l": "left", "r": "right", "c": "center"}.get(ch, "left") }"'
+            def _tattrs(c, is_head, i):
+                cls = ' class="cell-nowrap"' if _table_cell_nowrap(c, is_head, i, col_count, data_table) else ""
+                return cls + _tstyle(i)
             def _tcell(c):
                 rendered = _inline_md(str(c if c is not None else ""), math_map, ref_ids)
                 return re.sub(r"<br>(\([^<]*\))", r'<br><span class="sub">\1</span>', rendered)
-            thead = "".join("<tr>" + "".join(f"<th{_tstyle(i)}>{_tcell(c)}</th>" for i, c in enumerate(r)) + "</tr>" for r in head_rows)
+            thead = "".join("<tr>" + "".join(f"<th{_tattrs(c, True, i)}>{_tcell(c)}</th>" for i, c in enumerate(r)) + "</tr>" for r in head_rows)
+            groups = _table_group_rows(body_display)
             tbody_rows = []
-            for r in body_rows[:end]:
+            for r_idx, r in enumerate(body_display):
                 disp = list(r)
                 if disp and isinstance(disp[0], str) and re.match(r"^ {2,}\S", disp[0]):
                     lead_sp = len(disp[0]) - len(disp[0].lstrip(" "))
                     disp[0] = ("\u00a0" * lead_sp) + disp[0][lead_sp:]
-                tbody_rows.append("<tr>" + "".join(f"<td{_tstyle(i)}>{_tcell(c)}</td>" for i, c in enumerate(disp)) + "</tr>")
+                tr_cls = ' class="tbl-group"' if r_idx in groups else ""
+                tbody_rows.append(f"<tr{tr_cls}>" + "".join(f"<td{_tattrs(c, False, i)}>{_tcell(c)}</td>" for i, c in enumerate(disp)) + "</tr>")
             table_html = f'<div class="tbl-wrap"><table class="tbl"><thead>{thead}</thead><tbody>{"".join(tbody_rows)}</tbody></table></div>'
             cap_html = f'<div class="caption"><div class="zh" data-key="{cap_key}">{_inline_md(caption, math_map, ref_ids)}</div></div>' if caption else ""
             notes_html = "".join(f'<div class="caption table-note">{_inline_md(n, math_map, ref_ids)}</div>' for n in table_notes)

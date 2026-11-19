@@ -315,9 +315,30 @@ _TEX_CTRL = re.compile(
 _BAD_ESCAPE = re.compile(r'(?<!\\)(\\\\)*\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})')
 
 
+def _strip_outer_think(text: str) -> str:
+    """去掉推理模型在 JSON 外層先輸出的 <think>...</think>，不誤刪譯文內容本身提到的字面 <think>...</think>。"""
+    s = text.lstrip()
+    while True:
+        if s.startswith("<think>"):
+            end = s.find("</think>")
+            if end < 0:
+                break
+            s = s[end + 8:].lstrip()
+            continue
+        first_think = s.find("<think>")
+        first_json = min((i for i in (s.find("{"), s.find("["), s.find("```")) if i >= 0), default=-1)
+        if 0 <= first_think < first_json:
+            end = s.find("</think>", first_think)
+            if end >= 0:
+                s = (s[:first_think] + s[end + 8:]).lstrip()
+                continue
+        break
+    return s
+
+
 def parse_json(text: str):
     """从模型输出里取出 JSON（容忍 ```json 围栏和前后废话）。"""
-    t = re.sub(r"<think>[\s\S]*?</think>", "", text).strip()  # 推理模型（deepseek-r1、qwen3）先输出的思考过程
+    t = _strip_outer_think(text).strip()  # 推理模型（deepseek-r1、qwen3）先输出的思考过程
     # 先取最外层的 { … }：译文里可能本身带代码块（论文附录的 PyTorch 代码），按 ``` 围栏切会切到半截
     bodies = []
     for s in (t, *(m.group(1).strip() for m in re.finditer(r"```(?:json)?\s*([\s\S]*?)```", t))):
