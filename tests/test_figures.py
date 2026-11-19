@@ -108,15 +108,24 @@ class FigureTest(unittest.TestCase):
         write_json_atomic(self.root / "paper.json", {"meta": {"page_count": 1, "pages": [{"n": 1, "img": "pages/page-001.webp"}]}, "blocks": [orig]})
         res = manual_crop.save(ws, {"id": "fig1", "page": 1, "box": [0.2, 0.2, 0.8, 0.8]})
         saved = res["block"]
-        self.assertTrue(saved["src"].startswith("figures/crop-1-"))
+        first_manual = saved["src"]
+        self.assertTrue(first_manual.startswith("figures/crop-1-"))
+        self.assertTrue((self.root / first_manual).is_file())
         self.assertEqual(saved["abox"], [0.2, 0.2, 0.8, 0.8])
         self.assertEqual(saved["manual_crop"]["src"], "figures/auto.webp")
+
+        res2 = manual_crop.save(ws, {"id": "fig1", "page": 1, "box": [0.25, 0.25, 0.75, 0.75]})
+        second_manual = res2["block"]["src"]
+        self.assertNotEqual(second_manual, first_manual)
+        self.assertFalse((self.root / first_manual).exists())
+        self.assertTrue((self.root / second_manual).is_file())
 
         reset_res = manual_crop.save(ws, {"id": "fig1", "reset": True})
         restored = reset_res["block"]
         self.assertEqual(restored["src"], "figures/auto.webp")
         self.assertEqual(restored["abox"], [0.1, 0.1, 0.5, 0.5])
         self.assertNotIn("manual_crop", restored)
+        self.assertFalse((self.root / second_manual).exists())
 
     def test_figure_crop_http_endpoint(self):
         import http.client
