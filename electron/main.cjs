@@ -40,7 +40,8 @@ function projectRoot() {
 
 function packagedBackend() {
   const name = process.platform === "win32" ? "easyread-backend.exe" : "easyread-backend";
-  return path.join(process.resourcesPath, "backend", name);
+  const folder = path.join(process.resourcesPath, "backend");
+  return process.platform === "darwin" ? path.join(folder, name, name) : path.join(folder, name);
 }
 
 function backendCommand() {

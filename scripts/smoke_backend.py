@@ -37,7 +37,12 @@ def probe_pdf() -> bytes:
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    exe = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "build" / "backend" / ("easyread-backend.exe" if os.name == "nt" else "easyread-backend")
+    folder = root / "build" / "backend"
+    if sys.platform == "darwin":
+        folder /= "easyread-backend"
+    exe = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else folder / ("easyread-backend.exe" if os.name == "nt" else "easyread-backend")
+    if sys.platform == "darwin" and not (exe.parent / "_internal" / "easyread" / "web" / "tabs.html").is_file():
+        raise RuntimeError(f"macOS backend is missing the bundled tabs page: {exe.parent}")
     with tempfile.TemporaryDirectory(prefix="easyread-frozen-smoke-") as tmp:
         home = Path(tmp)
         pdf = home / "probe.pdf"
@@ -71,6 +76,8 @@ def main():
                     time.sleep(0.1)
                 assert url, "frozen service failed to start"
                 with urllib.request.urlopen(url, timeout=10) as response:
+                    assert b"PaperRead" in response.read()
+                with urllib.request.urlopen(f"{url}/web/tabs.html", timeout=10) as response:
                     assert b"PaperRead" in response.read()
                 rel = paper["meta"]["pages"][0]["img"]
                 for width in (1000, 1200, 1400, 1600):

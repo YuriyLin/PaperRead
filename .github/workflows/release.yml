@@ -46,7 +46,11 @@ jobs:
       - name: Build and package
         run: npm run dist
       - name: Smoke test the frozen backend
+        if: runner.os != 'macOS'
         run: python scripts/smoke_backend.py
+      - name: Smoke test the backend inside the macOS app
+        if: runner.os == 'macOS'
+        run: python scripts/smoke_backend.py "dist/electron/mac-arm64/PaperRead.app/Contents/Resources/backend/easyread-backend/easyread-backend"
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -95,6 +95,7 @@ test("macOS keeps native editing roles and offers input context actions", async 
 
 test("reopening a macOS window reuses one backend, even during repeated activation", async () => {
   const d = await desktop();
+  assert.equal(d.launches[0].command, path.join("/tmp/Resources", "backend", "easyread-backend", "easyread-backend"));
   d.windows[0].close();
   d.app.emit("activate"); d.app.emit("activate");
   await d.settled();

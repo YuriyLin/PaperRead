@@ -50,13 +50,16 @@ def main() -> None:
             old.unlink()
         elif old.is_dir():
             shutil.rmtree(old)
-    cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", "--onefile",
+    # macOS can purge files in the onefile extraction directory while the backend is still running.
+    mode = "--onedir" if sys.platform == "darwin" else "--onefile"
+    cmd = python + ["-m", "PyInstaller", "--noconfirm", "--clean", mode,
                     "--name", "easyread-backend", "--distpath", str(OUT),
                     "--workpath", str(WORK), "--specpath", str(WORK),
                     *[arg for module in REQUIRED for arg in ("--collect-all", module)],
                     str(ROOT / "scripts" / "backend_entry.py")]
     subprocess.run(cmd, cwd=ROOT, check=True)
-    print(f"后端已生成：{OUT / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")
+    bundle = OUT / "easyread-backend" if sys.platform == "darwin" else OUT
+    print(f"后端已生成：{bundle / ('easyread-backend.exe' if os.name == 'nt' else 'easyread-backend')}")
 
 
 if __name__ == "__main__":
