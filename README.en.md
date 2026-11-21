@@ -4,9 +4,9 @@
 
 A personal research workspace for discovering, reading, and connecting papers.
 
-[Download PaperRead (v1.5.3)](https://github.com/YuriyLin/PaperRead/releases/latest) · [繁體中文](README.md) · [Report an issue](https://github.com/YuriyLin/PaperRead/issues)
+[Download PaperRead (v1.5.4)](https://github.com/YuriyLin/PaperRead/releases/latest) · [繁體中文](README.md) · [Report an issue](https://github.com/YuriyLin/PaperRead/issues)
 
-![Release](https://img.shields.io/badge/release-v1.5.3-blue) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+![Release](https://img.shields.io/badge/release-v1.5.4-blue) ![Platforms](https://img.shields.io/badge/Windows_x64%20%7C%20macOS_arm64%20%7C%20Linux_x64-supported-2f6070) ![MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 > See the [Changelog](CHANGELOG.md) for the latest updates.
 

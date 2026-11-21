@@ -244,5 +244,3 @@ test('multi-group academic tables emit tbl-group row dividers without affecting 
   }]);
   assert.match(multiGroupHtml, /<tbody><tr><td[^>]*>base<\/td>.*?<tr class="tbl-group"><td[^>]*>\(A\)<\/td>.*?<tr><td><\/td><td[^>]*>4<\/td>.*?<tr class="tbl-group"><td[^>]*>\(B\)<\/td>.*?<tr><td><\/td><td[^>]*>32<\/td>.*?<tr class="tbl-group"><td[^>]*>big<\/td>/);
 });
-
-

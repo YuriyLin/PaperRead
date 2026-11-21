@@ -85,11 +85,11 @@ def _next_head(ws: Workspace, n: int, whole: bool = False) -> str:
 
 
 _FLOAT_CAPTION_RE = re.compile(
-    r"^\s*(Table|Fig\.?|Figure)\s+([A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)\s*[.:：]\s*(.+)",
+    r"^\s*(Table|Fig\.?|Figure)\s+([A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)\s*[.:：]\s*(.+)",  # i18n-ok
     re.I | re.M,
 )
 _FLOAT_EN_PREFIX_RE = re.compile(r"^(\s*(?:Table|Fig\.?|Figure)\s+)([A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)", re.I)
-_FLOAT_ZH_PREFIX_RE = re.compile(r"^(\s*(?:表|圖|图)\s*)([A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)(?=\s*[.:：]|$|\s)")
+_FLOAT_ZH_PREFIX_RE = re.compile(r"^(\s*(?:表|圖|图)\s*)([A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?)(?=\s*[.:：]|$|\s)")  # i18n-ok
 
 
 def _norm_caption_letters(text: str) -> str:
@@ -127,7 +127,7 @@ def _reconcile_float_numbers(blocks: list[dict], extract_dir) -> None:
         if cur_num and cur_num in {num for num, _ in cands}:
             continue
         cap_en = str(b.get("caption_en") or "")
-        body = re.sub(r"^\s*(?:Table|Fig\.?|Figure)\s+[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?\s*[.:：]?\s*", "", cap_en, flags=re.I)
+        body = re.sub(r"^\s*(?:Table|Fig\.?|Figure)\s+[A-Za-z0-9]+(?:\.[A-Za-z0-9]+)?\s*[.:：]?\s*", "", cap_en, flags=re.I)  # i18n-ok
         norm_body = _norm_caption_letters(body)
         matched = next(
             (num for num, p_title in cands
@@ -146,7 +146,7 @@ def _reconcile_float_numbers(blocks: list[dict], extract_dir) -> None:
                 b["caption_en"] = _FLOAT_EN_PREFIX_RE.sub(rf"\g<1>{matched}", b["caption_en"], count=1)
         if b.get("caption_zh"):
             if cur_num:
-                b["caption_zh"] = re.sub(r"^(\s*(?:表|圖|图)\s*)" + re.escape(cur_num) + r"(?=\s*[.:：]|$|\s)", rf"\g<1>{matched}", b["caption_zh"], count=1)
+                b["caption_zh"] = re.sub(r"^(\s*(?:表|圖|图)\s*)" + re.escape(cur_num) + r"(?=\s*[.:：]|$|\s)", rf"\g<1>{matched}", b["caption_zh"], count=1)  # i18n-ok
             else:
                 b["caption_zh"] = _FLOAT_ZH_PREFIX_RE.sub(rf"\g<1>{matched}", b["caption_zh"], count=1)
 
@@ -389,7 +389,7 @@ def _collect_reference_blocks(ws: Workspace, data: dict, batch: list[int]) -> No
             in_refs = True
             if not has_refs_block:
                 if btype == "heading":
-                    b = {"id": b["id"], "type": "references", "page": page, "en": "References", "zh": "參考文獻"}
+                    b = {"id": b["id"], "type": "references", "page": page, "en": "References", "zh": "參考文獻"}  # i18n-ok
                 refs_insert_at = len(kept)
                 kept.append(b)
                 has_refs_block = True
@@ -415,7 +415,7 @@ def _collect_reference_blocks(ws: Workspace, data: dict, batch: list[int]) -> No
     if collected:
         data.setdefault("references", []).extend(collected)
     if ref_pg in batch and (collected or data.get("references")) and not has_refs_block:
-        blk = {"id": "refs", "type": "references", "page": ref_pg, "en": "References", "zh": "參考文獻"}
+        blk = {"id": "refs", "type": "references", "page": ref_pg, "en": "References", "zh": "參考文獻"}  # i18n-ok
         if refs_insert_at is not None:
             kept.insert(refs_insert_at, blk)
         else:
@@ -446,6 +446,7 @@ def _parse_and_repair(ws: Workspace, cfg: dict, batch: list[int], text: str, rea
     def normalize(d: dict) -> dict:
         return _normalize(d, batch, shared_taken, ws.root / "extract")
 
+    repair_taken = set(shared_taken)
     data = normalize(data)
     _drop_premature_references(ws, data, batch)
     _collect_reference_blocks(ws, data, batch)
@@ -462,7 +463,7 @@ def _parse_and_repair(ws: Workspace, cfg: dict, batch: list[int], text: str, rea
                 data = batch_repair.repair(
                     data, "blocks", problems,
                     lambda prompt: engines.run(cfg, prompt, ws.root, None, cancel, meter, json_mode=True),
-                    check, normalize=normalize,
+                    check, normalize=lambda d: _normalize(d, batch, set(repair_taken), ws.root / "extract"),
                 )
             _drop_premature_references(ws, data, batch)
             _collect_reference_blocks(ws, data, batch)

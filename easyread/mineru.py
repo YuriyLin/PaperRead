@@ -32,9 +32,9 @@ _POLL_INTERVAL = 2.0
 _CACHE_FILE = "mineru_pages.json"
 
 _NUM_HEAD_RE = re.compile(r"^\s*((?:[A-Z]\.)?\d+(?:\.\d+)*|[IVXLC]+\.)\s+(.+)$")
-_CAP_NUM_RE = re.compile(r"^\s*(?:\*{0,2})(?:(?:Table|Figure|Fig\.?|Tab\.?)\s+|(?:表|圖|图)\s*)([A-Za-z]?\d+(?:\.[A-Za-z0-9]+)?)\b", re.I)
-_FIG_CAP_RE = re.compile(r"^\s*(?:\*{0,2})(?:Fig\.?|Figure|圖|图)\s*(?:[A-Za-z]?\d+(?:\.\d+)*)(?:\s*[.:：]|$)", re.I)
-_TAB_CAP_RE = re.compile(r"^\s*(?:\*{0,2})(?:Tab\.?|Table|表)\s*(?:[A-Za-z]?\d+(?:\.\d+)*)(?:\s*[.:：]|$)", re.I)
+_CAP_NUM_RE = re.compile(r"^\s*(?:\*{0,2})(?:(?:Table|Figure|Fig\.?|Tab\.?)\s+|(?:表|圖|图)\s*)([A-Za-z]?\d+(?:\.[A-Za-z0-9]+)?)\b", re.I)  # i18n-ok
+_FIG_CAP_RE = re.compile(r"^\s*(?:\*{0,2})(?:Fig\.?|Figure|圖|图)\s*(?:[A-Za-z]?\d+(?:\.\d+)*)(?:\s*[.:：]|$)", re.I)  # i18n-ok
+_TAB_CAP_RE = re.compile(r"^\s*(?:\*{0,2})(?:Tab\.?|Table|表)\s*(?:[A-Za-z]?\d+(?:\.\d+)*)(?:\s*[.:：]|$)", re.I)  # i18n-ok
 _FOOT_NUM_RE = re.compile(r"^\s*(?:\[(\d{1,3})\]|\^?(\d{1,3}|[*†‡§¶])(?:[.)\s]+|$))(.*)$")
 _EQ_TAG_RE = re.compile(r"(?:\\tag\{([^}]+)\}|\((\d+(?:\.\d+)?)\))\s*$")
 _LIST_ORDERED_RE = re.compile(r"^\s*(?:\d+[.)]|\(\d+\)|[a-zA-Z]\))\s+")
